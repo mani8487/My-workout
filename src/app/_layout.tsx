@@ -1,8 +1,8 @@
-/**
+﻿/**
  * The outermost layout of the app.
  * - Provides the colour roles (light/dark) to every screen.
  * - Holds a "stack" of screens: the tab bar lives at the bottom of the stack,
- *   and later the workout screens (Active Workout, Finish Summary…) slide in on top of it.
+ *   and later the workout screens (Active Workout, Finish Summary, etc.) slide in on top of it.
  */
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import { SQLiteProvider } from 'expo-sqlite';
@@ -44,6 +44,13 @@ function Navigation() {
         <Stack.Screen name="session/[id]" />
         <Stack.Screen name="log-workout" options={{ presentation: 'modal' }} />
         <Stack.Screen name="pick-exercise" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="settings" />
+        <Stack.Screen name="plates" />
+        <Stack.Screen name="library" />
+        <Stack.Screen name="exercise-new" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="plans" />
+        <Stack.Screen name="plan/[workoutId]" />
+        <Stack.Screen name="plan/add" options={{ presentation: 'modal' }} />
       </Stack>
     </ThemeProvider>
   );

@@ -71,6 +71,88 @@ export async function getWorkouts(db: SQLiteDatabase): Promise<Workout[]> {
   }));
 }
 
+// ---------- Plan editing (changes apply to future workouts only) ----------
+
+export async function updatePlanItem(
+  db: SQLiteDatabase,
+  id: number,
+  patch: Partial<{ targetSets: number; repMin: number; repMax: number; restSeconds: number }>,
+) {
+  const cols = { targetSets: 'target_sets', repMin: 'rep_min', repMax: 'rep_max', restSeconds: 'rest_seconds' } as const;
+  const keys = Object.keys(patch) as (keyof typeof cols)[];
+  if (!keys.length) return;
+  await db.runAsync(
+    `UPDATE plan_items SET ${keys.map((k) => `${cols[k]} = ?`).join(', ')} WHERE id = ?`,
+    ...keys.map((k) => patch[k]!),
+    id,
+  );
+}
+
+/** Renumbers positions 1, 2, 3… in the given order. */
+async function renumber(db: SQLiteDatabase, ids: number[]) {
+  await db.withExclusiveTransactionAsync(async (txn) => {
+    for (let i = 0; i < ids.length; i++) await txn.runAsync('UPDATE plan_items SET position = ? WHERE id = ?', i + 1, ids[i]);
+  });
+}
+
+async function planIds(db: SQLiteDatabase, workoutId: WorkoutId) {
+  const rows = await db.getAllAsync<{ id: number }>('SELECT id FROM plan_items WHERE workout_id = ? ORDER BY position, id', workoutId);
+  return rows.map((r) => r.id);
+}
+
+export async function movePlanItem(db: SQLiteDatabase, workoutId: WorkoutId, id: number, direction: -1 | 1) {
+  const ids = await planIds(db, workoutId);
+  const i = ids.indexOf(id);
+  const j = i + direction;
+  if (i < 0 || j < 0 || j >= ids.length) return;
+  [ids[i], ids[j]] = [ids[j], ids[i]];
+  await renumber(db, ids);
+}
+
+export async function removePlanItem(db: SQLiteDatabase, workoutId: WorkoutId, id: number) {
+  await db.runAsync('DELETE FROM plan_items WHERE id = ?', id);
+  await renumber(db, await planIds(db, workoutId));
+}
+
+export async function addPlanItem(db: SQLiteDatabase, workoutId: WorkoutId, exerciseId: string) {
+  const ids = await planIds(db, workoutId);
+  await db.runAsync(
+    `INSERT INTO plan_items (workout_id, exercise_id, position, target_sets, rep_min, rep_max, rest_seconds)
+     VALUES (?, ?, ?, 3, 8, 12, 120)`,
+    workoutId,
+    exerciseId,
+    ids.length + 1,
+  );
+}
+
+// ---------- Custom exercises ----------
+
+export async function addCustomExercise(
+  db: SQLiteDatabase,
+  e: { name: string; muscles: MuscleGroup[]; equipment: Equipment },
+): Promise<string> {
+  const base = 'custom-' + e.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  let id = base;
+  for (let n = 2; await db.getFirstAsync('SELECT 1 FROM exercises WHERE id = ?', id); n++) id = `${base}-${n}`;
+  await db.runAsync(
+    'INSERT INTO exercises (id, name, muscles, equipment, increment_kg, is_custom) VALUES (?, ?, ?, ?, ?, 1)',
+    id,
+    e.name.trim(),
+    e.muscles.join(','),
+    e.equipment,
+    e.equipment === 'dumbbell' ? 2 : 2.5,
+  );
+  return id;
+}
+
+/** Returns false if the exercise is still in your plan (remove it there first). */
+export async function deleteCustomExercise(db: SQLiteDatabase, id: string): Promise<boolean> {
+  const used = await db.getFirstAsync('SELECT 1 FROM plan_items WHERE exercise_id = ?', id);
+  if (used) return false;
+  await db.runAsync('DELETE FROM exercises WHERE id = ? AND is_custom = 1', id);
+  return true;
+}
+
 /** One planned exercise joined with its library details, ready to display. */
 export type PlannedExercise = {
   planItemId: number;

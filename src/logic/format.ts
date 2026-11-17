@@ -22,6 +22,14 @@ export function parseReps(text: string): number | null {
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
+/** "chest" -> "Chest" */
+export const titleCase = (s: string) => s[0].toUpperCase() + s.slice(1);
+
+/** "Chest · Triceps · barbell" */
+export function describeExercise(e: { muscles: string[]; equipment: string }) {
+  return `${e.muscles.map(titleCase).join(' · ')} · ${e.equipment}`;
+}
+
 /** 52 -> "52 min", 75 -> "1 h 15 min" */
 export function formatDuration(min: number) {
   if (min < 60) return `${min} min`;

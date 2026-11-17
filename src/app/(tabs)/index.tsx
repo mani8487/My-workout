@@ -78,7 +78,7 @@ export default function HomeScreen() {
           {greeting()}
           {data.name ? `, ${data.name}` : ''}
         </AppText>
-        <Pressable onPress={() => router.navigate('/more')} hitSlop={10} accessibilityLabel="Settings">
+        <Pressable onPress={() => router.push('/settings')} hitSlop={10} accessibilityLabel="Settings">
           <SymbolView name="gearshape" size={24} tintColor={colors.textMuted} />
         </Pressable>
       </View>
