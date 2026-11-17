@@ -1,7 +1,7 @@
 /**
  * The five workouts and a STARTER plan for each.
  * This is only loaded the very first time the app runs. After that, your plan
- * lives in the database and you change it in the plan editor (Step 10).
+ * lives in the database and you change it in the Plan Editor (More tab).
  */
 import type { Workout, WorkoutId } from '@/db/types';
 import { slugify } from './exercise-library';

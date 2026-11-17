@@ -10,7 +10,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import { EXERCISE_LIBRARY } from '@/data/exercise-library';
 import { DEFAULT_PLAN, WORKOUTS } from '@/data/default-plan';
 import { runMigrations } from './migrations';
-import { getSetting, setSetting } from './settings';
+import { getSetting } from './settings';
 
 export const DATABASE_NAME = 'workout-tracker.db';
 
@@ -65,9 +65,4 @@ export async function initDatabase(db: SQLiteDatabase) {
       }
       await txn.runAsync(`INSERT OR REPLACE INTO settings (key, value) VALUES ('plan_seeded', '1')`);
     });
-  }
-
-  // A simple counter so you can see saving works across restarts (Step 1 test).
-  const opens = Number((await getSetting(db, 'app_opens')) ?? '0') + 1;
-  await setSetting(db, 'app_opens', String(opens));
-}
+  }}

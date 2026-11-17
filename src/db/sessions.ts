@@ -9,7 +9,9 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { suggestWeight } from '@/logic/suggestion';
+import { easeBack, planWarmups } from '@/logic/warmup';
 import { getPlanForWorkout } from './plan';
+import { getSetting } from './settings';
 import type { WorkoutId } from './types';
 
 export type SessionSet = {
@@ -203,10 +205,10 @@ export async function startSession(
   past?: { startedAt: number; finishedAt: number },
 ): Promise<number> {
   const plan = await getPlanForWorkout(db, workoutId);
-  const previousByExercise = new Map<string, PreviousSet[]>();
-  for (const p of plan) {
-    previousByExercise.set(p.exercise.id, (await getLastTime(db, p.exercise.id))?.sets ?? []);
-  }
+  const lastTimes = new Map<string, LastTime | null>();
+  for (const p of plan) lastTimes.set(p.exercise.id, await getLastTime(db, p.exercise.id));
+  // Set by the "welcome back" fresh start: first session back on each exercise is ~10% lighter.
+  const easeBackAt = Number((await getSetting(db, 'ease_back_at')) ?? '0');
 
   let sessionId = 0;
   await db.withExclusiveTransactionAsync(async (txn) => {
@@ -234,17 +236,34 @@ export async function startSession(
         p.repMax,
         p.restSeconds,
       );
-      const weights = startingWeights(previousByExercise.get(p.exercise.id) ?? [], {
+      const last = lastTimes.get(p.exercise.id) ?? null;
+      let weights = startingWeights(last?.sets ?? [], {
         targetSets: p.targetSets,
         repMin: p.repMin,
         repMax: p.repMax,
         incrementKg: p.exercise.incrementKg,
       });
+      if (!past && last && easeBackAt && last.date < easeBackAt) {
+        weights = weights.map((w) => easeBack(w, p.exercise.incrementKg));
+      }
+
+      // Warm-ups only for the first exercise of a live workout.
+      const warmups = !past && p === plan[0] ? planWarmups(weights[0], p.exercise.equipment) : [];
+      let pos = 1;
+      for (const w of warmups) {
+        await txn.runAsync(
+          `INSERT INTO sets (session_exercise_id, position, weight_kg, reps, is_warmup) VALUES (?, ?, ?, ?, 1)`,
+          seRes.lastInsertRowId,
+          pos++,
+          w.weightKg,
+          w.reps,
+        );
+      }
       for (let i = 0; i < p.targetSets; i++) {
         await txn.runAsync(
           `INSERT INTO sets (session_exercise_id, position, weight_kg) VALUES (?, ?, ?)`,
           seRes.lastInsertRowId,
-          i + 1,
+          pos++,
           weights[i],
         );
       }

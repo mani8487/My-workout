@@ -17,6 +17,7 @@ import { quoteOfTheDay } from '@/data/quotes';
 import { getSetting } from '@/db/settings';
 import { getActiveSessionId, getSessionDetail } from '@/db/sessions';
 import type { Workout } from '@/db/types';
+import { acceptFreshStart, dismissFreshStart, freshStartOffer } from '@/logic/fresh-start';
 import type { Rotation } from '@/logic/rotation';
 import { getToday, getWorkoutPreview, greeting, shortDate } from '@/logic/today';
 import { useTheme } from '@/theme/theme-context';
@@ -35,6 +36,8 @@ export default function HomeScreen() {
   const db = useSQLiteContext();
   const { colors } = useTheme();
   const [data, setData] = useState<HomeData | null>(null);
+  const [weeksAway, setWeeksAway] = useState<number | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   // Reload every time Home comes into view (after a workout, after Change Workout…).
   useFocusEffect(
@@ -55,8 +58,9 @@ export default function HomeScreen() {
           }
         }
         setData({ name, rotation, workout, exerciseCount: plan.length, minutes, active });
+        setWeeksAway(activeId == null ? await freshStartOffer(db) : null);
       })();
-    }, [db]),
+    }, [db, reloadKey]),
   );
 
   if (!data) return <Screen>{null}</Screen>;
@@ -82,6 +86,36 @@ export default function HomeScreen() {
           <SymbolView name="gearshape" size={24} tintColor={colors.textMuted} />
         </Pressable>
       </View>
+
+      {weeksAway != null && (
+        <Card>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm }}>
+            <AppText variant="label" style={{ flex: 1 }}>
+              Welcome back! It&apos;s been {weeksAway} weeks.
+            </AppText>
+            <Pressable
+              onPress={async () => {
+                await dismissFreshStart(db);
+                setWeeksAway(null);
+              }}
+              hitSlop={10}
+              accessibilityLabel="Dismiss">
+              <SymbolView name="xmark" size={14} tintColor={colors.textMuted} />
+            </Pressable>
+          </View>
+          <AppText variant="small" muted>
+            Start a fresh cycle from Push, with weights about 10% lighter for your first session back on each exercise.
+          </AppText>
+          <Button
+            title="Fresh Start"
+            kind="secondary"
+            onPress={async () => {
+              await acceptFreshStart(db);
+              setReloadKey((k) => k + 1);
+            }}
+          />
+        </Card>
+      )}
 
       {active ? (
         <>

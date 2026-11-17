@@ -1,16 +1,30 @@
 /**
- * Text sizes. Hierarchy, not novelty:
+ * Text sizes and the Inter font. Hierarchy, not novelty:
  * titles largest and bold, instructions medium, sets and metadata small and muted.
- * (We'll switch the font itself to Inter in the polish step.)
+ *
+ * Custom fonts need a separate font file per weight, so instead of
+ * "fontWeight" we pick the matching Inter file (see fontFor below).
  */
 import type { TextStyle } from 'react-native';
 
+export const INTER = {
+  regular: 'Inter_400Regular',
+  semibold: 'Inter_600SemiBold',
+  bold: 'Inter_700Bold',
+} as const;
+
+/** Turns a fontWeight like '600' into the right Inter font file. */
+export function fontFor(weight: TextStyle['fontWeight']): string {
+  const w = Number(weight === 'bold' ? 700 : weight === 'normal' || weight == null ? 400 : weight);
+  return w >= 700 ? INTER.bold : w >= 600 ? INTER.semibold : INTER.regular;
+}
+
 export const typography = {
-  title: { fontSize: 28, fontWeight: '700', letterSpacing: -0.4 },
-  heading: { fontSize: 20, fontWeight: '600', letterSpacing: -0.2 },
-  body: { fontSize: 16, fontWeight: '400' },
-  label: { fontSize: 16, fontWeight: '600' },
-  small: { fontSize: 13, fontWeight: '400' },
+  title: { fontSize: 28, fontFamily: INTER.bold, letterSpacing: -0.4 },
+  heading: { fontSize: 20, fontFamily: INTER.semibold, letterSpacing: -0.2 },
+  body: { fontSize: 16, fontFamily: INTER.regular },
+  label: { fontSize: 16, fontFamily: INTER.semibold },
+  small: { fontSize: 13, fontFamily: INTER.regular },
 } satisfies Record<string, TextStyle>;
 
 export type TextVariant = keyof typeof typography;

@@ -1,7 +1,7 @@
-import { Text, type TextProps } from 'react-native';
+import { StyleSheet, Text, type TextProps } from 'react-native';
 
 import { useTheme } from '@/theme/theme-context';
-import { typography, type TextVariant } from '@/theme/typography';
+import { fontFor, typography, type TextVariant } from '@/theme/typography';
 
 type Props = TextProps & {
   variant?: TextVariant;
@@ -11,9 +11,12 @@ type Props = TextProps & {
   color?: string;
 };
 
-/** All text in the app goes through this, so sizes and colours stay consistent. */
+/** All text in the app goes through this, so sizes, colours and the Inter font stay consistent. */
 export function AppText({ variant = 'body', muted, color, style, ...rest }: Props) {
   const { colors } = useTheme();
   const textColor = color ?? (muted ? colors.textMuted : colors.text);
-  return <Text style={[typography[variant], { color: textColor }, style]} {...rest} />;
+  const flat = StyleSheet.flatten(style) ?? {};
+  // A screen asking for e.g. fontWeight '600' gets the SemiBold Inter file instead.
+  const weightFix = flat.fontWeight ? { fontFamily: fontFor(flat.fontWeight), fontWeight: undefined } : null;
+  return <Text style={[typography[variant], { color: textColor }, style, weightFix]} {...rest} />;
 }

@@ -1,10 +1,8 @@
 /**
  * Active Workout screen: logging sets for one exercise at a time.
  *
- * Built in Step 2. Still to come here:
- *  - Step 3: automatic rest timer (starts when you tick a set)
- *  - Step 4: "Last time" card and the green weight-suggestion card
- *  - Step 5: Swap Exercise and the Workout Progress overview
+ * Also shows the "Last time" and suggestion cards, and the rest timer
+ * (which starts by itself when you tick a set).
  */
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
