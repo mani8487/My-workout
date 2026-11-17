@@ -35,6 +35,8 @@ function Navigation() {
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="workout/preview" />
+        <Stack.Screen name="workout/change" options={{ presentation: 'modal' }} />
         <Stack.Screen name="workout/active" />
         <Stack.Screen name="workout/overview" />
         <Stack.Screen name="workout/swap" options={{ presentation: 'modal' }} />

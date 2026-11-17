@@ -364,13 +364,15 @@ export async function deleteSet(db: SQLiteDatabase, setId: number) {
   await db.runAsync('DELETE FROM sets WHERE id = ?', setId);
 }
 
-/** Temporary in Step 2: the proper finish flow (summary, records) comes in Steps 5–6. */
+/** Marks the workout as done. It then counts as done in the rotation. */
 export async function finishSession(db: SQLiteDatabase, sessionId: number) {
   await db.runAsync(
     `UPDATE sessions SET status = 'finished', finished_at = ? WHERE id = ?`,
     Date.now(),
     sessionId,
   );
+  // Any "Change Workout" pick has been used; let the rotation suggest again.
+  await db.runAsync(`DELETE FROM settings WHERE key = 'selected_workout'`);
 }
 
 /** For a workout started by accident: removes it and all its sets. */
