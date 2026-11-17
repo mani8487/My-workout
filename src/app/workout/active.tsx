@@ -25,7 +25,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
+import { RestTimerBar } from '@/components/rest-timer-bar';
 import { COLS, SET_INPUT_ACCESSORY_ID, SetRow } from '@/components/set-row';
+import { useRestTimer } from '@/logic/rest-timer';
 import {
   addSet,
   cancelSession,
@@ -55,6 +57,7 @@ export default function ActiveWorkoutScreen() {
   const [detail, setDetail] = useState<SessionDetail | null>(null);
   const [index, setIndex] = useState<number | null>(params.index != null ? Number(params.index) : null);
   const [rirForSetId, setRirForSetId] = useState<number | null>(null);
+  const restTimer = useRestTimer();
 
   const refresh = useCallback(async () => {
     const id = await getActiveSessionId(db);
@@ -105,6 +108,7 @@ export default function ActiveWorkoutScreen() {
           text: 'Cancel Workout',
           style: 'destructive',
           onPress: async () => {
+            restTimer.skip();
             await cancelSession(db, detail!.id);
             router.replace('/');
           },
@@ -119,6 +123,7 @@ export default function ActiveWorkoutScreen() {
       {
         text: 'Finish',
         onPress: async () => {
+          restTimer.skip();
           await finishSession(db, detail!.id);
           router.replace('/');
         },
@@ -263,7 +268,11 @@ export default function ActiveWorkoutScreen() {
                   previous={previous}
                   showRir={rirForSetId === set.id}
                   onSave={(patch) => save(set.id, patch)}
-                  onCompleted={() => setRirForSetId(set.id)}
+                  onCompleted={() => {
+                    setRirForSetId(set.id);
+                    // Rest starts by itself. Warm-ups get a shorter 60 s rest.
+                    restTimer.start(set.isWarmup ? 60 : exercise.restSeconds);
+                  }}
                   onRir={async (rir) => {
                     setRirForSetId(null);
                     if (rir != null) await save(set.id, { rir });
@@ -297,6 +306,8 @@ export default function ActiveWorkoutScreen() {
           </AppText>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <RestTimerBar />
 
       {/* Previous / Next exercise */}
       <View

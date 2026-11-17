@@ -10,6 +10,7 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { DATABASE_NAME, initDatabase } from '@/db/init';
+import { RestTimerProvider } from '@/logic/rest-timer';
 import { AppThemeProvider, useTheme } from '@/theme/theme-context';
 
 function Navigation() {
@@ -47,7 +48,9 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SQLiteProvider databaseName={DATABASE_NAME} onInit={initDatabase}>
         <AppThemeProvider>
-          <Navigation />
+          <RestTimerProvider>
+            <Navigation />
+          </RestTimerProvider>
         </AppThemeProvider>
       </SQLiteProvider>
     </GestureHandlerRootView>
