@@ -8,6 +8,7 @@
  */
 import type { SQLiteDatabase } from 'expo-sqlite';
 
+import { suggestWeight } from '@/logic/suggestion';
 import { getPlanForWorkout } from './plan';
 import type { WorkoutId } from './types';
 
@@ -24,7 +25,10 @@ export type SessionSet = {
 };
 
 /** A set from last time, shown in the muted "Previous" column. */
-export type PreviousSet = { weightKg: number | null; reps: number | null; isWarmup: boolean };
+export type PreviousSet = { weightKg: number | null; reps: number | null; rir: number | null; isWarmup: boolean };
+
+/** What you did last time on an exercise, and when. */
+export type LastTime = { date: number; sets: PreviousSet[] };
 
 export type SessionExercise = {
   id: number;
@@ -35,9 +39,13 @@ export type SessionExercise = {
   repMin: number;
   repMax: number;
   restSeconds: number;
+  /** How much the suggestion adds when you've earned an increase. */
+  incrementKg: number;
   sets: SessionSet[];
   /** Completed sets from the last finished session that included this exercise. */
   previous: PreviousSet[];
+  /** When that last session was, or null if never done before. */
+  previousDate: number | null;
 };
 
 export type SessionDetail = {
@@ -84,36 +92,40 @@ export async function getActiveSessionId(db: SQLiteDatabase): Promise<number | n
 }
 
 /** Completed sets from the most recent FINISHED session that included this exercise. */
-export async function getPreviousSets(
+export async function getLastTime(
   db: SQLiteDatabase,
   exerciseId: string,
   excludeSessionId?: number,
-): Promise<PreviousSet[]> {
-  const last = await db.getFirstAsync<{ id: number }>(
-    `SELECT se.id FROM session_exercises se
+): Promise<LastTime | null> {
+  const last = await db.getFirstAsync<{ id: number; started_at: number }>(
+    `SELECT se.id, s.started_at FROM session_exercises se
      JOIN sessions s ON s.id = se.session_id
      WHERE se.exercise_id = ? AND s.status = 'finished' AND s.id != ?
      ORDER BY s.started_at DESC, se.id DESC LIMIT 1`,
     exerciseId,
     excludeSessionId ?? -1,
   );
-  if (!last) return [];
+  if (!last) return null;
   const rows = await db.getAllAsync<SetRow>(
     `SELECT * FROM sets WHERE session_exercise_id = ? AND completed_at IS NOT NULL ORDER BY position`,
     last.id,
   );
-  return rows.map((r) => ({ weightKg: r.weight_kg, reps: r.reps, isWarmup: r.is_warmup === 1 }));
+  return {
+    date: last.started_at,
+    sets: rows.map((r) => ({ weightKg: r.weight_kg, reps: r.reps, rir: r.rir, isWarmup: r.is_warmup === 1 })),
+  };
 }
 
 /**
  * Starts a new workout: copies today's plan into the session and creates the
- * planned number of empty set rows, with the weight pre-filled from last time.
+ * planned number of empty set rows, with the weight pre-filled from the
+ * suggestion (or last time's weight if there's no suggestion).
  */
 export async function startSession(db: SQLiteDatabase, workoutId: WorkoutId, workoutName: string): Promise<number> {
   const plan = await getPlanForWorkout(db, workoutId);
   const previousByExercise = new Map<string, PreviousSet[]>();
   for (const p of plan) {
-    previousByExercise.set(p.exercise.id, await getPreviousSets(db, p.exercise.id));
+    previousByExercise.set(p.exercise.id, (await getLastTime(db, p.exercise.id))?.sets ?? []);
   }
 
   let sessionId = 0;
@@ -140,14 +152,24 @@ export async function startSession(db: SQLiteDatabase, workoutId: WorkoutId, wor
         p.repMax,
         p.restSeconds,
       );
-      const prevWorking = (previousByExercise.get(p.exercise.id) ?? []).filter((s) => !s.isWarmup);
+      const previous = previousByExercise.get(p.exercise.id) ?? [];
+      const prevWorking = previous.filter((s) => !s.isWarmup);
+      const suggestion = suggestWeight({
+        previous,
+        targetSets: p.targetSets,
+        repMin: p.repMin,
+        repMax: p.repMax,
+        incrementKg: p.exercise.incrementKg,
+      });
       for (let i = 0; i < p.targetSets; i++) {
         const prev = prevWorking[i] ?? prevWorking[prevWorking.length - 1];
+        // An earned increase applies to every set; otherwise keep each set's weight from last time.
+        const weight = suggestion.kind === 'increase' ? suggestion.weightKg : (prev?.weightKg ?? null);
         await txn.runAsync(
           `INSERT INTO sets (session_exercise_id, position, weight_kg) VALUES (?, ?, ?)`,
           seRes.lastInsertRowId,
           i + 1,
-          prev?.weightKg ?? null,
+          weight,
         );
       }
     }
@@ -176,7 +198,13 @@ export async function getSessionDetail(db: SQLiteDatabase, sessionId: number): P
     rep_min: number;
     rep_max: number;
     rest_seconds: number;
-  }>('SELECT * FROM session_exercises WHERE session_id = ? ORDER BY position, id', sessionId);
+    increment_kg: number | null;
+  }>(
+    `SELECT se.*, e.increment_kg FROM session_exercises se
+     LEFT JOIN exercises e ON e.id = se.exercise_id
+     WHERE se.session_id = ? ORDER BY se.position, se.id`,
+    sessionId,
+  );
 
   const setRows = await db.getAllAsync<SetRow>(
     `SELECT st.* FROM sets st
@@ -187,6 +215,7 @@ export async function getSessionDetail(db: SQLiteDatabase, sessionId: number): P
 
   const exercises: SessionExercise[] = [];
   for (const e of exRows) {
+    const lastTime = await getLastTime(db, e.exercise_id, sessionId);
     exercises.push({
       id: e.id,
       exerciseId: e.exercise_id,
@@ -196,8 +225,10 @@ export async function getSessionDetail(db: SQLiteDatabase, sessionId: number): P
       repMin: e.rep_min,
       repMax: e.rep_max,
       restSeconds: e.rest_seconds,
+      incrementKg: e.increment_kg ?? 2.5,
       sets: setRows.filter((r) => r.session_exercise_id === e.id).map(toSet),
-      previous: await getPreviousSets(db, e.exercise_id, sessionId),
+      previous: lastTime?.sets ?? [],
+      previousDate: lastTime?.date ?? null,
     });
   }
 

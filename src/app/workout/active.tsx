@@ -25,6 +25,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
+import { LastTimeCards } from '@/components/last-time-cards';
 import { RestTimerBar } from '@/components/rest-timer-bar';
 import { COLS, SET_INPUT_ACCESSORY_ID, SetRow } from '@/components/set-row';
 import { useRestTimer } from '@/logic/rest-timer';
@@ -229,6 +230,8 @@ export default function ActiveWorkoutScreen() {
               Target: {exercise.targetSets} sets of {exercise.repMin}–{exercise.repMax} reps
             </AppText>
           </View>
+
+          <LastTimeCards exercise={exercise} />
 
           {/* Set table */}
           <View
