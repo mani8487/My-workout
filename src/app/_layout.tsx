@@ -5,8 +5,10 @@
  *   and later the workout screens (Active Workout, Finish Summary…) slide in on top of it.
  */
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import { SQLiteProvider } from 'expo-sqlite';
 import { StatusBar } from 'expo-status-bar';
 
+import { DATABASE_NAME, initDatabase } from '@/db/init';
 import { AppThemeProvider, useTheme } from '@/theme/theme-context';
 
 function Navigation() {
@@ -38,8 +40,11 @@ function Navigation() {
 
 export default function RootLayout() {
   return (
-    <AppThemeProvider>
-      <Navigation />
-    </AppThemeProvider>
+    // Opens the on-phone database and runs initDatabase before any screen shows.
+    <SQLiteProvider databaseName={DATABASE_NAME} onInit={initDatabase}>
+      <AppThemeProvider>
+        <Navigation />
+      </AppThemeProvider>
+    </SQLiteProvider>
   );
 }
