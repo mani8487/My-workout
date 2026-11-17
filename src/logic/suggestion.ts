@@ -39,7 +39,8 @@ export function suggestWeight(opts: {
 
   const topWeight = Math.max(...working.map((s) => s.weightKg ?? 0));
   const allAtTop = working.length >= targetSets && working.every((s) => (s.reps ?? 0) >= repMax);
-  const anyToFailure = working.some((s) => s.rir === 0);
+  // Your plans take the LAST set to 0–1 reps left on purpose, so only an earlier set at 0 counts.
+  const anyToFailure = working.slice(0, -1).some((s) => s.rir === 0);
 
   if (allAtTop && !anyToFailure) {
     const next = Math.round((topWeight + incrementKg) * 100) / 100;
@@ -54,7 +55,7 @@ export function suggestWeight(opts: {
     return {
       kind: 'repeat',
       weightKg: topWeight,
-      reason: `You hit ${repMax} reps but had 0 left in the tank. Repeat ${formatKg(topWeight)} kg once more.`,
+      reason: `You hit ${repMax} reps but an early set had 0 left in the tank. Repeat ${formatKg(topWeight)} kg once more.`,
     };
   }
 

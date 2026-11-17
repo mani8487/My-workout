@@ -10,7 +10,10 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import { EXERCISE_LIBRARY } from '@/data/exercise-library';
 import { DEFAULT_PLAN, WORKOUTS } from '@/data/default-plan';
 import { runMigrations } from './migrations';
-import { getSetting } from './settings';
+import { STARTER_ROUTINES } from '@/data/starter-routines';
+import { slugify } from '@/data/exercise-library';
+import { addRoutine, addWorkout } from './plan';
+import { getSetting, setSetting } from './settings';
 
 export const DATABASE_NAME = 'workout-tracker.db';
 
@@ -64,6 +67,33 @@ export async function initDatabase(db: SQLiteDatabase) {
         );
       }
       await txn.runAsync(`INSERT OR REPLACE INTO settings (key, value) VALUES ('plan_seeded', '1')`);
+    });
+  }
+
+  // Your three starter routines, added once. Your active routine doesn't change.
+  if ((await getSetting(db, 'starter_routines_v1')) !== '1') {
+    // All-or-nothing, so a hiccup can never leave half a routine behind.
+    await db.withTransactionAsync(async () => {
+    for (const r of STARTER_ROUTINES) {
+      const routineId = await addRoutine(db, r.name);
+      for (const w of r.workouts) {
+        const workoutId = await addWorkout(db, { name: w.name, muscleLabel: w.muscleLabel, icon: w.icon, routineId });
+        for (let i = 0; i < w.lines.length; i++) {
+          const [name, sets, repMin, repMax] = w.lines[i];
+          await db.runAsync(
+            `INSERT INTO plan_items (workout_id, exercise_id, position, target_sets, rep_min, rep_max, rest_seconds)
+             VALUES (?, ?, ?, ?, ?, ?, 120)`,
+            workoutId,
+            slugify(name),
+            i + 1,
+            sets,
+            repMin,
+            repMax,
+          );
+        }
+      }
+    }
+    await setSetting(db, 'starter_routines_v1', '1');
     });
   }
 }
