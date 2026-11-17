@@ -7,6 +7,7 @@
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import { SQLiteProvider } from 'expo-sqlite';
 import { StatusBar } from 'expo-status-bar';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { DATABASE_NAME, initDatabase } from '@/db/init';
 import { AppThemeProvider, useTheme } from '@/theme/theme-context';
@@ -33,6 +34,7 @@ function Navigation() {
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="workout/active" />
       </Stack>
     </ThemeProvider>
   );
@@ -41,10 +43,13 @@ function Navigation() {
 export default function RootLayout() {
   return (
     // Opens the on-phone database and runs initDatabase before any screen shows.
-    <SQLiteProvider databaseName={DATABASE_NAME} onInit={initDatabase}>
-      <AppThemeProvider>
-        <Navigation />
-      </AppThemeProvider>
-    </SQLiteProvider>
+    // GestureHandlerRootView makes swipe gestures (like swipe-to-delete) work.
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SQLiteProvider databaseName={DATABASE_NAME} onInit={initDatabase}>
+        <AppThemeProvider>
+          <Navigation />
+        </AppThemeProvider>
+      </SQLiteProvider>
+    </GestureHandlerRootView>
   );
 }
