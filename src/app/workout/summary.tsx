@@ -47,10 +47,11 @@ export default function SummaryScreen() {
         .flatMap((e) => e.sets)
         .filter((s) => !s.isWarmup && s.completedAt != null).length;
       const durationMin = Math.max(1, Math.round(((detail.finishedAt ?? Date.now()) - detail.startedAt) / 60000));
+      const nextName = rotation.next?.name ?? '';
       const rotationLine =
         rotation.done.size === 0
-          ? `Cycle complete! Next up: ${rotation.next.name}`
-          : `${detail.workoutName} done. ${rotation.next.name} is next`;
+          ? `Cycle complete! Next up: ${nextName}`
+          : `${detail.workoutName} done. ${nextName} is next`;
       // One celebration per workout: a success haptic if there's a new record.
       if (records.length > 0) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       setSummary({

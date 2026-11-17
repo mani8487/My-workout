@@ -27,7 +27,8 @@ import { spacing } from '@/theme/typography';
 type HomeData = {
   name: string | null;
   rotation: Rotation;
-  workout: Workout;
+  /** Null only when the active routine has no workouts yet. */
+  workout: Workout | null;
   exerciseCount: number;
   minutes: number;
   active: { name: string; setsDone: number } | null;
@@ -49,7 +50,7 @@ export default function HomeScreen() {
           getSetting(db, 'user_name'),
           getActiveSessionId(db),
         ]);
-        const { plan, minutes } = await getWorkoutPreview(db, workout.id);
+        const { plan, minutes } = workout ? await getWorkoutPreview(db, workout.id) : { plan: [], minutes: 0 };
         let active: HomeData['active'] = null;
         if (activeId != null) {
           const d = await getSessionDetail(db, activeId);
@@ -68,12 +69,32 @@ export default function HomeScreen() {
 
   const { rotation, workout, active } = data;
   const doneCount = rotation.done.size;
-  const isOwed = !rotation.done.has(workout.id);
-  const statusLine = isOwed
-    ? `${workout.name} is owed · ${doneCount} of ${rotation.workouts.length} done this cycle`
-    : `${workout.name} was already done on ${shortDate(rotation.done.get(workout.id)!)} this cycle`;
 
-  const openPreview = () => router.push({ pathname: '/workout/preview', params: { id: workout.id } });
+  // A brand-new routine with no workouts yet.
+  if (!workout && !active) {
+    return (
+      <Screen>
+        <AppText variant="title">{greeting()}</AppText>
+        <Card>
+          <AppText variant="heading">{rotation.routine.name}</AppText>
+          <AppText muted>This routine has no workouts yet. Add some in the Plan Editor.</AppText>
+          <Button
+            title="Open Routine"
+            onPress={() => router.push({ pathname: '/routine/[routineId]', params: { routineId: rotation.routine.id } })}
+          />
+        </Card>
+      </Screen>
+    );
+  }
+
+  const isOwed = workout ? !rotation.done.has(workout.id) : true;
+  const statusLine = !workout
+    ? ''
+    : isOwed
+      ? `${workout.name} is owed · ${doneCount} of ${rotation.workouts.length} done this cycle`
+      : `${workout.name} was already done on ${shortDate(rotation.done.get(workout.id)!)} this cycle`;
+
+  const openPreview = () => workout && router.push({ pathname: '/workout/preview', params: { id: workout.id } });
 
   return (
     <Screen>
@@ -133,12 +154,13 @@ export default function HomeScreen() {
           <Button title="Resume Workout" size="large" onPress={() => router.push('/workout/active')} />
         </>
       ) : (
+        workout && (
         <>
           <View style={{ gap: spacing.sm }}>
             <Pressable onPress={openPreview} accessibilityLabel={`Preview ${workout.name}`}>
               <Card style={{ borderColor: colors.accent, padding: spacing.xl }}>
                 <AppText variant="small" muted>
-                  TODAY&apos;S WORKOUT
+                  TODAY&apos;S WORKOUT · {rotation.routine.name.toUpperCase()}
                 </AppText>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
                   <SymbolView name={workout.icon as SFSymbol} size={30} tintColor={colors.accent} />
@@ -166,6 +188,7 @@ export default function HomeScreen() {
           <Button title="Start Workout" size="large" onPress={openPreview} />
           <Button title="Change Workout" kind="secondary" onPress={() => router.push('/workout/change')} />
         </>
+        )
       )}
 
       <AppText variant="small" muted style={{ textAlign: 'center', marginTop: spacing.lg }}>

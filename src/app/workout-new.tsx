@@ -1,5 +1,5 @@
 /** Create a new workout (e.g. "Arms & Abs"), then add its exercises in the Plan Editor. */
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { useState } from 'react';
@@ -29,6 +29,7 @@ const ICONS: SFSymbol[] = [
 export default function NewWorkoutScreen() {
   const db = useSQLiteContext();
   const { colors } = useTheme();
+  const { routineId } = useLocalSearchParams<{ routineId?: string }>();
   const [name, setName] = useState('');
   const [muscles, setMuscles] = useState('');
   const [icon, setIcon] = useState<SFSymbol>(ICONS[0]);
@@ -49,7 +50,7 @@ export default function NewWorkoutScreen() {
       Alert.alert('Name needed', 'Give the workout a name, e.g. Arms & Abs.');
       return;
     }
-    const id = await addWorkout(db, { name, muscleLabel: muscles, icon });
+    const id = await addWorkout(db, { name, muscleLabel: muscles, icon, routineId: routineId ?? 'main' });
     router.replace({ pathname: '/plan/[workoutId]', params: { workoutId: id } });
   }
 
@@ -96,7 +97,7 @@ export default function NewWorkoutScreen() {
         </View>
       </Card>
       <AppText variant="small" muted>
-        New workouts join the rotation after your existing ones, so a cycle is complete once all of them are done.
+        New workouts join this routine&apos;s rotation after its existing ones.
       </AppText>
     </Page>
   );

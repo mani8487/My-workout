@@ -8,7 +8,14 @@ import { ActionSheetIOS, Alert, Pressable, TextInput } from 'react-native';
 import { AppText } from '@/components/app-text';
 import { ListRow, Section } from '@/components/list';
 import { Page } from '@/components/page';
-import { addPlanItem, deleteCustomExercise, getAllExercises, getPlanForWorkout, getWorkouts } from '@/db/plan';
+import {
+  addPlanItem,
+  deleteCustomExercise,
+  getActiveRoutineId,
+  getAllExercises,
+  getPlanForWorkout,
+  getWorkouts,
+} from '@/db/plan';
 import type { Exercise, Workout } from '@/db/types';
 import { describeExercise } from '@/logic/format';
 import { useTheme } from '@/theme/theme-context';
@@ -32,7 +39,7 @@ export default function LibraryScreen() {
 
   /** Tap an exercise: choose a workout to add it to. */
   async function addToWorkout(e: Exercise) {
-    const workouts = await getWorkouts(db);
+    const workouts = await getWorkouts(db, await getActiveRoutineId(db)); // the active routine's workouts
     const add = async (w: Workout) => {
       const inPlan = (await getPlanForWorkout(db, w.id)).some((p) => p.exercise.id === e.id);
       if (inPlan) {

@@ -14,7 +14,8 @@ export async function chooseWorkout(db: SQLiteDatabase, id: WorkoutId | null) {
   await setSetting(db, 'selected_workout', id);
 }
 
-export async function getToday(db: SQLiteDatabase): Promise<{ rotation: Rotation; workout: Workout }> {
+/** workout is null only when the active routine has no workouts yet. */
+export async function getToday(db: SQLiteDatabase): Promise<{ rotation: Rotation; workout: Workout | null }> {
   const rotation = await getRotation(db);
   const picked = (await getSetting(db, 'selected_workout')) as WorkoutId | null;
   const workout = rotation.workouts.find((w) => w.id === picked) ?? rotation.next;

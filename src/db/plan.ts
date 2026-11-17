@@ -1,7 +1,8 @@
 /** Reading the five workouts, their planned exercises, and the library. */
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-import type { Equipment, Exercise, MuscleGroup, Workout, WorkoutId } from './types';
+import { getSetting, setSetting } from './settings';
+import type { Equipment, Exercise, MuscleGroup, Routine, Workout, WorkoutId } from './types';
 
 type ExerciseRow = {
   id: string;
@@ -54,21 +55,74 @@ export async function getSwapSuggestions(
   return { suggested, others: pool.filter((e) => !suggestedIds.has(e.id)) };
 }
 
-export async function getWorkouts(db: SQLiteDatabase): Promise<Workout[]> {
+/** All workouts (every routine), or just one routine's when routineId is given. */
+export async function getWorkouts(db: SQLiteDatabase, routineId?: string): Promise<Workout[]> {
   const rows = await db.getAllAsync<{
     id: string;
     name: string;
     muscle_label: string;
     icon: string;
     sort_order: number;
-  }>('SELECT * FROM workouts ORDER BY sort_order');
+    routine_id: string;
+  }>(
+    `SELECT w.* FROM workouts w JOIN routines r ON r.id = w.routine_id
+     WHERE (? IS NULL OR w.routine_id = ?) ORDER BY r.sort_order, w.sort_order`,
+    routineId ?? null,
+    routineId ?? null,
+  );
   return rows.map((r) => ({
     id: r.id as WorkoutId,
     name: r.name,
     muscleLabel: r.muscle_label,
     icon: r.icon,
     sortOrder: r.sort_order,
+    routineId: r.routine_id,
   }));
+}
+
+// ---------- Routines ----------
+
+export async function getRoutines(db: SQLiteDatabase): Promise<Routine[]> {
+  const rows = await db.getAllAsync<{ id: string; name: string; sort_order: number }>(
+    'SELECT * FROM routines ORDER BY sort_order',
+  );
+  return rows.map((r) => ({ id: r.id, name: r.name, sortOrder: r.sort_order }));
+}
+
+export async function getActiveRoutineId(db: SQLiteDatabase): Promise<string> {
+  const id = await getSetting(db, 'active_routine');
+  if (id && (await db.getFirstAsync('SELECT 1 FROM routines WHERE id = ?', id))) return id;
+  return 'main';
+}
+
+/** Switch routines. Any Change Workout pick belongs to the old routine, so it's cleared. */
+export async function setActiveRoutine(db: SQLiteDatabase, id: string) {
+  await setSetting(db, 'active_routine', id);
+  await setSetting(db, 'selected_workout', null);
+}
+
+export async function addRoutine(db: SQLiteDatabase, name: string): Promise<string> {
+  const base = 'routine-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  let id = base;
+  for (let n = 2; await db.getFirstAsync('SELECT 1 FROM routines WHERE id = ?', id); n++) id = `${base}-${n}`;
+  const max = await db.getFirstAsync<{ m: number | null }>('SELECT MAX(sort_order) AS m FROM routines');
+  await db.runAsync('INSERT INTO routines (id, name, sort_order) VALUES (?, ?, ?)', id, name.trim(), (max?.m ?? 0) + 1);
+  return id;
+}
+
+export async function renameRoutine(db: SQLiteDatabase, id: string, name: string) {
+  await db.runAsync('UPDATE routines SET name = ? WHERE id = ?', name.trim(), id);
+}
+
+/** Deletes a routine you made, with its workouts and plans. History is kept. */
+export async function deleteRoutine(db: SQLiteDatabase, id: string) {
+  if (id === 'main') return;
+  await db.withExclusiveTransactionAsync(async (txn) => {
+    await txn.runAsync('DELETE FROM plan_items WHERE workout_id IN (SELECT id FROM workouts WHERE routine_id = ?)', id);
+    await txn.runAsync('DELETE FROM workouts WHERE routine_id = ?', id);
+    await txn.runAsync('DELETE FROM routines WHERE id = ?', id);
+  });
+  if ((await getSetting(db, 'active_routine')) === id) await setActiveRoutine(db, 'main');
 }
 
 // ---------- Plan editing (changes apply to future workouts only) ----------
@@ -129,19 +183,26 @@ export async function addPlanItem(db: SQLiteDatabase, workoutId: WorkoutId, exer
 
 export const isCustomWorkout = (id: WorkoutId) => id.startsWith('custom-');
 
-/** Adds a new workout at the end of the rotation. Returns its id. */
-export async function addWorkout(db: SQLiteDatabase, w: { name: string; muscleLabel: string; icon: string }) {
+/** Adds a new workout at the end of a routine's rotation. Returns its id. */
+export async function addWorkout(
+  db: SQLiteDatabase,
+  w: { name: string; muscleLabel: string; icon: string; routineId: string },
+) {
   const base = 'custom-' + w.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   let id = base;
   for (let n = 2; await db.getFirstAsync('SELECT 1 FROM workouts WHERE id = ?', id); n++) id = `${base}-${n}`;
-  const max = await db.getFirstAsync<{ m: number | null }>('SELECT MAX(sort_order) AS m FROM workouts');
+  const max = await db.getFirstAsync<{ m: number | null }>(
+    'SELECT MAX(sort_order) AS m FROM workouts WHERE routine_id = ?',
+    w.routineId,
+  );
   await db.runAsync(
-    'INSERT INTO workouts (id, name, muscle_label, icon, sort_order) VALUES (?, ?, ?, ?, ?)',
+    'INSERT INTO workouts (id, name, muscle_label, icon, sort_order, routine_id) VALUES (?, ?, ?, ?, ?, ?)',
     id,
     w.name.trim(),
     w.muscleLabel.trim() || 'Custom workout',
     w.icon,
     (max?.m ?? 0) + 1,
+    w.routineId,
   );
   return id;
 }

@@ -6,7 +6,7 @@
 import type { Workout, WorkoutId } from '@/db/types';
 import { slugify } from './exercise-library';
 
-export const WORKOUTS: Workout[] = [
+export const WORKOUTS: Omit<Workout, 'routineId'>[] = [
   { id: 'push', name: 'Push', muscleLabel: 'Chest · Shoulders · Triceps', icon: 'figure.strengthtraining.traditional', sortOrder: 1 },
   { id: 'pull', name: 'Pull', muscleLabel: 'Back · Biceps · Rear delts', icon: 'figure.rower', sortOrder: 2 },
   { id: 'legs', name: 'Legs', muscleLabel: 'Quads · Hamstrings · Glutes · Calves', icon: 'figure.step.training', sortOrder: 3 },

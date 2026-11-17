@@ -93,6 +93,18 @@ const MIGRATIONS: string[] = [
     value  TEXT
   );
   `,
+
+  // ---- Upgrade 2: routines (separate sets of workouts; one is active at a time) ----
+  `
+  CREATE TABLE routines (
+    id          TEXT PRIMARY KEY NOT NULL,
+    name        TEXT NOT NULL,
+    sort_order  INTEGER NOT NULL
+  );
+  INSERT INTO routines (id, name, sort_order) VALUES ('main', '5-Day Split', 1);
+  -- Every existing workout belongs to the original routine.
+  ALTER TABLE workouts ADD COLUMN routine_id TEXT NOT NULL DEFAULT 'main';
+  `,
 ];
 
 export async function runMigrations(db: SQLiteDatabase) {

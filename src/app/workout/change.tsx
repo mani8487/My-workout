@@ -21,7 +21,7 @@ import { radius, spacing } from '@/theme/typography';
 export default function ChooseWorkoutScreen() {
   const db = useSQLiteContext();
   const { colors } = useTheme();
-  const [state, setState] = useState<{ rotation: Rotation; current: Workout } | null>(null);
+  const [state, setState] = useState<{ rotation: Rotation; current: Workout | null } | null>(null);
 
   useEffect(() => {
     getToday(db).then(({ rotation, workout }) => setState({ rotation, current: workout }));
@@ -29,18 +29,23 @@ export default function ChooseWorkoutScreen() {
 
   async function pick(w: Workout) {
     // Picking the suggested one clears any earlier override.
-    await chooseWorkout(db, w.id === state?.rotation.next.id ? null : w.id);
+    await chooseWorkout(db, w.id === state?.rotation.next?.id ? null : w.id);
     router.back();
   }
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: colors.background }}>
       <ScreenHeader title="Choose Workout" onBack={() => router.back()} backIcon="xmark" backLabel="Close" />
+      {state && (
+        <AppText variant="small" muted style={{ textAlign: 'center' }}>
+          {state.rotation.routine.name} · switch routines in More → Plan Editor
+        </AppText>
+      )}
       <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}>
         {state?.rotation.workouts.map((w) => {
-          const suggested = w.id === state.rotation.next.id;
+          const suggested = w.id === state.rotation.next?.id;
           const doneAt = state.rotation.done.get(w.id);
-          const selected = w.id === state.current.id;
+          const selected = w.id === state.current?.id;
           return (
             <Pressable
               key={w.id}

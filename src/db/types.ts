@@ -41,7 +41,11 @@ export type Workout = {
   /** Apple SF Symbol name for the icon. */
   icon: string;
   sortOrder: number;
+  routineId: string;
 };
+
+/** A separate set of workouts with its own rotation, e.g. "5-Day Split". */
+export type Routine = { id: string; name: string; sortOrder: number };
 
 /** One line of a workout's plan, e.g. "Bench Press, 4 sets of 6–8". */
 export type PlanItem = {

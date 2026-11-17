@@ -5,7 +5,9 @@
  */
 import type { SQLiteDatabase } from 'expo-sqlite';
 
+import { getActiveRoutineId } from '@/db/plan';
 import { getSetting, setSetting } from '@/db/settings';
+import { cycleKey } from './rotation';
 
 const GAP_MS = 21 * 86_400_000;
 
@@ -23,7 +25,7 @@ export async function freshStartOffer(db: SQLiteDatabase): Promise<number | null
 
 export async function acceptFreshStart(db: SQLiteDatabase) {
   const now = String(Date.now());
-  await setSetting(db, 'cycle_start', now);
+  await setSetting(db, cycleKey(await getActiveRoutineId(db)), now);
   await setSetting(db, 'ease_back_at', now);
   await setSetting(db, 'selected_workout', null);
   await setSetting(db, 'fresh_start_dismissed_at', now);
