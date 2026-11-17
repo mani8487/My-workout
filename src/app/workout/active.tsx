@@ -28,6 +28,7 @@ import { Button } from '@/components/button';
 import { LastTimeCards } from '@/components/last-time-cards';
 import { RestTimerBar } from '@/components/rest-timer-bar';
 import { COLS, SET_INPUT_ACCESSORY_ID, SetRow } from '@/components/set-row';
+import { confirmFinishWorkout } from '@/logic/finish';
 import { useRestTimer } from '@/logic/rest-timer';
 import {
   addSet,
@@ -311,7 +312,13 @@ export default function ActiveWorkoutScreen() {
 
           <AppText variant="small" muted style={{ textAlign: 'center' }}>
             Long-press a set number for warm-up · Swipe a set left to delete · Tap a ticked set to edit
-          </AppText>        </ScrollView>
+          </AppText>
+
+          <Button
+            title="Finish Workout"
+            kind="secondary"
+            onPress={() => confirmFinishWorkout(db, detail, restTimer.skip)}
+          />        </ScrollView>
       </KeyboardAvoidingView>
 
       <RestTimerBar />

@@ -15,13 +15,13 @@ import { Button } from '@/components/button';
 import { ScreenHeader } from '@/components/screen-header';
 import {
   cancelSession,
-  finishSession,
   getActiveSessionId,
   getSessionDetail,
   hasCompletedSets,
   type SessionDetail,
   type SessionExercise,
 } from '@/db/sessions';
+import { confirmFinishWorkout } from '@/logic/finish';
 import { useRestTimer } from '@/logic/rest-timer';
 import { useTheme } from '@/theme/theme-context';
 import { radius, spacing } from '@/theme/typography';
@@ -59,27 +59,8 @@ export default function WorkoutOverviewScreen() {
     },
     { done: 0, total: 0 },
   );
-  const left = totals.total - totals.done;
   const pct = totals.total ? Math.round((totals.done / totals.total) * 100) : 0;
-
-  async function finish() {
-    restTimer.skip();
-    await finishSession(db, detail!.id);
-    // Step 6 replaces this with the Finish Summary screen.
-    router.dismissTo('/');
-  }
-
-  function onFinishPress() {
-    if (left <= 0) {
-      finish();
-      return;
-    }
-    // "Keep Going" uses the cancel style, which iOS shows as the bold, highlighted choice.
-    Alert.alert(`You have ${left} ${left === 1 ? 'set' : 'sets'} left`, 'Finish anyway?', [
-      { text: 'Finish', onPress: finish },
-      { text: 'Keep Going', style: 'cancel' },
-    ]);
-  }
+  const onFinishPress = () => confirmFinishWorkout(db, detail, restTimer.skip);
 
   async function onSwap(e: SessionExercise) {
     if (await hasCompletedSets(db, e.id)) {
@@ -179,13 +160,22 @@ export default function WorkoutOverviewScreen() {
           })}
         </View>
 
-        <View style={{ gap: spacing.sm }}>
-          <Button title="Finish Workout" kind="secondary" onPress={onFinishPress} />
-          <AppText variant="small" muted style={{ textAlign: 'center' }}>
-            {totals.total} working sets planned
-          </AppText>
-        </View>
       </ScrollView>
+
+      {/* Pinned to the bottom so it's always visible. */}
+      <View
+        style={{
+          gap: spacing.sm,
+          paddingHorizontal: spacing.lg,
+          paddingTop: spacing.md,
+          borderTopWidth: 1,
+          borderTopColor: colors.border,
+        }}>
+        <Button title="Finish Workout" kind="secondary" onPress={onFinishPress} />
+        <AppText variant="small" muted style={{ textAlign: 'center' }}>
+          {totals.total} working sets planned
+        </AppText>
+      </View>
     </SafeAreaView>
   );
 }
