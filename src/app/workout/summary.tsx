@@ -1,4 +1,5 @@
 /** Finish Summary: shown right after finishing a workout. Calm, no forced rating or sharing. */
+import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { SymbolView } from 'expo-symbols';
@@ -8,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
+import { PrPill } from '@/components/pr-pill';
 import { getWorkouts } from '@/db/plan';
 import { getSessionDetail } from '@/db/sessions';
 import { formatDuration, formatKg } from '@/logic/format';
@@ -49,6 +51,8 @@ export default function SummaryScreen() {
         rotation.done.size === 0
           ? `Cycle complete! Next up: ${rotation.next.name}`
           : `${detail.workoutName} done. ${rotation.next.name} is next`;
+      // One celebration per workout: a success haptic if there's a new record.
+      if (records.length > 0) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       setSummary({
         workoutName: detail.workoutName,
         muscleLabel: workout?.muscleLabel ?? '',
@@ -68,6 +72,11 @@ export default function SummaryScreen() {
         <View style={{ alignItems: 'center', gap: spacing.sm }}>
           <SymbolView name="checkmark.circle.fill" size={64} tintColor={colors.success} />
           <AppText variant="title">Workout Complete</AppText>
+          {summary.records.length > 0 && (
+            <AppText variant="label" color={colors.accent}>
+              Session done. New PR on {summary.records[0].exerciseName}!
+            </AppText>
+          )}
           <AppText variant="heading">{summary.workoutName}</AppText>
           <AppText muted>{summary.muscleLabel}</AppText>
         </View>
@@ -101,7 +110,6 @@ export default function SummaryScreen() {
                     borderTopWidth: i > 0 ? 1 : 0,
                     borderTopColor: colors.border,
                   }}>
-                  <SymbolView name="trophy.fill" size={20} tintColor={colors.success} />
                   <View style={{ flex: 1 }}>
                     <AppText variant="label">{r.exerciseName}</AppText>
                     <AppText variant="small" muted>
@@ -111,17 +119,7 @@ export default function SummaryScreen() {
                         : ` · was ${r.previousBest} reps`}
                     </AppText>
                   </View>
-                  <View
-                    style={{
-                      backgroundColor: colors.successSoft,
-                      paddingHorizontal: spacing.md,
-                      paddingVertical: spacing.xs,
-                      borderRadius: radius.pill,
-                    }}>
-                    <AppText variant="small" color={colors.success} style={{ fontWeight: '600' }}>
-                      {r.kind === 'weight' ? 'Weight PR' : 'Rep PR'}
-                    </AppText>
-                  </View>
+                  <PrPill kind={r.kind} shimmer />
                 </View>
               ))}
             </View>
@@ -156,7 +154,9 @@ function StatCard({ label, value }: { label: string; value: string }) {
       <AppText variant="small" muted>
         {label}
       </AppText>
-      <AppText variant="title">{value}</AppText>
+      <AppText variant="title" style={{ fontSize: 34 }}>
+        {value}
+      </AppText>
     </View>
   );
 }

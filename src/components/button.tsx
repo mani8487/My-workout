@@ -2,7 +2,7 @@ import { Pressable, type PressableProps } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { useTheme } from '@/theme/theme-context';
-import { radius, spacing } from '@/theme/typography';
+import { MIN_TAP, radius, spacing } from '@/theme/typography';
 
 type Props = Omit<PressableProps, 'children'> & {
   title: string;
@@ -23,13 +23,16 @@ export function Button({ title, kind = 'primary', size = 'normal', style, ...res
       accessibilityRole="button"
       style={(state) => [
         {
-          backgroundColor: isPrimary ? colors.accent : colors.card,
-          borderColor: isPrimary ? colors.accent : colors.border,
+          // Primary = solid brass. Secondary = quiet outline.
+          backgroundColor: isPrimary ? colors.accent : 'transparent',
+          borderColor: isPrimary ? colors.accent : colors.inputBorder,
           borderWidth: 1,
           borderRadius: radius.md,
-          paddingVertical: size === 'large' ? spacing.lg + 2 : spacing.md,
+          minHeight: size === 'large' ? 56 : MIN_TAP,
+          paddingVertical: spacing.md,
           paddingHorizontal: spacing.lg,
           alignItems: 'center',
+          justifyContent: 'center',
           opacity: state.pressed ? 0.75 : 1,
         },
         typeof style === 'function' ? style(state) : style,

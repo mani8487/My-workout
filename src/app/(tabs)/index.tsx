@@ -12,6 +12,7 @@ import { Pressable, View } from 'react-native';
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
+import { ProgressRing } from '@/components/progress-ring';
 import { Screen } from '@/components/screen';
 import { quoteOfTheDay } from '@/data/quotes';
 import { getSetting } from '@/db/settings';
@@ -82,7 +83,7 @@ export default function HomeScreen() {
           {greeting()}
           {data.name ? `, ${data.name}` : ''}
         </AppText>
-        <Pressable onPress={() => router.push('/settings')} hitSlop={10} accessibilityLabel="Settings">
+        <Pressable onPress={() => router.push('/settings')} hitSlop={12} accessibilityLabel="Settings">
           <SymbolView name="gearshape" size={24} tintColor={colors.textMuted} />
         </Pressable>
       </View>
@@ -91,7 +92,7 @@ export default function HomeScreen() {
         <Card>
           <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm }}>
             <AppText variant="label" style={{ flex: 1 }}>
-              Welcome back! It&apos;s been {weeksAway} weeks.
+              Welcome back. Want to ease in?
             </AppText>
             <Pressable
               onPress={async () => {
@@ -104,7 +105,8 @@ export default function HomeScreen() {
             </Pressable>
           </View>
           <AppText variant="small" muted>
-            Start a fresh cycle from Push, with weights about 10% lighter for your first session back on each exercise.
+            It&apos;s been {weeksAway} weeks. A fresh start restarts the cycle from Push, with weights about 10% lighter
+            for your first session back on each exercise.
           </AppText>
           <Button
             title="Fresh Start"
@@ -119,7 +121,7 @@ export default function HomeScreen() {
 
       {active ? (
         <>
-          <Card style={{ backgroundColor: colors.accentSoft, borderColor: colors.accent }}>
+          <Card style={{ borderColor: colors.accent, padding: spacing.xl }}>
             <AppText variant="small" muted>
               IN PROGRESS
             </AppText>
@@ -134,7 +136,7 @@ export default function HomeScreen() {
         <>
           <View style={{ gap: spacing.sm }}>
             <Pressable onPress={openPreview} accessibilityLabel={`Preview ${workout.name}`}>
-              <Card style={{ backgroundColor: colors.accentSoft, borderColor: colors.accent }}>
+              <Card style={{ borderColor: colors.accent, padding: spacing.xl }}>
                 <AppText variant="small" muted>
                   TODAY&apos;S WORKOUT
                 </AppText>
@@ -144,6 +146,12 @@ export default function HomeScreen() {
                     <AppText variant="heading">{workout.name}</AppText>
                     <AppText muted>{workout.muscleLabel}</AppText>
                   </View>
+                  {/* Cycle progress ring, e.g. 2 of 5 */}
+                  <ProgressRing size={56} stroke={4} fraction={doneCount / rotation.workouts.length}>
+                    <AppText variant="small">
+                      {doneCount}/{rotation.workouts.length}
+                    </AppText>
+                  </ProgressRing>
                 </View>
                 <AppText variant="small" muted>
                   {data.exerciseCount} exercises · about {data.minutes} min
@@ -160,7 +168,7 @@ export default function HomeScreen() {
         </>
       )}
 
-      <AppText muted style={{ textAlign: 'center', fontStyle: 'italic', marginTop: spacing.lg }}>
+      <AppText variant="small" muted style={{ textAlign: 'center', marginTop: spacing.lg }}>
         “{quoteOfTheDay()}”
       </AppText>
     </Screen>

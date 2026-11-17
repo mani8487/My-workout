@@ -1,88 +1,116 @@
 /**
- * Colour roles.
+ * Colour roles: "Calibrated Steel and Brass".
  *
- * Every colour in the app is referred to by its JOB (its "role"), never by a raw value.
- * Switching between light and dark mode just means swapping which set below is used.
+ * Every colour in the app is referred to by its JOB (its "role"), never by a
+ * raw value. Dark and light are just two value sets for the same roles.
  *
- * Rules from the design: one accent colour for actions, green for success,
- * a calm background, and no extra decorative colours. Amber is only used
- * for the small "Owed" badge, and red only for deleting.
+ * Note on contrast: the design's darkest grey (#5F6773) is too faint for
+ * small text on the dark background (fails WCAG AA), so muted TEXT uses the
+ * lighter "textSecondary" grey; the darker grey is only used for decoration.
  */
 
 export type ColorRoles = {
-  /** The screen behind everything. Calm and quiet. */
   background: string;
-  /** Cards and panels that sit on the background. */
+  /** Cards and panels. */
   card: string;
-  /** A slightly different card shade, e.g. input fields or a set row. */
+  /** Raised surface, e.g. the "Last time" card. */
   cardAlt: string;
-  /** Thin lines between things. */
+  /** Hairline borders between layers (no drop shadows anywhere). */
   border: string;
+  /** Number and text boxes. */
+  input: string;
+  inputBorder: string;
 
-  /** Main text: titles and numbers you need to read mid-workout. */
   text: string;
-  /** Muted text: metadata, "previous" results, hints. */
+  /** Secondary/muted text: labels, previous results, metadata. */
   textMuted: string;
+  /** Decorative only (never for text you need to read). */
+  faint: string;
 
-  /** The one action colour: buttons, highlights, the progress bar. */
+  /** Brushed brass: actions, highlights, PR pills. */
   accent: string;
-  /** Text or icons sitting on top of the accent colour. */
+  /** Text on top of solid brass. */
   onAccent: string;
-  /** A faint wash of the accent, e.g. the suggested workout card. */
   accentSoft: string;
 
-  /** Success: ticked sets, "Done", personal records. */
+  /** Titanium grey for chart lines and the timer track. */
+  chart: string;
+
+  /** Completed sets: mint tick and a deep green row tint. */
   success: string;
   successSoft: string;
 
-  /** Only for the "Owed" badge. */
+  /** "Owed" badge: soft amber. */
   warning: string;
   warningSoft: string;
 
-  /** Only for delete actions. */
+  /** "Done" badge: muted sage. */
+  sage: string;
+  sageSoft: string;
+
+  /** Deleting, and the "0 reps left" chip (used softly). */
   danger: string;
-};
-
-export const lightColors: ColorRoles = {
-  background: '#F4F5F7',
-  card: '#FFFFFF',
-  cardAlt: '#EDEFF2',
-  border: '#E1E4E8',
-
-  text: '#0F1115',
-  textMuted: '#6B7280',
-
-  accent: '#2563EB',
-  onAccent: '#FFFFFF',
-  accentSoft: '#E3ECFD',
-
-  success: '#16A34A',
-  successSoft: '#DFF5E6',
-
-  warning: '#B45309',
-  warningSoft: '#FCEFD8',
-
-  danger: '#DC2626',
+  dangerSoft: string;
 };
 
 export const darkColors: ColorRoles = {
-  background: '#0B0D10',
-  card: '#171A1F',
-  cardAlt: '#22262D',
-  border: '#2B3038',
+  background: '#0E0F11',
+  card: '#17191D',
+  cardAlt: '#1E2126',
+  border: 'rgba(255,255,255,0.07)',
+  input: '#22252B',
+  inputBorder: '#2E323A',
 
   text: '#F3F4F6',
-  textMuted: '#9CA3AF',
+  textMuted: '#8A93A2',
+  faint: '#5F6773',
 
-  accent: '#3B82F6',
-  onAccent: '#FFFFFF',
-  accentSoft: '#1A2A47',
+  accent: '#C8A96A',
+  onAccent: '#0E0F11',
+  accentSoft: 'rgba(200,169,106,0.14)',
 
-  success: '#22C55E',
-  successSoft: '#13301F',
+  chart: '#7C8594',
 
-  warning: '#F59E0B',
-  warningSoft: '#3A2B10',
+  success: '#6EE7B7',
+  successSoft: 'rgba(46,111,94,0.25)',
 
-  danger: '#EF4444',
+  warning: '#E0B25C',
+  warningSoft: 'rgba(224,178,92,0.14)',
+
+  sage: '#9DBFAE',
+  sageSoft: 'rgba(157,191,174,0.14)',
+
+  danger: '#B84A4A',
+  dangerSoft: 'rgba(184,74,74,0.18)',
+};
+
+export const lightColors: ColorRoles = {
+  background: '#F5F3EE',
+  card: '#FFFFFF',
+  cardAlt: '#EFEDE7',
+  border: 'rgba(0,0,0,0.08)',
+  input: '#ECEAE4',
+  inputBorder: '#DAD7CF',
+
+  text: '#17191D',
+  textMuted: '#5F6773',
+  faint: '#A3A8B0',
+
+  accent: '#9A7B34',
+  onAccent: '#0E0F11', // dark text on brass passes contrast; white would not
+  accentSoft: 'rgba(154,123,52,0.12)',
+
+  chart: '#7C8594',
+
+  success: '#2E6F5E',
+  successSoft: 'rgba(46,111,94,0.14)',
+
+  warning: '#9A6A12',
+  warningSoft: 'rgba(224,178,92,0.18)',
+
+  sage: '#4F7A65',
+  sageSoft: 'rgba(79,122,101,0.12)',
+
+  danger: '#B84A4A',
+  dangerSoft: 'rgba(184,74,74,0.12)',
 };

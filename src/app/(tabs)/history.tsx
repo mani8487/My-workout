@@ -83,7 +83,7 @@ export default function HistoryScreen() {
 
       {rows && rows.length === 0 && (
         <AppText muted style={{ textAlign: 'center', marginTop: spacing.xl }}>
-          No finished workouts yet.
+          No workouts yet. Let&apos;s change that.
         </AppText>
       )}
 
@@ -117,7 +117,7 @@ export default function HistoryScreen() {
                     : ''}
                 </AppText>
               </View>
-              {r.hasRecord && <SymbolView name="trophy.fill" size={18} tintColor={colors.success} />}
+              {r.hasRecord && <SymbolView name="trophy.fill" size={18} tintColor={colors.accent} />}
               <SymbolView name="chevron.right" size={14} tintColor={colors.textMuted} />
             </Pressable>
           ))}

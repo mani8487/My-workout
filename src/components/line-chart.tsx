@@ -27,7 +27,7 @@ export function LineChart({
   if (points.length === 0) {
     return (
       <View style={{ height, alignItems: 'center', justifyContent: 'center' }}>
-        <AppText muted>No workouts in this range yet.</AppText>
+        <AppText muted>No workouts in this range yet. Let&apos;s change that.</AppText>
       </View>
     );
   }
@@ -61,12 +61,17 @@ export function LineChart({
             <Svg width={width} height={height}>
               <Line x1={0} y1={sy(maxY)} x2={width} y2={sy(maxY)} stroke={colors.border} strokeWidth={1} />
               <Line x1={0} y1={sy(minY)} x2={width} y2={sy(minY)} stroke={colors.border} strokeWidth={1} />
+              {/* Titanium line; the best point is highlighted in brass. */}
               {points.length > 1 && (
-                <Polyline points={coords} fill="none" stroke={colors.accent} strokeWidth={2.5} strokeLinejoin="round" />
+                <Polyline points={coords} fill="none" stroke={colors.chart} strokeWidth={2} strokeLinejoin="round" />
               )}
-              {points.map((p, i) => (
-                <Circle key={i} cx={sx(p.x)} cy={sy(p.y)} r={3.5} fill={colors.accent} />
-              ))}
+              {points.map((p, i) =>
+                p.y === Math.max(...ys) ? (
+                  <Circle key={i} cx={sx(p.x)} cy={sy(p.y)} r={5} fill={colors.accent} />
+                ) : (
+                  <Circle key={i} cx={sx(p.x)} cy={sy(p.y)} r={3} fill={colors.chart} />
+                ),
+              )}
             </Svg>
           )}
         </View>

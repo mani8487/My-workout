@@ -193,7 +193,7 @@ function StatusCircle({ status }: { status: 'done' | 'progress' | 'todo' }) {
           alignItems: 'center',
           justifyContent: 'center',
         }}>
-        <SymbolView name="checkmark" size={13} weight="bold" tintColor="#FFFFFF" />
+        <SymbolView name="checkmark" size={13} weight="bold" tintColor={colors.background} />
       </View>
     );
   }

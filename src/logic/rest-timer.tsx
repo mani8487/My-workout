@@ -43,7 +43,7 @@ async function scheduleEndAlert(endsAt: number): Promise<string | null> {
     if (status !== 'granted') return null; // timer still works on screen, just no buzz
     const seconds = Math.max(1, Math.round((endsAt - Date.now()) / 1000));
     return await Notifications.scheduleNotificationAsync({
-      content: { title: 'Rest over', body: 'Time for your next set.', sound: true },
+      content: { title: 'Time.', body: 'Next set.', sound: true },
       trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds },
     });
   } catch {

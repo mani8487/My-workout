@@ -6,12 +6,12 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, InputAccessoryView, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { ScreenHeader } from '@/components/screen-header';
-import { SET_INPUT_ACCESSORY_ID, SetRow } from '@/components/set-row';
+import { NumberPadBar, SetRow } from '@/components/set-row';
 import { addSet, cancelSession, deleteSet, getSessionDetail, updateSet, type SessionDetail } from '@/db/sessions';
 import { formatDuration } from '@/logic/format';
 import { useTheme } from '@/theme/theme-context';
@@ -138,24 +138,7 @@ export default function SessionDetailScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {Platform.OS === 'ios' && (
-        <InputAccessoryView nativeID={SET_INPUT_ACCESSORY_ID}>
-          <View
-            style={{
-              flexDirection: 'row',
-              justifyContent: 'flex-end',
-              paddingHorizontal: spacing.lg,
-              paddingVertical: spacing.sm,
-              backgroundColor: colors.cardAlt,
-            }}>
-            <Pressable onPress={() => Keyboard.dismiss()} hitSlop={10}>
-              <AppText variant="label" color={colors.accent}>
-                Done
-              </AppText>
-            </Pressable>
-          </View>
-        </InputAccessoryView>
-      )}
+      <NumberPadBar />
     </SafeAreaView>
   );
 }

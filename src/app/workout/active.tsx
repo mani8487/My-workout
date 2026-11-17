@@ -11,7 +11,6 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   ActionSheetIOS,
   Alert,
-  InputAccessoryView,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -25,7 +24,7 @@ import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
 import { LastTimeCards } from '@/components/last-time-cards';
 import { RestTimerBar } from '@/components/rest-timer-bar';
-import { COLS, SET_INPUT_ACCESSORY_ID, SetRow } from '@/components/set-row';
+import { COLS, NumberPadBar, SetRow } from '@/components/set-row';
 import { confirmFinishWorkout } from '@/logic/finish';
 import { useRestTimer } from '@/logic/rest-timer';
 import {
@@ -249,7 +248,7 @@ export default function ActiveWorkoutScreen() {
             <View
               style={{
                 flexDirection: 'row',
-                gap: spacing.sm,
+                gap: 6,
                 paddingHorizontal: spacing.sm,
                 paddingVertical: spacing.sm,
                 borderBottomWidth: 1,
@@ -346,26 +345,7 @@ export default function ActiveWorkoutScreen() {
         />
       </View>
 
-      {Platform.OS === 'ios' && (
-        <InputAccessoryView nativeID={SET_INPUT_ACCESSORY_ID}>
-          <View
-            style={{
-              flexDirection: 'row',
-              justifyContent: 'flex-end',
-              paddingHorizontal: spacing.lg,
-              paddingVertical: spacing.sm,
-              backgroundColor: colors.cardAlt,
-              borderTopWidth: 1,
-              borderTopColor: colors.border,
-            }}>
-            <Pressable onPress={() => Keyboard.dismiss()} hitSlop={10}>
-              <AppText variant="label" color={colors.accent}>
-                Done
-              </AppText>
-            </Pressable>
-          </View>
-        </InputAccessoryView>
-      )}
+      <NumberPadBar />
     </SafeAreaView>
   );
 }

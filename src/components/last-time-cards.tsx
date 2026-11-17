@@ -29,7 +29,7 @@ export function LastTimeCards({ exercise }: { exercise: SessionExercise }) {
       {exercise.previousDate != null && working.length > 0 && (
         <View
           style={{
-            backgroundColor: colors.card,
+            backgroundColor: colors.cardAlt,
             borderColor: colors.border,
             borderWidth: 1,
             borderRadius: radius.md,
@@ -47,8 +47,13 @@ export function LastTimeCards({ exercise }: { exercise: SessionExercise }) {
 
       <View
         style={{
-          backgroundColor: colors.successSoft,
-          borderRadius: radius.md,
+          // Suggestion card: quiet surface with a brass left edge.
+          backgroundColor: colors.card,
+          borderWidth: 1,
+          borderColor: colors.border,
+          borderLeftWidth: 3,
+          borderLeftColor: colors.accent,
+          borderRadius: radius.lg,
           padding: spacing.md,
           flexDirection: 'row',
           gap: spacing.md,
@@ -57,11 +62,11 @@ export function LastTimeCards({ exercise }: { exercise: SessionExercise }) {
         <SymbolView
           name={suggestion.kind === 'increase' ? 'arrow.up.circle.fill' : 'lightbulb.fill'}
           size={24}
-          tintColor={colors.success}
+          tintColor={colors.accent}
         />
         <View style={{ flex: 1, gap: 2 }}>
           {suggestion.weightKg != null && (
-            <AppText variant="label" color={colors.success}>
+            <AppText variant="label" color={colors.accent}>
               {suggestion.kind === 'increase' ? 'Go up to ' : 'Use '}
               {formatKg(suggestion.weightKg)} kg
             </AppText>

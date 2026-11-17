@@ -1,7 +1,7 @@
 import { StyleSheet, Text, type TextProps } from 'react-native';
 
 import { useTheme } from '@/theme/theme-context';
-import { fontFor, typography, type TextVariant } from '@/theme/typography';
+import { fontFor, MAX_FONT_SCALE, typography, type TextVariant } from '@/theme/typography';
 
 type Props = TextProps & {
   variant?: TextVariant;
@@ -18,5 +18,11 @@ export function AppText({ variant = 'body', muted, color, style, ...rest }: Prop
   const flat = StyleSheet.flatten(style) ?? {};
   // A screen asking for e.g. fontWeight '600' gets the SemiBold Inter file instead.
   const weightFix = flat.fontWeight ? { fontFamily: fontFor(flat.fontWeight), fontWeight: undefined } : null;
-  return <Text style={[typography[variant], { color: textColor }, style, weightFix]} {...rest} />;
+  return (
+    <Text
+      maxFontSizeMultiplier={MAX_FONT_SCALE}
+      style={[typography[variant], { color: textColor }, style, weightFix]}
+      {...rest}
+    />
+  );
 }

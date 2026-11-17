@@ -54,7 +54,7 @@ export default function ChooseWorkoutScreen() {
                 borderRadius: radius.lg,
                 borderWidth: suggested || selected ? 2 : 1,
                 borderColor: suggested ? colors.accent : selected ? colors.textMuted : colors.border,
-                backgroundColor: suggested ? colors.accentSoft : pressed ? colors.cardAlt : colors.card,
+                backgroundColor: pressed ? colors.cardAlt : colors.card,
               })}>
               <SymbolView name={w.icon as SFSymbol} size={28} tintColor={suggested ? colors.accent : colors.textMuted} />
               <View style={{ flex: 1, gap: 2 }}>
@@ -66,7 +66,7 @@ export default function ChooseWorkoutScreen() {
               {suggested ? (
                 <SymbolView name="checkmark.circle.fill" size={26} tintColor={colors.accent} />
               ) : doneAt ? (
-                <Badge text={`Done ${shortDate(doneAt)}`} fg={colors.success} bg={colors.successSoft} />
+                <Badge text={`Done ${shortDate(doneAt)}`} fg={colors.sage} bg={colors.sageSoft} />
               ) : (
                 <Badge text="Owed" fg={colors.warning} bg={colors.warningSoft} />
               )}
