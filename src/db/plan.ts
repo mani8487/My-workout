@@ -92,7 +92,9 @@ export async function getRoutines(db: SQLiteDatabase): Promise<Routine[]> {
 export async function getActiveRoutineId(db: SQLiteDatabase): Promise<string> {
   const id = await getSetting(db, 'active_routine');
   if (id && (await db.getFirstAsync('SELECT 1 FROM routines WHERE id = ?', id))) return id;
-  return 'main';
+  // Not set (or deleted): fall back to the first routine.
+  const first = await db.getFirstAsync<{ id: string }>('SELECT id FROM routines ORDER BY sort_order LIMIT 1');
+  return first?.id ?? 'main';
 }
 
 /** Switch routines. Any Change Workout pick belongs to the old routine, so it's cleared. */
@@ -114,15 +116,23 @@ export async function renameRoutine(db: SQLiteDatabase, id: string, name: string
   await db.runAsync('UPDATE routines SET name = ? WHERE id = ?', name.trim(), id);
 }
 
-/** Deletes a routine you made, with its workouts and plans. History is kept. */
-export async function deleteRoutine(db: SQLiteDatabase, id: string) {
-  if (id === 'main') return;
+/**
+ * Deletes a routine with its workouts and plans. History is kept.
+ * Returns false if it's your only routine (the app always needs one).
+ */
+export async function deleteRoutine(db: SQLiteDatabase, id: string): Promise<boolean> {
+  const count = await db.getFirstAsync<{ n: number }>('SELECT COUNT(*) AS n FROM routines');
+  if ((count?.n ?? 0) <= 1) return false;
   await db.withExclusiveTransactionAsync(async (txn) => {
     await txn.runAsync('DELETE FROM plan_items WHERE workout_id IN (SELECT id FROM workouts WHERE routine_id = ?)', id);
     await txn.runAsync('DELETE FROM workouts WHERE routine_id = ?', id);
     await txn.runAsync('DELETE FROM routines WHERE id = ?', id);
   });
-  if ((await getSetting(db, 'active_routine')) === id) await setActiveRoutine(db, 'main');
+  // If it was active, switch to whichever routine is first now.
+  if ((await getSetting(db, 'active_routine')) === id || id === 'main') {
+    await setActiveRoutine(db, await getActiveRoutineId(db));
+  }
+  return true;
 }
 
 // ---------- Plan editing (changes apply to future workouts only) ----------

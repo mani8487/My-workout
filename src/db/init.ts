@@ -34,22 +34,22 @@ export async function initDatabase(db: SQLiteDatabase) {
         ex.incrementKg,
       );
     }
-
-    for (const w of WORKOUTS) {
-      await txn.runAsync(
-        `INSERT OR IGNORE INTO workouts (id, name, muscle_label, icon, sort_order) VALUES (?, ?, ?, ?, ?)`,
-        w.id,
-        w.name,
-        w.muscleLabel,
-        w.icon,
-        w.sortOrder,
-      );
-    }
   });
 
-  // The starter plan goes in only once, so your later edits are never undone.
+  // The five workouts and starter plan go in only once (first run), so your
+  // later edits, including deleting them, are never undone.
   if ((await getSetting(db, 'plan_seeded')) !== '1') {
     await db.withExclusiveTransactionAsync(async (txn) => {
+      for (const w of WORKOUTS) {
+        await txn.runAsync(
+          `INSERT OR IGNORE INTO workouts (id, name, muscle_label, icon, sort_order) VALUES (?, ?, ?, ?, ?)`,
+          w.id,
+          w.name,
+          w.muscleLabel,
+          w.icon,
+          w.sortOrder,
+        );
+      }
       for (const item of DEFAULT_PLAN) {
         await txn.runAsync(
           `INSERT INTO plan_items (workout_id, exercise_id, position, target_sets, rep_min, rep_max, rest_seconds)
@@ -65,4 +65,5 @@ export async function initDatabase(db: SQLiteDatabase) {
       }
       await txn.runAsync(`INSERT OR REPLACE INTO settings (key, value) VALUES ('plan_seeded', '1')`);
     });
-  }}
+  }
+}

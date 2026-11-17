@@ -43,12 +43,12 @@ export default function RoutineScreen() {
   if (!routine) return <Page title="">{null}</Page>;
 
   function openMenu() {
-    const canDelete = routineId !== 'main';
+    const canDelete = true;
     ActionSheetIOS.showActionSheetWithOptions(
       {
-        options: ['Rename Routine', ...(canDelete ? ['Delete Routine'] : []), 'Cancel'],
-        destructiveButtonIndex: canDelete ? 1 : undefined,
-        cancelButtonIndex: canDelete ? 2 : 1,
+        options: ['Rename Routine', 'Delete Routine', 'Cancel'],
+        destructiveButtonIndex: 1,
+        cancelButtonIndex: 2,
       },
       (i) => {
         if (i === 0) {
@@ -66,8 +66,8 @@ export default function RoutineScreen() {
               text: 'Delete',
               style: 'destructive',
               onPress: async () => {
-                await deleteRoutine(db, routineId);
-                router.back();
+                if (await deleteRoutine(db, routineId)) router.back();
+                else Alert.alert('Only routine', 'You need at least one routine. Create another one first, then delete this.');
               },
             },
           ]);
