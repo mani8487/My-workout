@@ -10,7 +10,11 @@ export default function TabsLayout() {
   const { colors } = useTheme();
 
   return (
-    <NativeTabs tintColor={colors.accent} labelStyle={{ selected: { color: colors.accent } }}>
+    // minimizeBehavior "never": keep all four tabs visible even while scrolling (iOS 26 can shrink the bar).
+    <NativeTabs
+      tintColor={colors.accent}
+      labelStyle={{ selected: { color: colors.accent } }}
+      minimizeBehavior="never">
       <NativeTabs.Trigger name="index">
         <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="house.fill" />
