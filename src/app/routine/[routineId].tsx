@@ -3,7 +3,7 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import type { SFSymbol } from 'expo-symbols';
 import { useCallback, useState } from 'react';
-import { ActionSheetIOS, Alert } from 'react-native';
+import { Alert, Pressable, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
@@ -19,9 +19,12 @@ import {
   setActiveRoutine,
 } from '@/db/plan';
 import type { Routine, Workout } from '@/db/types';
+import { useTheme } from '@/theme/theme-context';
+import { MIN_TAP, radius, spacing } from '@/theme/typography';
 
 export default function RoutineScreen() {
   const db = useSQLiteContext();
+  const { colors } = useTheme();
   const { routineId } = useLocalSearchParams<{ routineId: string }>();
   const [routine, setRoutine] = useState<Routine | null>(null);
   const [isActive, setIsActive] = useState(false);
@@ -42,44 +45,38 @@ export default function RoutineScreen() {
 
   if (!routine) return <Page title="">{null}</Page>;
 
-  function openMenu() {
-    const canDelete = true;
-    ActionSheetIOS.showActionSheetWithOptions(
-      {
-        options: ['Rename Routine', 'Delete Routine', 'Cancel'],
-        destructiveButtonIndex: 1,
-        cancelButtonIndex: 2,
-      },
-      (i) => {
-        if (i === 0) {
-          Alert.prompt('Rename Routine', undefined, async (name) => {
-            if (name?.trim()) {
-              await renameRoutine(db, routineId, name);
-              refresh();
-            }
-          }, 'plain-text', routine!.name);
-        }
-        if (canDelete && i === 1) {
-          Alert.alert(`Delete ${routine!.name}?`, 'Its workouts and plans are removed. Past sessions stay in History.', [
-            { text: 'Keep', style: 'cancel' },
-            {
-              text: 'Delete',
-              style: 'destructive',
-              onPress: async () => {
-                if (await deleteRoutine(db, routineId)) router.back();
-                else Alert.alert('Only routine', 'You need at least one routine. Create another one first, then delete this.');
-              },
-            },
-          ]);
+  function rename() {
+    Alert.prompt(
+      'Rename Routine',
+      undefined,
+      async (name) => {
+        if (name?.trim()) {
+          await renameRoutine(db, routineId, name);
+          refresh();
         }
       },
+      'plain-text',
+      routine!.name,
     );
+  }
+
+  function confirmDelete() {
+    Alert.alert(`Delete ${routine!.name}?`, 'Its workouts and plans are removed. Past sessions stay in History.', [
+      { text: 'Keep', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          if (await deleteRoutine(db, routineId)) router.back();
+          else Alert.alert('Only routine', 'You need at least one routine. Create another one first, then delete this.');
+        },
+      },
+    ]);
   }
 
   return (
     <Page
       title={routine.name}
-      right={{ icon: 'ellipsis.circle', label: 'Routine menu', onPress: openMenu }}
       footer={
         <Button
           title="+ New Workout"
@@ -114,6 +111,27 @@ export default function RoutineScreen() {
           ))}
         </Section>
       )}
+
+      {/* Routine actions, visible (not hidden in a menu). */}
+      <View style={{ flexDirection: 'row', gap: spacing.md, marginTop: spacing.lg }}>
+        <Button title="Rename" kind="secondary" style={{ flex: 1 }} onPress={rename} />
+        <Pressable
+          onPress={confirmDelete}
+          accessibilityLabel="Delete routine"
+          style={{
+            flex: 1,
+            minHeight: MIN_TAP,
+            borderRadius: radius.md,
+            borderWidth: 1,
+            borderColor: colors.danger,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}>
+          <AppText variant="label" color={colors.danger}>
+            Delete Routine
+          </AppText>
+        </Pressable>
+      </View>
     </Page>
   );
 }
