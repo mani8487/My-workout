@@ -125,6 +125,37 @@ export async function addPlanItem(db: SQLiteDatabase, workoutId: WorkoutId, exer
   );
 }
 
+// ---------- Your own workouts (beyond the original five) ----------
+
+export const isCustomWorkout = (id: WorkoutId) => id.startsWith('custom-');
+
+/** Adds a new workout at the end of the rotation. Returns its id. */
+export async function addWorkout(db: SQLiteDatabase, w: { name: string; muscleLabel: string; icon: string }) {
+  const base = 'custom-' + w.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  let id = base;
+  for (let n = 2; await db.getFirstAsync('SELECT 1 FROM workouts WHERE id = ?', id); n++) id = `${base}-${n}`;
+  const max = await db.getFirstAsync<{ m: number | null }>('SELECT MAX(sort_order) AS m FROM workouts');
+  await db.runAsync(
+    'INSERT INTO workouts (id, name, muscle_label, icon, sort_order) VALUES (?, ?, ?, ?, ?)',
+    id,
+    w.name.trim(),
+    w.muscleLabel.trim() || 'Custom workout',
+    w.icon,
+    (max?.m ?? 0) + 1,
+  );
+  return id;
+}
+
+/** Removes one of YOUR workouts and its plan. Past sessions stay in History. */
+export async function deleteWorkout(db: SQLiteDatabase, id: WorkoutId) {
+  if (!isCustomWorkout(id)) return;
+  await db.withExclusiveTransactionAsync(async (txn) => {
+    await txn.runAsync('DELETE FROM plan_items WHERE workout_id = ?', id);
+    await txn.runAsync('DELETE FROM workouts WHERE id = ?', id);
+    await txn.runAsync(`DELETE FROM settings WHERE key = 'selected_workout' AND value = ?`, id);
+  });
+}
+
 // ---------- Custom exercises ----------
 
 export async function addCustomExercise(

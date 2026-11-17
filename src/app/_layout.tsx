@@ -50,6 +50,7 @@ function Navigation() {
         <Stack.Screen name="library" />
         <Stack.Screen name="exercise-new" options={{ presentation: 'modal' }} />
         <Stack.Screen name="plans" />
+        <Stack.Screen name="workout-new" options={{ presentation: 'modal' }} />
         <Stack.Screen name="plan/[workoutId]" />
         <Stack.Screen name="plan/add" options={{ presentation: 'modal' }} />
       </Stack>

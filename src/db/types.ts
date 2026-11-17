@@ -29,7 +29,8 @@ export type Exercise = {
   isCustom: boolean;
 };
 
-export type WorkoutId = 'push' | 'pull' | 'legs' | 'shoulders_arms' | 'full_body';
+/** 'push', 'pull', 'legs', 'shoulders_arms', 'full_body', or 'custom-…' for workouts you add. */
+export type WorkoutId = string;
 
 /** One of the five days in the split. */
 export type Workout = {

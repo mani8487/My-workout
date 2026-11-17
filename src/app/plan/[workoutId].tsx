@@ -14,6 +14,8 @@ import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { Page } from '@/components/page';
 import {
+  deleteWorkout,
+  isCustomWorkout,
   getPlanForWorkout,
   getWorkouts,
   movePlanItem,
@@ -58,6 +60,26 @@ export default function PlanEditorScreen() {
           kind="secondary"
           onPress={() => router.push({ pathname: '/plan/add', params: { workoutId } })}
         />
+      }
+      right={
+        isCustomWorkout(workoutId)
+          ? {
+              icon: 'trash',
+              label: 'Delete workout',
+              onPress: () =>
+                Alert.alert(`Delete ${name}?`, 'It leaves the rotation. Past sessions stay in History.', [
+                  { text: 'Keep', style: 'cancel' },
+                  {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: async () => {
+                      await deleteWorkout(db, workoutId);
+                      router.back();
+                    },
+                  },
+                ]),
+            }
+          : undefined
       }>
       {plan.length === 0 && <AppText muted>No exercises yet. Tap Add Exercise.</AppText>}
       {plan.map((p, i) => (

@@ -5,6 +5,7 @@ import type { SFSymbol } from 'expo-symbols';
 import { useCallback, useState } from 'react';
 
 import { AppText } from '@/components/app-text';
+import { Button } from '@/components/button';
 import { ListRow, Section } from '@/components/list';
 import { Page } from '@/components/page';
 import { getPlanForWorkout, getWorkouts } from '@/db/plan';
@@ -24,7 +25,9 @@ export default function PlanListScreen() {
   );
 
   return (
-    <Page title="Plan Editor">
+    <Page
+      title="Plan Editor"
+      footer={<Button title="+ New Workout" kind="secondary" onPress={() => router.push('/workout-new')} />}>
       <AppText muted>Changes apply to future workouts. Past workouts in History never change.</AppText>
       <Section>
         {rows.map(({ workout, count }) => (
