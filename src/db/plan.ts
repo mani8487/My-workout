@@ -28,6 +28,32 @@ export async function getAllExercises(db: SQLiteDatabase): Promise<Exercise[]> {
   return rows.map(toExercise);
 }
 
+/**
+ * Alternatives for a swap: exercises sharing the main muscle, ranked by how
+ * many muscles they have in common. Excludes ones already in today's workout.
+ */
+export async function getSwapSuggestions(
+  db: SQLiteDatabase,
+  exerciseId: string,
+  excludeIds: string[],
+): Promise<{ suggested: Exercise[]; others: Exercise[] }> {
+  const all = await getAllExercises(db);
+  const current = all.find((e) => e.id === exerciseId);
+  const pool = all.filter((e) => e.id !== exerciseId && !excludeIds.includes(e.id));
+  if (!current) return { suggested: [], others: pool };
+
+  const main = current.muscles[0];
+  const score = (e: Exercise) =>
+    (e.muscles[0] === main ? 10 : 0) + e.muscles.filter((m) => current.muscles.includes(m)).length;
+
+  const suggested = pool
+    .filter((e) => e.muscles.includes(main))
+    .sort((a, b) => score(b) - score(a) || a.name.localeCompare(b.name))
+    .slice(0, 6);
+  const suggestedIds = new Set(suggested.map((e) => e.id));
+  return { suggested, others: pool.filter((e) => !suggestedIds.has(e.id)) };
+}
+
 export async function getWorkouts(db: SQLiteDatabase): Promise<Workout[]> {
   const rows = await db.getAllAsync<{
     id: string;

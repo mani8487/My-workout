@@ -117,6 +117,80 @@ export async function getLastTime(
 }
 
 /**
+ * The weight to pre-fill in each working set: an earned increase applies to
+ * every set; otherwise each set keeps its weight from last time.
+ */
+function startingWeights(
+  previous: PreviousSet[],
+  t: { targetSets: number; repMin: number; repMax: number; incrementKg: number },
+): (number | null)[] {
+  const prevWorking = previous.filter((s) => !s.isWarmup);
+  const suggestion = suggestWeight({ previous, ...t });
+  return Array.from({ length: t.targetSets }, (_, i) => {
+    if (suggestion.kind === 'increase') return suggestion.weightKg;
+    const prev = prevWorking[i] ?? prevWorking[prevWorking.length - 1];
+    return prev?.weightKg ?? null;
+  });
+}
+
+/**
+ * Swaps an exercise for today only (e.g. machine taken). Your plan is not
+ * changed. Only allowed before any working set is ticked, so logged sets
+ * never end up under the wrong exercise.
+ */
+export async function swapExercise(db: SQLiteDatabase, sessionExerciseId: number, newExerciseId: string) {
+  const se = await db.getFirstAsync<{
+    session_id: number;
+    exercise_id: string;
+    swapped_from_id: string | null;
+    target_sets: number;
+    rep_min: number;
+    rep_max: number;
+  }>('SELECT * FROM session_exercises WHERE id = ?', sessionExerciseId);
+  const ex = await db.getFirstAsync<{ name: string; increment_kg: number }>(
+    'SELECT name, increment_kg FROM exercises WHERE id = ?',
+    newExerciseId,
+  );
+  if (!se || !ex) return;
+
+  const previous = (await getLastTime(db, newExerciseId, se.session_id))?.sets ?? [];
+  const sets = await db.getAllAsync<{ id: number }>(
+    'SELECT id FROM sets WHERE session_exercise_id = ? AND is_warmup = 0 ORDER BY position, id',
+    sessionExerciseId,
+  );
+  const weights = startingWeights(previous, {
+    targetSets: Math.max(sets.length, 1),
+    repMin: se.rep_min,
+    repMax: se.rep_max,
+    incrementKg: ex.increment_kg,
+  });
+
+  await db.withExclusiveTransactionAsync(async (txn) => {
+    await txn.runAsync(
+      `UPDATE session_exercises SET exercise_id = ?, exercise_name = ?, swapped_from_id = ? WHERE id = ?`,
+      newExerciseId,
+      ex.name,
+      se.swapped_from_id ?? se.exercise_id, // remember the ORIGINAL planned exercise
+      sessionExerciseId,
+    );
+    // New exercise, new numbers: clear typed reps and pre-fill its own weights.
+    for (let i = 0; i < sets.length; i++) {
+      await txn.runAsync('UPDATE sets SET weight_kg = ?, reps = NULL WHERE id = ?', weights[i] ?? null, sets[i].id);
+    }
+    await txn.runAsync('DELETE FROM sets WHERE session_exercise_id = ? AND is_warmup = 1', sessionExerciseId);
+  });
+}
+
+/** Has any set of this exercise been ticked yet today? */
+export async function hasCompletedSets(db: SQLiteDatabase, sessionExerciseId: number) {
+  const row = await db.getFirstAsync<{ n: number }>(
+    'SELECT COUNT(*) AS n FROM sets WHERE session_exercise_id = ? AND completed_at IS NOT NULL',
+    sessionExerciseId,
+  );
+  return (row?.n ?? 0) > 0;
+}
+
+/**
  * Starts a new workout: copies today's plan into the session and creates the
  * planned number of empty set rows, with the weight pre-filled from the
  * suggestion (or last time's weight if there's no suggestion).
@@ -152,24 +226,18 @@ export async function startSession(db: SQLiteDatabase, workoutId: WorkoutId, wor
         p.repMax,
         p.restSeconds,
       );
-      const previous = previousByExercise.get(p.exercise.id) ?? [];
-      const prevWorking = previous.filter((s) => !s.isWarmup);
-      const suggestion = suggestWeight({
-        previous,
+      const weights = startingWeights(previousByExercise.get(p.exercise.id) ?? [], {
         targetSets: p.targetSets,
         repMin: p.repMin,
         repMax: p.repMax,
         incrementKg: p.exercise.incrementKg,
       });
       for (let i = 0; i < p.targetSets; i++) {
-        const prev = prevWorking[i] ?? prevWorking[prevWorking.length - 1];
-        // An earned increase applies to every set; otherwise keep each set's weight from last time.
-        const weight = suggestion.kind === 'increase' ? suggestion.weightKg : (prev?.weightKg ?? null);
         await txn.runAsync(
           `INSERT INTO sets (session_exercise_id, position, weight_kg) VALUES (?, ?, ?)`,
           seRes.lastInsertRowId,
           i + 1,
-          weight,
+          weights[i],
         );
       }
     }

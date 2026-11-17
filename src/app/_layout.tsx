@@ -36,6 +36,8 @@ function Navigation() {
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="workout/active" />
+        <Stack.Screen name="workout/overview" />
+        <Stack.Screen name="workout/swap" options={{ presentation: 'modal' }} />
       </Stack>
     </ThemeProvider>
   );

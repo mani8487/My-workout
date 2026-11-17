@@ -6,7 +6,7 @@
  *  - Step 4: "Last time" card and the green weight-suggestion card
  *  - Step 5: Swap Exercise and the Workout Progress overview
  */
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { SymbolView } from 'expo-symbols';
 import { useCallback, useEffect, useState } from 'react';
@@ -33,9 +33,9 @@ import {
   addSet,
   cancelSession,
   deleteSet,
-  finishSession,
   getActiveSessionId,
   getSessionDetail,
+  hasCompletedSets,
   updateSet,
   type SessionDetail,
   type SessionExercise,
@@ -71,9 +71,20 @@ export default function ActiveWorkoutScreen() {
     if (d) setIndex((current) => current ?? firstUnfinishedIndex(d));
   }, [db]);
 
+  // Reload whenever this screen comes back into view (e.g. after a swap).
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh]),
+  );
+
+  // Jump to an exercise when the Workout Progress screen sends us one.
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    if (params.index != null) {
+      setIndex(Number(params.index));
+      setRirForSetId(null);
+    }
+  }, [params.index]);
 
   if (!detail || index == null) {
     return <View style={{ flex: 1, backgroundColor: colors.background }} />;
@@ -88,9 +99,18 @@ export default function ActiveWorkoutScreen() {
     await refresh();
   }
 
-  function goBack() {
-    if (router.canGoBack()) router.back();
-    else router.replace('/');
+  function openOverview() {
+    Keyboard.dismiss();
+    router.navigate('/workout/overview');
+  }
+
+  async function openSwap() {
+    if (!exercise) return;
+    if (await hasCompletedSets(db, exercise.id)) {
+      Alert.alert('Already started', `You've logged sets for ${exercise.name}, so it can't be swapped now.`);
+      return;
+    }
+    router.push({ pathname: '/workout/swap', params: { sessionExerciseId: String(exercise.id) } });
   }
 
   function goTo(i: number) {
@@ -118,40 +138,25 @@ export default function ActiveWorkoutScreen() {
     );
   }
 
-  function confirmFinish() {
-    Alert.alert('Finish workout?', 'The full finish screen with your records arrives in a later step.', [
-      { text: 'Keep Going', style: 'cancel' },
-      {
-        text: 'Finish',
-        onPress: async () => {
-          restTimer.skip();
-          await finishSession(db, detail!.id);
-          router.replace('/');
-        },
-      },
-    ]);
-  }
-
   function openMenu() {
     Keyboard.dismiss();
-    const swap = () => Alert.alert('Coming soon', 'Swap Exercise arrives in Step 5.');
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
         {
-          options: ['Swap Exercise', 'Finish Workout', 'Cancel Workout', 'Close'],
+          options: ['Swap Exercise', 'Workout Overview', 'Cancel Workout', 'Close'],
           destructiveButtonIndex: 2,
           cancelButtonIndex: 3,
         },
         (i) => {
-          if (i === 0) swap();
-          if (i === 1) confirmFinish();
+          if (i === 0) openSwap();
+          if (i === 1) openOverview();
           if (i === 2) confirmCancel();
         },
       );
     } else {
       Alert.alert('Workout', undefined, [
-        { text: 'Swap Exercise', onPress: swap },
-        { text: 'Finish Workout', onPress: confirmFinish },
+        { text: 'Swap Exercise', onPress: openSwap },
+        { text: 'Workout Overview', onPress: openOverview },
         { text: 'Cancel Workout', style: 'destructive', onPress: confirmCancel },
         { text: 'Close', style: 'cancel' },
       ]);
@@ -191,7 +196,7 @@ export default function ActiveWorkoutScreen() {
     <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: colors.background }}>
       {/* Header: back, exercise name, menu */}
       <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.sm, height: 48 }}>
-        <Pressable onPress={goBack} hitSlop={10} accessibilityLabel="Back" style={{ width: 44, alignItems: 'center' }}>
+        <Pressable onPress={openOverview} hitSlop={10} accessibilityLabel="Workout overview" style={{ width: 44, alignItems: 'center' }}>
           <SymbolView name="chevron.left" size={22} tintColor={colors.accent} />
         </Pressable>
         <AppText variant="heading" numberOfLines={1} style={{ flex: 1, textAlign: 'center' }}>
@@ -306,11 +311,7 @@ export default function ActiveWorkoutScreen() {
 
           <AppText variant="small" muted style={{ textAlign: 'center' }}>
             Long-press a set number for warm-up · Swipe a set left to delete · Tap a ticked set to edit
-          </AppText>
-
-          {/* Temporary until Step 5 moves this to the Workout Progress screen. */}
-          <Button title="Finish Workout" kind="secondary" onPress={confirmFinish} />
-        </ScrollView>
+          </AppText>        </ScrollView>
       </KeyboardAvoidingView>
 
       <RestTimerBar />
@@ -334,9 +335,9 @@ export default function ActiveWorkoutScreen() {
         />
         <NavButton
           direction="next"
-          label={nextExercise?.name}
-          disabled={!nextExercise}
-          onPress={() => goTo(safeIndex + 1)}
+          label={nextExercise?.name ?? 'Overview & Finish'}
+          disabled={false}
+          onPress={() => (nextExercise ? goTo(safeIndex + 1) : openOverview())}
         />
       </View>
 
