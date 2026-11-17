@@ -307,6 +307,9 @@ export default function ActiveWorkoutScreen() {
           <AppText variant="small" muted style={{ textAlign: 'center' }}>
             Long-press a set number for warm-up · Swipe a set left to delete · Tap a ticked set to edit
           </AppText>
+
+          {/* Temporary until Step 5 moves this to the Workout Progress screen. */}
+          <Button title="Finish Workout" kind="secondary" onPress={confirmFinish} />
         </ScrollView>
       </KeyboardAvoidingView>
 
