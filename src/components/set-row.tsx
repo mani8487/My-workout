@@ -31,6 +31,7 @@ type Props = {
   /** "1", "2"… for working sets, "W" for warm-ups. */
   label: string;
   previous?: PreviousSet;
+  hidePrevious?: boolean;
   showRir: boolean;
   onSave: (patch: SetPatch) => Promise<void>;
   /** Called after a set is newly ticked (not when re-saving an edit). */
@@ -39,7 +40,7 @@ type Props = {
   onDelete: () => void;
 };
 
-export function SetRow({ set, label, previous, showRir, onSave, onCompleted, onRir, onDelete }: Props) {
+export function SetRow({ set, label, previous, hidePrevious, showRir, onSave, onCompleted, onRir, onDelete }: Props) {
   const { colors } = useTheme();
   const isDone = set.completedAt != null;
 
@@ -147,10 +148,14 @@ export function SetRow({ set, label, previous, showRir, onSave, onCompleted, onR
             </AppText>
           </Pressable>
 
-          {/* Last time's result, muted. */}
-          <AppText variant="small" muted numberOfLines={1} style={{ flex: 1 }}>
-            {previous ? formatSet(previous.weightKg, previous.reps) : '—'}
-          </AppText>
+          {/* Last time's result, muted (hidden in History). */}
+          {hidePrevious ? (
+            <View style={{ flex: 1 }} />
+          ) : (
+            <AppText variant="small" muted numberOfLines={1} style={{ flex: 1 }}>
+              {previous ? formatSet(previous.weightKg, previous.reps) : '—'}
+            </AppText>
+          )}
 
           {inputsLive ? (
             <>

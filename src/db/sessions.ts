@@ -195,7 +195,13 @@ export async function hasCompletedSets(db: SQLiteDatabase, sessionExerciseId: nu
  * planned number of empty set rows, with the weight pre-filled from the
  * suggestion (or last time's weight if there's no suggestion).
  */
-export async function startSession(db: SQLiteDatabase, workoutId: WorkoutId, workoutName: string): Promise<number> {
+export async function startSession(
+  db: SQLiteDatabase,
+  workoutId: WorkoutId,
+  workoutName: string,
+  /** For logging a forgotten workout: when it happened and how long it took. */
+  past?: { startedAt: number; finishedAt: number },
+): Promise<number> {
   const plan = await getPlanForWorkout(db, workoutId);
   const previousByExercise = new Map<string, PreviousSet[]>();
   for (const p of plan) {
@@ -205,10 +211,12 @@ export async function startSession(db: SQLiteDatabase, workoutId: WorkoutId, wor
   let sessionId = 0;
   await db.withExclusiveTransactionAsync(async (txn) => {
     const res = await txn.runAsync(
-      `INSERT INTO sessions (workout_id, workout_name, started_at, status) VALUES (?, ?, ?, 'active')`,
+      `INSERT INTO sessions (workout_id, workout_name, started_at, finished_at, status) VALUES (?, ?, ?, ?, ?)`,
       workoutId,
       workoutName,
-      Date.now(),
+      past?.startedAt ?? Date.now(),
+      past?.finishedAt ?? null,
+      past ? 'finished' : 'active',
     );
     sessionId = res.lastInsertRowId;
 
