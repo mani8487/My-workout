@@ -15,8 +15,9 @@ export function confirmFinishWorkout(db: SQLiteDatabase, detail: SessionDetail, 
   async function finish() {
     stopRestTimer();
     await finishSession(db, detail.id);
-    // Step 6 replaces this with the Finish Summary screen.
+    // Clear the workout screens away, then show the summary on top of Home.
     router.dismissTo('/');
+    router.push({ pathname: '/workout/summary', params: { id: String(detail.id) } });
   }
 
   const left = workingSetsLeft(detail);

@@ -22,6 +22,12 @@ export function parseReps(text: string): number | null {
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
+/** 52 -> "52 min", 75 -> "1 h 15 min" */
+export function formatDuration(min: number) {
+  if (min < 60) return `${min} min`;
+  return `${Math.floor(min / 60)} h ${min % 60} min`;
+}
+
 /** "60 × 8", or "—" if there's nothing. */
 export function formatSet(weightKg: number | null, reps: number | null): string {
   if (reps == null) return '—';

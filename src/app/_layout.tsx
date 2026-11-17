@@ -38,6 +38,7 @@ function Navigation() {
         <Stack.Screen name="workout/active" />
         <Stack.Screen name="workout/overview" />
         <Stack.Screen name="workout/swap" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="workout/summary" options={{ gestureEnabled: false }} />
       </Stack>
     </ThemeProvider>
   );
