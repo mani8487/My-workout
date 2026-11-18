@@ -37,30 +37,27 @@ export function fontFor(weight: TextStyle['fontWeight']): string {
 /** Tabular numbers: every digit is the same width, so weights and timers never jiggle. */
 const tab = { fontVariant: ['tabular-nums'] } as const;
 
-const VARIANT_WEIGHT: Record<string, Weight> = {
-  title: 'bold',
-  heading: 'semibold',
-  number: 'semibold',
-  body: 'regular',
-  label: 'semibold',
-  previous: 'regular',
-  small: 'medium',
-};
+const f = (w: Weight) => family[w];
 
+/**
+ * Each style is built fresh when read (a "getter"), so it always uses the
+ * current theme's font. (Styles handed to the screen get locked by React
+ * Native, so they must never be changed afterwards.)
+ */
 export const typography = {
   /** Screen titles. */
-  title: { fontSize: 28, fontFamily: family.bold, letterSpacing: -0.4, ...tab },
+  get title(): TextStyle { return { fontSize: 28, fontFamily: f('bold'), letterSpacing: -0.4, ...tab }; },
   /** Exercise and workout names. */
-  heading: { fontSize: 22, fontFamily: family.semibold, letterSpacing: -0.2, ...tab },
+  get heading(): TextStyle { return { fontSize: 22, fontFamily: f('semibold'), letterSpacing: -0.2, ...tab }; },
   /** Weight and reps in the set table: the biggest thing mid-workout. */
-  number: { fontSize: 26, fontFamily: family.semibold, ...tab },
-  body: { fontSize: 16, fontFamily: family.regular, ...tab },
-  label: { fontSize: 16, fontFamily: family.semibold, ...tab },
+  get number(): TextStyle { return { fontSize: 26, fontFamily: f('semibold'), ...tab }; },
+  get body(): TextStyle { return { fontSize: 16, fontFamily: f('regular'), ...tab }; },
+  get label(): TextStyle { return { fontSize: 16, fontFamily: f('semibold'), ...tab }; },
   /** Previous-session numbers. */
-  previous: { fontSize: 15, fontFamily: family.regular, ...tab },
+  get previous(): TextStyle { return { fontSize: 15, fontFamily: f('regular'), ...tab }; },
   /** Small labels and metadata. */
-  small: { fontSize: 13, fontFamily: family.medium, ...tab },
-} satisfies Record<string, TextStyle>;
+  get small(): TextStyle { return { fontSize: 13, fontFamily: f('medium'), ...tab }; },
+};
 
 export type TextVariant = keyof typeof typography;
 
@@ -94,9 +91,6 @@ export type ThemeName = 'dark' | 'light' | 'frost';
 export function applyThemeStyle(name: ThemeName) {
   const frost = name === 'frost';
   family = frost ? FONTS.manrope : FONTS.inter;
-  for (const [variant, weight] of Object.entries(VARIANT_WEIGHT)) {
-    (typography as unknown as Record<string, { fontFamily: string }>)[variant].fontFamily = family[weight];
-  }
   radius.sm = frost ? 14 : 8;
   radius.md = frost ? 999 : 8; // Frost buttons are full pills
   radius.lg = frost ? 24 : 12;
