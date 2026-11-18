@@ -78,7 +78,7 @@ export default function HomeScreen() {
   const statusLine = !workout
     ? ''
     : isOwed
-      ? `${workout.name} is owed · ${doneCount} of ${rotation.workouts.length} done this cycle`
+      ? `${workout.name} is up next · ${doneCount} of ${rotation.workouts.length} done this cycle`
       : `${workout.name} was already done on ${shortDate(rotation.done.get(workout.id)!)} this cycle`;
 
   const openPreview = () => workout && router.push({ pathname: '/workout/preview', params: { id: workout.id } });
@@ -210,7 +210,7 @@ export default function HomeScreen() {
                 <AppText variant="small" color={colors.onHeroMuted} style={{ flex: 1, letterSpacing: 0.5 }}>
                   TODAY&apos;S WORKOUT
                 </AppText>
-                <HeroChip>{isOwed ? 'Owed' : 'Done'}</HeroChip>
+                <HeroChip>{isOwed ? 'Up next' : 'Done'}</HeroChip>
               </View>
               <AppText style={{ fontSize: 40, fontWeight: '700', letterSpacing: -0.8 }} color={colors.onHero}>
                 {workout.name}

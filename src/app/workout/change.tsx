@@ -52,7 +52,7 @@ export default function ChooseWorkoutScreen() {
             <Pressable
               key={w.id}
               onPress={() => pick(w)}
-              accessibilityLabel={`${w.name}${suggested ? ', suggested' : doneAt ? ', done' : ', owed'}`}
+              accessibilityLabel={`${w.name}${suggested ? ', suggested' : doneAt ? ', done' : ', to do'}`}
               style={({ pressed }) => ({
                 flexDirection: 'row',
                 alignItems: 'center',
@@ -75,7 +75,7 @@ export default function ChooseWorkoutScreen() {
               ) : doneAt ? (
                 <Badge text={`Done ${shortDate(doneAt)}`} fg={colors.sage} bg={colors.sageSoft} />
               ) : (
-                <Badge text="Owed" fg={colors.warning} bg={colors.warningSoft} />
+                <Badge text="To do" fg={colors.warning} bg={colors.warningSoft} />
               )}
             </Pressable>
           );
