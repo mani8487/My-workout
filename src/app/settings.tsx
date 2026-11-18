@@ -51,11 +51,15 @@ export default function SettingsScreen() {
           value={preference}
           onChange={setPreference}
           options={[
-            { value: 'system', label: 'Match iPhone' },
-            { value: 'light', label: 'Light' },
             { value: 'dark', label: 'Dark' },
+            { value: 'light', label: 'Light' },
+            { value: 'frost', label: 'Frost' },
+            { value: 'auto', label: 'Auto' },
           ]}
         />
+        <AppText variant="small" muted>
+          Auto follows your iPhone&apos;s light or dark setting.
+        </AppText>
       </Card>
 
       <AppText variant="small" muted style={{ textAlign: 'center' }}>

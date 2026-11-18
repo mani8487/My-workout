@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Backdrop } from '@/components/screen';
 import { ScreenHeader } from '@/components/screen-header';
 import { useTheme } from '@/theme/theme-context';
 import { spacing } from '@/theme/typography';
@@ -26,6 +27,7 @@ export function Page({
   const { colors } = useTheme();
   return (
     <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: colors.background }}>
+      <Backdrop />
       <ScreenHeader
         title={title}
         onBack={() => router.back()}

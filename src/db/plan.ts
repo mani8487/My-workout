@@ -97,10 +97,14 @@ export async function getActiveRoutineId(db: SQLiteDatabase): Promise<string> {
   return first?.id ?? 'main';
 }
 
-/** Switch routines. Any Change Workout pick belongs to the old routine, so it's cleared. */
+/**
+ * Switch plans. Switching starts a fresh cycle in the new plan (history is kept),
+ * and any Change Workout pick belonged to the old plan, so it's cleared.
+ */
 export async function setActiveRoutine(db: SQLiteDatabase, id: string) {
   await setSetting(db, 'active_routine', id);
   await setSetting(db, 'selected_workout', null);
+  await setSetting(db, `cycle_start:${id}`, String(Date.now())); // same key as rotation.ts cycleKey()
 }
 
 export async function addRoutine(db: SQLiteDatabase, name: string): Promise<string> {

@@ -51,6 +51,25 @@ export type ColorRoles = {
   /** Deleting, and the "0 reps left" chip (used softly). */
   danger: string;
   dangerSoft: string;
+
+  /** Optional soft gradient behind whole screens (Frost). */
+  backgroundGradient: [string, string] | null;
+
+  /** The big "today's workout" card on Home. */
+  heroStart: string;
+  heroEnd: string;
+  onHero: string;
+  onHeroMuted: string;
+  heroChip: string;
+  /** The Start Workout button inside the hero card. */
+  heroButton: string;
+  onHeroButton: string;
+
+  /** The weight-suggestion card on Active Workout. */
+  suggestBg: string;
+  onSuggest: string;
+  /** Coloured left edge, or 'transparent' for none. */
+  suggestEdge: string;
 };
 
 export const darkColors: ColorRoles = {
@@ -82,6 +101,19 @@ export const darkColors: ColorRoles = {
 
   danger: '#B84A4A',
   dangerSoft: 'rgba(184,74,74,0.18)',
+
+  backgroundGradient: null,
+  heroStart: '#1E2126',
+  heroEnd: '#17191D',
+  onHero: '#F3F4F6',
+  onHeroMuted: '#8A93A2',
+  heroChip: 'rgba(255,255,255,0.06)',
+  heroButton: '#C8A96A',
+  onHeroButton: '#0E0F11',
+
+  suggestBg: '#17191D',
+  onSuggest: '#F3F4F6',
+  suggestEdge: '#C8A96A',
 };
 
 export const lightColors: ColorRoles = {
@@ -113,4 +145,66 @@ export const lightColors: ColorRoles = {
 
   danger: '#B84A4A',
   dangerSoft: 'rgba(184,74,74,0.12)',
+
+  backgroundGradient: null,
+  heroStart: '#FFFFFF',
+  heroEnd: '#F8F6F1',
+  onHero: '#17191D',
+  onHeroMuted: '#5F6773',
+  heroChip: 'rgba(0,0,0,0.05)',
+  heroButton: '#9A7B34',
+  onHeroButton: '#0E0F11',
+
+  suggestBg: '#FFFFFF',
+  onSuggest: '#17191D',
+  suggestEdge: '#9A7B34',
+};
+
+/**
+ * Frost: calm and airy. Pale cool blue-grey, frosted glass cards, dark slate
+ * accents. Muted text is darkened slightly from the design's #98A2B0 so it
+ * stays readable on glass (WCAG AA).
+ */
+export const frostColors: ColorRoles = {
+  background: '#E6ECF2',
+  card: 'rgba(255,255,255,0.62)',
+  cardAlt: '#FFFFFF',
+  border: 'rgba(255,255,255,0.75)',
+  input: '#F4F7FA',
+  inputBorder: '#CDD5DF',
+
+  text: '#1F2630',
+  textMuted: '#5F6B79',
+  faint: '#98A2B0',
+
+  accent: '#3E4756',
+  onAccent: '#FFFFFF',
+  accentSoft: 'rgba(62,71,86,0.10)',
+
+  chart: '#8C98AA',
+
+  success: '#3F8F7A',
+  successSoft: 'rgba(63,143,122,0.16)',
+
+  warning: '#9A6A12',
+  warningSoft: 'rgba(224,178,92,0.20)',
+
+  sage: '#3F8F7A',
+  sageSoft: 'rgba(63,143,122,0.12)',
+
+  danger: '#B84A4A',
+  dangerSoft: 'rgba(184,74,74,0.12)',
+
+  backgroundGradient: ['#E6ECF2', '#D5DDE6'],
+  heroStart: '#475062',
+  heroEnd: '#5E6A7E',
+  onHero: '#FFFFFF',
+  onHeroMuted: 'rgba(255,255,255,0.78)',
+  heroChip: 'rgba(255,255,255,0.14)',
+  heroButton: '#FFFFFF',
+  onHeroButton: '#1F2630',
+
+  suggestBg: '#3E4756',
+  onSuggest: '#FFFFFF',
+  suggestEdge: 'transparent',
 };

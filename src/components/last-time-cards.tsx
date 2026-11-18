@@ -15,6 +15,7 @@ function shortDate(ms: number) {
 
 export function LastTimeCards({ exercise }: { exercise: SessionExercise }) {
   const { colors } = useTheme();
+  const hasEdge = colors.suggestEdge !== 'transparent';
   const working = exercise.previous.filter((s) => !s.isWarmup);
   const suggestion = suggestWeight({
     previous: exercise.previous,
@@ -47,32 +48,34 @@ export function LastTimeCards({ exercise }: { exercise: SessionExercise }) {
 
       <View
         style={{
-          // Suggestion card: quiet surface with a brass left edge.
-          backgroundColor: colors.card,
+          // Suggestion card: a brass left edge in Dark/Light, a solid slate card in Frost.
+          backgroundColor: colors.suggestBg,
           borderWidth: 1,
           borderColor: colors.border,
-          borderLeftWidth: 3,
-          borderLeftColor: colors.accent,
+          borderLeftWidth: hasEdge ? 3 : 1,
+          borderLeftColor: hasEdge ? colors.suggestEdge : colors.border,
           borderRadius: radius.lg,
-          padding: spacing.md,
+          padding: spacing.lg,
           flexDirection: 'row',
           gap: spacing.md,
           alignItems: 'center',
         }}>
-        <SymbolView
-          name={suggestion.kind === 'increase' ? 'arrow.up.circle.fill' : 'lightbulb.fill'}
-          size={24}
-          tintColor={colors.accent}
-        />
         <View style={{ flex: 1, gap: 2 }}>
+          <AppText variant="small" color={colors.onSuggest} style={{ opacity: 0.8 }}>
+            {suggestion.reason}
+          </AppText>
           {suggestion.weightKg != null && (
-            <AppText variant="label" color={colors.accent}>
-              {suggestion.kind === 'increase' ? 'Go up to ' : 'Use '}
-              {formatKg(suggestion.weightKg)} kg
+            <AppText variant="heading" style={{ fontSize: 20 }} color={hasEdge ? colors.accent : colors.onSuggest}>
+              {suggestion.kind === 'increase' ? 'Try ' : 'Use '}
+              {formatKg(suggestion.weightKg)} kg today
             </AppText>
           )}
-          <AppText variant="small">{suggestion.reason}</AppText>
         </View>
+        <SymbolView
+          name={suggestion.kind === 'increase' ? 'chart.line.uptrend.xyaxis' : 'lightbulb'}
+          size={24}
+          tintColor={hasEdge ? colors.accent : colors.onSuggest}
+        />
       </View>
     </View>
   );

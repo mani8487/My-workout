@@ -11,6 +11,7 @@ import { Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
+import { Backdrop } from '@/components/screen';
 import { ScreenHeader } from '@/components/screen-header';
 import type { Workout } from '@/db/types';
 import type { Rotation } from '@/logic/rotation';
@@ -35,6 +36,7 @@ export default function ChooseWorkoutScreen() {
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: colors.background }}>
+      <Backdrop />
       <ScreenHeader title="Choose Workout" onBack={() => router.back()} backIcon="xmark" backLabel="Close" />
       {state && (
         <AppText variant="small" muted style={{ textAlign: 'center' }}>
