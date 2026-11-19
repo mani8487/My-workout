@@ -177,3 +177,94 @@ revoke all on
 
 grant execute on function public.add_friend_by_code(text) to authenticated;
 grant execute on function public.remove_friend(uuid) to authenticated;
+
+-- ---------- Security hardening (20 Nov 2026) ----------
+-- Safe to run more than once.
+
+-- 1. You can only change your name and the "share stats" switch, never your id or
+--    friend code. Recipients can only answer a challenge (its status), nothing else.
+--    Friendships can only be made or removed through the functions above.
+revoke update on public.profiles from authenticated;
+grant update (display_name, share_stats) on public.profiles to authenticated;
+revoke update on public.challenges from authenticated;
+grant update (status) on public.challenges to authenticated;
+revoke insert, update, delete on public.friendships from authenticated;
+revoke update on public.shared_plans from authenticated;
+
+-- 2. Sensible limits, so nobody can store junk, huge payloads or impossible leaderboard numbers.
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'profiles_name_length') then
+    alter table public.profiles add constraint profiles_name_length
+      check (char_length(btrim(display_name)) between 1 and 30);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'weekly_stats_sane') then
+    alter table public.weekly_stats add constraint weekly_stats_sane
+      check (workouts between 0 and 21 and volume_kg between 0 and 500000 and streak_weeks between 0 and 1000);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'shared_plans_size') then
+    alter table public.shared_plans add constraint shared_plans_size
+      check (char_length(name) between 1 and 60 and pg_column_size(payload) <= 65536);
+  end if;
+end $$;
+
+-- 3. Friend codes: new ones use a 32-character alphabet (about 1 billion
+--    combinations instead of 16 million) from a secure random source.
+create or replace function public.handle_new_user()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  alphabet constant text := 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  bytes bytea;
+  code text;
+begin
+  loop
+    bytes := uuid_send(gen_random_uuid());
+    code := '';
+    for i in 0..5 loop
+      code := code || substr(alphabet, (get_byte(bytes, i) % 32) + 1, 1);
+    end loop;
+    exit when not exists (select 1 from profiles where invite_code = code);
+  end loop;
+  insert into profiles (id, invite_code) values (new.id, code) on conflict (id) do nothing;
+  return new;
+end;
+$$;
+
+-- 4. Stop anyone guessing friend codes: at most 10 tries per hour per account.
+--    A wrong code returns nothing (not an error) so the try is still counted.
+create table if not exists public.friend_code_attempts (
+  user_id uuid not null references auth.users (id) on delete cascade,
+  at timestamptz not null default now()
+);
+create index if not exists friend_code_attempts_user_at on public.friend_code_attempts (user_id, at);
+alter table public.friend_code_attempts enable row level security; -- no policies: only the function below can touch it
+revoke all on public.friend_code_attempts from anon, authenticated;
+
+create or replace function public.add_friend_by_code(code text)
+returns text language plpgsql security definer set search_path = public as $$
+declare other profiles%rowtype;
+begin
+  if auth.uid() is null then raise exception 'Please sign in first'; end if;
+  delete from friend_code_attempts where at < now() - interval '1 day';
+  if (select count(*) from friend_code_attempts where user_id = auth.uid() and at > now() - interval '1 hour') >= 10 then
+    raise exception 'Too many tries. Please wait an hour and try again.';
+  end if;
+  insert into friend_code_attempts (user_id) values (auth.uid());
+
+  select * into other from profiles where invite_code = upper(trim(code));
+  if other.id is null then return null; end if;
+  if other.id = auth.uid() then raise exception 'That is your own code'; end if;
+  insert into friendships (user_id, friend_id) values (auth.uid(), other.id), (other.id, auth.uid())
+    on conflict do nothing;
+  return other.display_name;
+end;
+$$;
+
+-- 5. Functions are callable only by signed-in users (not anonymous visitors).
+revoke execute on function public.add_friend_by_code(text) from public, anon;
+revoke execute on function public.remove_friend(uuid) from public, anon;
+revoke execute on function public.is_friend(uuid, uuid) from public, anon;
+revoke execute on function public.handle_new_user() from public, anon, authenticated;
+grant execute on function public.add_friend_by_code(text) to authenticated;
+grant execute on function public.remove_friend(uuid) to authenticated;
+grant execute on function public.is_friend(uuid, uuid) to authenticated;

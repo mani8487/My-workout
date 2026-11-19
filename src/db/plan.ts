@@ -17,7 +17,7 @@ export function toExercise(row: ExerciseRow): Exercise {
   return {
     id: row.id,
     name: row.name,
-    muscles: row.muscles.split(',') as MuscleGroup[],
+    muscles: (row.muscles ?? '').split(',').filter(Boolean) as MuscleGroup[],
     equipment: row.equipment as Equipment,
     incrementKg: row.increment_kg,
     isCustom: row.is_custom === 1,

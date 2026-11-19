@@ -10,6 +10,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { addRoutine, addWorkout, getPlanForWorkout, getRoutines, getWorkouts } from '@/db/plan';
 import { supabase } from '@/lib/supabase';
+import { parsePlanPayload, type PlanPayload } from './plan-payload';
 import { weekStartOf } from './schedule';
 
 export type Metric = 'workouts' | 'volume' | 'streak';
@@ -28,24 +29,6 @@ export type Challenge = {
 };
 export type IncomingPlan = { id: string; name: string; fromName: string; payload: PlanPayload };
 
-type PlanPayload = {
-  workouts: {
-    name: string;
-    muscleLabel: string;
-    icon: string;
-    items: {
-      exerciseId: string;
-      name: string;
-      muscles: string[];
-      equipment: string;
-      incrementKg: number;
-      sets: number;
-      repMin: number;
-      repMax: number;
-      rest: number;
-    }[];
-  }[];
-};
 
 function client() {
   if (!supabase) throw new Error('Friends are not set up yet.');
@@ -78,9 +61,13 @@ export async function updateMyProfile(patch: Partial<Pick<Profile, 'display_name
 // ---------- Friends ----------
 
 export async function addFriendByCode(code: string): Promise<string> {
-  const { data, error } = await client().rpc('add_friend_by_code', { code });
+  const cleaned = code.trim().toUpperCase();
+  if (!/^[A-Z0-9]{6}$/.test(cleaned)) throw new Error('Friend codes are 6 letters or numbers.');
+  const { data, error } = await client().rpc('add_friend_by_code', { code: cleaned });
   if (error) throw new Error(error.message);
-  return data as string;
+  // The server answers "nothing" (rather than an error) for a wrong code, so every try counts toward its limit.
+  if (typeof data !== 'string') throw new Error('No one has that code.');
+  return data;
 }
 
 export async function removeFriend(friendId: string) {
@@ -245,18 +232,33 @@ export async function listIncomingPlans(meId: string, friends: Friend[]): Promis
     .order('created_at', { ascending: false });
   if (error) throw error;
   const names = new Map(friends.map((f) => [f.id, f.name]));
-  return (data ?? []).map((p) => ({
-    id: p.id as string,
-    name: p.name as string,
-    fromName: names.get(p.owner_id as string) ?? 'A friend',
-    payload: p.payload as PlanPayload,
-  }));
+  const plans: IncomingPlan[] = [];
+  for (const p of data ?? []) {
+    // Never trust what comes over the internet: skip anything malformed.
+    const payload = parsePlanPayload(p.payload);
+    const name = typeof p.name === 'string' ? p.name.trim().slice(0, 40) : '';
+    if (!payload || !name) continue;
+    plans.push({ id: String(p.id), name, fromName: (names.get(p.owner_id as string) ?? 'A friend').slice(0, 30), payload });
+  }
+  return plans;
 }
 
 /** Add a friend's plan to your own plans (as a new routine), then remove it from the inbox. */
 export async function importPlan(db: SQLiteDatabase, plan: IncomingPlan) {
+  const payload = parsePlanPayload(plan.payload);
+  if (!payload) throw new Error("This plan couldn't be read.");
+  let routineId = '';
+  // All or nothing: a problem halfway through leaves your plans untouched.
+  await db.withTransactionAsync(async () => {
+    routineId = await addPlanToRoutine(db, plan, payload);
+  });
+  await dismissPlan(plan.id);
+  return routineId;
+}
+
+async function addPlanToRoutine(db: SQLiteDatabase, plan: IncomingPlan, payload: PlanPayload) {
   const routineId = await addRoutine(db, `${plan.name} (from ${plan.fromName})`);
-  for (const w of plan.payload.workouts ?? []) {
+  for (const w of payload.workouts) {
     const workoutId = await addWorkout(db, { name: w.name, muscleLabel: w.muscleLabel, icon: w.icon, routineId });
     for (let i = 0; i < w.items.length; i++) {
       const it = w.items[i];
@@ -282,7 +284,6 @@ export async function importPlan(db: SQLiteDatabase, plan: IncomingPlan) {
       );
     }
   }
-  await dismissPlan(plan.id);
   return routineId;
 }
 

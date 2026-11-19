@@ -76,6 +76,9 @@ function Navigation() {
   );
 }
 
+/** If any screen crashes, show a friendly "Try again" page instead of closing the app. */
+export { CrashScreen as ErrorBoundary } from '@/components/crash-screen';
+
 export default function RootLayout() {
   // The Inter font files are bundled inside the app, so this works offline.
   const [fontsLoaded] = useFonts({

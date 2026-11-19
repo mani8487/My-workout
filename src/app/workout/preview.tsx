@@ -13,6 +13,7 @@ import { ScreenHeader } from '@/components/screen-header';
 import { getWorkouts, type PlannedExercise } from '@/db/plan';
 import { getActiveSessionId, startSession } from '@/db/sessions';
 import type { Workout, WorkoutId } from '@/db/types';
+import { titleCase } from '@/logic/format';
 import { getWorkoutPreview } from '@/logic/today';
 import { useTheme } from '@/theme/theme-context';
 import { radius, spacing } from '@/theme/typography';
@@ -90,7 +91,7 @@ export default function PreviewScreen() {
               <View style={{ flex: 1 }}>
                 <AppText variant="label">{p.exercise.name}</AppText>
                 <AppText variant="small" muted>
-                  {p.exercise.muscles.map((m) => m[0].toUpperCase() + m.slice(1)).join(' · ')}
+                  {p.exercise.muscles.map(titleCase).join(' · ')}
                 </AppText>
               </View>
               <AppText muted>

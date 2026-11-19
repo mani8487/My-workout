@@ -23,7 +23,7 @@ import {
   type SeriesPoint,
 } from '@/db/progress';
 import { getSetting } from '@/db/settings';
-import { formatKg } from '@/logic/format';
+import { formatKg, titleCase } from '@/logic/format';
 import { shortDate } from '@/logic/today';
 import { useTheme } from '@/theme/theme-context';
 import { spacing } from '@/theme/typography';
@@ -136,7 +136,7 @@ export default function ProgressScreen() {
             {muscles.map((m) => (
               <View key={m.muscle} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
                 <AppText variant="small" style={{ width: 84 }}>
-                  {m.muscle[0].toUpperCase() + m.muscle.slice(1)}
+                  {titleCase(m.muscle)}
                 </AppText>
                 <View style={{ flex: 1, height: 10, borderRadius: 5, backgroundColor: colors.cardAlt, overflow: 'hidden' }}>
                   <View style={{ width: `${(m.sets / maxMuscle) * 100}%`, height: '100%', backgroundColor: colors.accent }} />

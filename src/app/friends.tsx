@@ -218,6 +218,7 @@ export default function FriendsScreen() {
           onChangeText={setName}
           onEndEditing={() => name.trim() && name.trim() !== me.display_name && act(() => updateMyProfile({ display_name: name.trim() }))}
           placeholder="What friends see"
+          maxLength={30}
           placeholderTextColor={colors.faint}
           style={input}
         />
@@ -425,7 +426,10 @@ function SignIn({ onDone }: { onDone: () => void }) {
     padding: spacing.md,
     minHeight: MIN_TAP,
   };
-  const ready = email.includes('@') && password.length >= 6;
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  const ready = emailOk && password.length >= 6;
+  // New accounts need a stronger password: 10+ characters with a letter and a number.
+  const strongEnough = password.length >= 10 && /[a-zA-Z]/.test(password) && /\d/.test(password);
 
   async function run(fn: (e: string, p: string) => Promise<void>) {
     setBusy(true);
@@ -465,7 +469,8 @@ function SignIn({ onDone }: { onDone: () => void }) {
         <TextInput
           value={password}
           onChangeText={setPassword}
-          placeholder="At least 6 characters"
+          placeholder="Your password"
+          maxLength={72}
           placeholderTextColor={colors.faint}
           secureTextEntry
           autoCapitalize="none"
@@ -476,11 +481,12 @@ function SignIn({ onDone }: { onDone: () => void }) {
         <Button
           title="Create Account"
           kind="secondary"
-          disabled={busy || !ready}
+          disabled={busy || !emailOk || !strongEnough}
           onPress={() => run(createAccount)}
         />
         <AppText variant="small" muted>
-          First time? Type your email and a new password, then tap Create Account.
+          First time? Type your email and a new password (at least 10 characters, with a letter and a number), then tap
+          Create Account.
         </AppText>
       </Card>
     </Page>

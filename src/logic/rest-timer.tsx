@@ -65,8 +65,13 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
     (async () => {
       const saved = await getSetting(db, 'rest_timer');
       if (!saved) return;
-      const t = JSON.parse(saved) as NonNullable<TimerState>;
-      if (t.endsAt > Date.now()) setTimer(t);
+      let t: NonNullable<TimerState> | null = null;
+      try {
+        t = JSON.parse(saved) as NonNullable<TimerState>;
+      } catch {
+        // A damaged saved timer is simply forgotten.
+      }
+      if (t && typeof t.endsAt === 'number' && t.endsAt > Date.now()) setTimer(t);
       else await setSetting(db, 'rest_timer', null);
     })();
   }, [db]);

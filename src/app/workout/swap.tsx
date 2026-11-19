@@ -13,6 +13,7 @@ import { ScreenHeader } from '@/components/screen-header';
 import { getSwapSuggestions } from '@/db/plan';
 import { getSessionDetail, swapExercise } from '@/db/sessions';
 import type { Exercise } from '@/db/types';
+import { titleCase } from '@/logic/format';
 import { useTheme } from '@/theme/theme-context';
 import { radius, spacing, typography } from '@/theme/typography';
 
@@ -161,7 +162,7 @@ function ExerciseRow({ exercise, first, onPress }: { exercise: Exercise; first: 
       })}>
       <AppText variant="label">{exercise.name}</AppText>
       <AppText variant="small" muted>
-        {exercise.muscles.map((m) => m[0].toUpperCase() + m.slice(1)).join(' · ')} · {exercise.equipment}
+        {exercise.muscles.map(titleCase).join(' · ')} · {exercise.equipment}
       </AppText>
     </Pressable>
   );

@@ -23,7 +23,7 @@ export function parseReps(text: string): number | null {
 }
 
 /** "chest" -> "Chest" */
-export const titleCase = (s: string) => s[0].toUpperCase() + s.slice(1);
+export const titleCase = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : '');
 
 /** "Chest · Triceps · barbell" */
 export function describeExercise(e: { muscles: string[]; equipment: string }) {
