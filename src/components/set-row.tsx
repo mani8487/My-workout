@@ -8,73 +8,59 @@
  * - Swipe left: reveals Delete.
  * - Note icon: opens a text box under the row.
  * - After ticking, an optional "reps left" row (0–3) slides in.
- * - While typing, the bar above the number pad has − / + steppers
- *   (2.5 kg for weight, 1 for reps) and Done.
+ * - kg / reps boxes open the app's own number pad (number-pad.tsx), with
+ *   − / + steppers (2.5 kg, 1 rep), Next and Done.
  */
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
-import { useState } from 'react';
-import { Alert, InputAccessoryView, Keyboard, Platform, Pressable, TextInput, View } from 'react-native';
+import { type ComponentRef, useEffect, useRef, useState } from 'react';
+import { Alert, Pressable, TextInput, View } from 'react-native';
 import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Animated, { FadeIn, FadeInDown, FadeOut } from 'react-native-reanimated';
 
 import { AppText } from '@/components/app-text';
+import { closePad, openPad, type PadField, updatePad, useActivePadId } from '@/components/number-pad';
 import type { PreviousSet, SessionSet, SetPatch } from '@/db/sessions';
 import { formatKg, formatSet, parseKg, parseReps } from '@/logic/format';
 import { useTheme } from '@/theme/theme-context';
 import { MAX_FONT_SCALE, MIN_TAP, radius, spacing, typography } from '@/theme/typography';
 
-export const SET_INPUT_ACCESSORY_ID = 'set-input-done';
-
 /** Column widths, shared with the table header so everything lines up. */
 export const COLS = { set: 34, kg: 78, reps: 56, tick: 44, note: 28 } as const;
 
-// ---- The −/+ stepper above the number pad acts on whichever box is focused ----
-let activeStep: ((dir: -1 | 1) => void) | null = null;
+type PadBoxProps = Omit<PadField, 'measure'> & { placeholder: string; width: number; label: string };
 
-/** The bar shown above the iPhone number pad. Render once per screen. */
-export function NumberPadBar() {
+/** A kg or reps box. Tapping it opens the app's own number pad. */
+function PadBox({ placeholder, width, label, ...rest }: PadBoxProps) {
   const { colors } = useTheme();
-  if (Platform.OS !== 'ios') return null;
-  const stepBtn = {
-    minWidth: 64,
-    height: 40,
-    borderRadius: radius.sm,
-    backgroundColor: colors.input,
-    borderWidth: 1,
-    borderColor: colors.inputBorder,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
+  const ref = useRef<ComponentRef<typeof View>>(null);
+  const active = useActivePadId() === rest.id;
+  const field: PadField = {
+    ...rest,
+    measure: (cb) => ref.current?.measureInWindow((_x, y, _w, h) => cb(y, h)),
   };
+  // After every render, hand the open pad this box's latest value and callbacks.
+  useEffect(() => updatePad(field));
   return (
-    <InputAccessoryView nativeID={SET_INPUT_ACCESSORY_ID}>
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: spacing.md,
-          paddingHorizontal: spacing.lg,
-          paddingVertical: spacing.sm,
-          backgroundColor: colors.card,
-          borderTopWidth: 1,
-          borderTopColor: colors.border,
-        }}>
-        <Pressable onPress={() => activeStep?.(-1)} style={stepBtn} accessibilityLabel="Decrease">
-          <AppText variant="label">−</AppText>
-        </Pressable>
-        <Pressable onPress={() => activeStep?.(1)} style={stepBtn} accessibilityLabel="Increase">
-          <AppText variant="label">+</AppText>
-        </Pressable>
-        <AppText variant="small" muted style={{ flex: 1 }}>
-          kg ±2.5 · reps ±1
-        </AppText>
-        <Pressable onPress={() => Keyboard.dismiss()} hitSlop={10} style={{ height: 40, justifyContent: 'center' }}>
-          <AppText variant="label" color={colors.accent}>
-            Done
-          </AppText>
-        </Pressable>
-      </View>
-    </InputAccessoryView>
+    <Pressable
+      ref={ref}
+      onPress={() => openPad(field)}
+      accessibilityLabel={label}
+      accessibilityValue={{ text: rest.value || placeholder }}
+      style={{
+        width,
+        height: MIN_TAP,
+        borderRadius: radius.sm,
+        borderWidth: active ? 2 : 1,
+        borderColor: active ? colors.accent : colors.inputBorder,
+        backgroundColor: colors.input,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}>
+      <AppText variant="number" color={rest.value ? colors.text : colors.faint} maxFontSizeMultiplier={1.2} numberOfLines={1}>
+        {rest.value || placeholder}
+      </AppText>
+    </Pressable>
   );
 }
 
@@ -118,7 +104,7 @@ export function SetRow({ set, label, previous, hidePrevious, showRir, onSave, on
       Alert.alert('Enter your reps', 'Type how many reps you did, then tick the set.');
       return;
     }
-    Keyboard.dismiss();
+    closePad();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     await onSave({ weightKg: weight, reps, completedAt: isDone ? set.completedAt : Date.now() });
     setWeightText(formatKg(weight));
@@ -140,22 +126,26 @@ export function SetRow({ set, label, previous, hidePrevious, showRir, onSave, on
     if (r !== set.reps) onSave({ reps: r });
   }
 
+  function repsField(): PadField {
+    return { id: `${set.id}-reps`, kind: 'reps', value: repsText, fallback: previous?.reps, onChange: setRepsText, onCommit: saveRepsDraft };
+  }
+
+  function kgField(): PadField {
+    return {
+      id: `${set.id}-kg`,
+      kind: 'kg',
+      value: weightText,
+      fallback: previous?.weightKg,
+      onChange: setWeightText,
+      onCommit: saveWeightDraft,
+      onNext: () => openPad(repsField()),
+    };
+  }
+
   function saveNote() {
     const trimmed = noteText.trim();
     if (trimmed !== (set.note ?? '')) onSave({ note: trimmed === '' ? null : trimmed });
   }
-
-  const inputStyle = {
-    ...typography.number,
-    color: colors.text,
-    backgroundColor: colors.input,
-    borderWidth: 1,
-    borderColor: colors.inputBorder,
-    borderRadius: radius.sm,
-    height: MIN_TAP,
-    paddingVertical: 0,
-    textAlign: 'center' as const,
-  };
 
   return (
     <View>
@@ -221,39 +211,17 @@ export function SetRow({ set, label, previous, hidePrevious, showRir, onSave, on
 
           {inputsLive ? (
             <>
-              <TextInput
-                value={weightText}
-                onChangeText={setWeightText}
-                onFocus={() => {
-                  activeStep = (dir) =>
-                    setWeightText((t) => formatKg(Math.max(0, (parseKg(t) ?? previous?.weightKg ?? 0) + dir * 2.5)));
-                }}
-                onEndEditing={saveWeightDraft}
+              <PadBox
+                {...kgField()}
                 placeholder={previous?.weightKg != null ? formatKg(previous.weightKg) : 'kg'}
-                placeholderTextColor={colors.faint}
-                keyboardType="decimal-pad"
-                inputAccessoryViewID={SET_INPUT_ACCESSORY_ID}
-                selectTextOnFocus
-                maxFontSizeMultiplier={1.2}
-                accessibilityLabel="Weight in kilos"
-                style={[inputStyle, { width: COLS.kg }]}
+                width={COLS.kg}
+                label="Weight in kilos"
               />
-              <TextInput
-                value={repsText}
-                onChangeText={setRepsText}
-                onFocus={() => {
-                  activeStep = (dir) =>
-                    setRepsText((t) => String(Math.max(0, (parseReps(t) ?? previous?.reps ?? 0) + dir)));
-                }}
-                onEndEditing={saveRepsDraft}
+              <PadBox
+                {...repsField()}
                 placeholder={previous?.reps != null ? String(previous.reps) : 'reps'}
-                placeholderTextColor={colors.faint}
-                keyboardType="number-pad"
-                inputAccessoryViewID={SET_INPUT_ACCESSORY_ID}
-                selectTextOnFocus
-                maxFontSizeMultiplier={1.2}
-                accessibilityLabel="Reps"
-                style={[inputStyle, { width: COLS.reps }]}
+                width={COLS.reps}
+                label="Reps"
               />
             </>
           ) : (
@@ -321,6 +289,7 @@ export function SetRow({ set, label, previous, hidePrevious, showRir, onSave, on
           <TextInput
             value={noteText}
             onChangeText={setNoteText}
+            onFocus={closePad}
             onEndEditing={saveNote}
             placeholder="Note for this set, e.g. seat height 4"
             placeholderTextColor={colors.faint}

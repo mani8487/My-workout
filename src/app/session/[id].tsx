@@ -5,13 +5,14 @@
  */
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useCallback, useState } from 'react';
+import { type ComponentRef, useCallback, useRef, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { ScreenHeader } from '@/components/screen-header';
-import { NumberPadBar, SetRow } from '@/components/set-row';
+import { NumberPad, usePadSpacer } from '@/components/number-pad';
+import { SetRow } from '@/components/set-row';
 import { addSet, cancelSession, deleteSet, getSessionDetail, updateSet, type SessionDetail } from '@/db/sessions';
 import { formatDuration } from '@/logic/format';
 import { useTheme } from '@/theme/theme-context';
@@ -23,6 +24,9 @@ export default function SessionDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [detail, setDetail] = useState<SessionDetail | null>(null);
   const [rirForSetId, setRirForSetId] = useState<number | null>(null);
+  const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
+  const scrollY = useRef(0);
+  const padSpacer = usePadSpacer();
 
   const refresh = useCallback(async () => setDetail(await getSessionDetail(db, Number(id))), [db, id]);
   // Load (and reload when coming back to this screen).
@@ -56,9 +60,12 @@ export default function SessionDetailScreen() {
       <ScreenHeader title={detail.workoutName} onBack={() => router.back()} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView
+          ref={scrollRef}
+          onScroll={(e) => (scrollY.current = e.nativeEvent.contentOffset.y)}
+          scrollEventThrottle={32}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
-          contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xxl }}>
+          contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xxl + padSpacer }}>
           <AppText muted style={{ textAlign: 'center' }}>
             {new Date(detail.startedAt).toLocaleDateString(undefined, {
               weekday: 'long',
@@ -141,7 +148,7 @@ export default function SessionDetailScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      <NumberPadBar />
+      <NumberPad scrollRef={scrollRef} scrollY={scrollY} />
     </SafeAreaView>
   );
 }

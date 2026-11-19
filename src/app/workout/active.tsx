@@ -7,7 +7,7 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { SymbolView } from 'expo-symbols';
-import { useCallback, useEffect, useState } from 'react';
+import { type ComponentRef, useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActionSheetIOS,
   Alert,
@@ -24,7 +24,8 @@ import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
 import { LastTimeCards } from '@/components/last-time-cards';
 import { RestTimerBar } from '@/components/rest-timer-bar';
-import { COLS, NumberPadBar, SetRow } from '@/components/set-row';
+import { closePad, NumberPad, usePadSpacer } from '@/components/number-pad';
+import { COLS, SetRow } from '@/components/set-row';
 import { confirmFinishWorkout } from '@/logic/finish';
 import { useRestTimer } from '@/logic/rest-timer';
 import {
@@ -57,6 +58,9 @@ export default function ActiveWorkoutScreen() {
   const [index, setIndex] = useState<number | null>(params.index != null ? Number(params.index) : null);
   const [rirForSetId, setRirForSetId] = useState<number | null>(null);
   const restTimer = useRestTimer();
+  const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
+  const scrollY = useRef(0);
+  const padSpacer = usePadSpacer();
 
   const refresh = useCallback(async () => {
     const id = await getActiveSessionId(db);
@@ -101,6 +105,7 @@ export default function ActiveWorkoutScreen() {
 
   function openOverview() {
     Keyboard.dismiss();
+    closePad();
     router.navigate('/workout/overview');
   }
 
@@ -115,6 +120,7 @@ export default function ActiveWorkoutScreen() {
 
   function goTo(i: number) {
     Keyboard.dismiss();
+    closePad();
     setRirForSetId(null);
     setIndex(i);
   }
@@ -140,6 +146,7 @@ export default function ActiveWorkoutScreen() {
 
   function openMenu() {
     Keyboard.dismiss();
+    closePad();
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
         {
@@ -206,9 +213,12 @@ export default function ActiveWorkoutScreen() {
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView
+          ref={scrollRef}
+          onScroll={(e) => (scrollY.current = e.nativeEvent.contentOffset.y)}
+          scrollEventThrottle={32}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
-          contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xxl }}>
+          contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xxl + padSpacer }}>
           {/* Progress through the workout */}
           <View style={{ gap: spacing.sm }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
@@ -344,7 +354,7 @@ export default function ActiveWorkoutScreen() {
         />
       </View>
 
-      <NumberPadBar />
+      <NumberPad scrollRef={scrollRef} scrollY={scrollY} />
     </SafeAreaView>
   );
 }
