@@ -136,24 +136,77 @@ function startingWeights(
 }
 
 /**
- * Swaps an exercise for today only (e.g. machine taken). Your plan is not
- * changed. Only allowed before any working set is ticked, so logged sets
- * never end up under the wrong exercise.
+ * Swaps an exercise for today only (e.g. machine taken). Your plan is not changed.
+ *
+ * - Nothing ticked yet: the exercise is simply replaced.
+ * - Some sets already ticked: those stay on the original exercise (so history
+ *   stays correct), and the sets still to do move to the new exercise, which is
+ *   added right after it.
+ *
+ * Returns the id of the session exercise to show next.
  */
-export async function swapExercise(db: SQLiteDatabase, sessionExerciseId: number, newExerciseId: string) {
+export async function swapExercise(db: SQLiteDatabase, sessionExerciseId: number, newExerciseId: string): Promise<number | null> {
   const se = await db.getFirstAsync<{
     session_id: number;
     exercise_id: string;
     swapped_from_id: string | null;
+    position: number;
     target_sets: number;
     rep_min: number;
     rep_max: number;
+    rest_seconds: number;
   }>('SELECT * FROM session_exercises WHERE id = ?', sessionExerciseId);
   const ex = await db.getFirstAsync<{ name: string; increment_kg: number }>(
     'SELECT name, increment_kg FROM exercises WHERE id = ?',
     newExerciseId,
   );
-  if (!se || !ex) return;
+  if (!se || !ex) return null;
+
+  if (await hasCompletedSets(db, sessionExerciseId)) {
+    // Split: keep the ticked sets, move what's left to the new exercise.
+    const counts = await db.getFirstAsync<{ done: number; left: number }>(
+      `SELECT SUM(completed_at IS NOT NULL) AS done, SUM(completed_at IS NULL) AS left
+       FROM sets WHERE session_exercise_id = ? AND is_warmup = 0`,
+      sessionExerciseId,
+    );
+    const remaining = Math.max(counts?.left ?? 0, 1);
+    const prev = (await getLastTime(db, newExerciseId, se.session_id))?.sets ?? [];
+    const weights = startingWeights(prev, {
+      targetSets: remaining,
+      repMin: se.rep_min,
+      repMax: se.rep_max,
+      incrementKg: ex.increment_kg,
+    });
+    let newId: number | null = null;
+    await db.withExclusiveTransactionAsync(async (txn) => {
+      await txn.runAsync('DELETE FROM sets WHERE session_exercise_id = ? AND completed_at IS NULL', sessionExerciseId);
+      await txn.runAsync('UPDATE session_exercises SET target_sets = ? WHERE id = ?', Math.max(counts?.done ?? 0, 1), sessionExerciseId);
+      await txn.runAsync(
+        'UPDATE session_exercises SET position = position + 1 WHERE session_id = ? AND position > ?',
+        se.session_id,
+        se.position,
+      );
+      const res = await txn.runAsync(
+        `INSERT INTO session_exercises
+           (session_id, exercise_id, exercise_name, position, target_sets, rep_min, rep_max, rest_seconds, swapped_from_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        se.session_id,
+        newExerciseId,
+        ex.name,
+        se.position + 1,
+        remaining,
+        se.rep_min,
+        se.rep_max,
+        se.rest_seconds,
+        se.swapped_from_id ?? se.exercise_id,
+      );
+      newId = res.lastInsertRowId;
+      for (let i = 0; i < remaining; i++) {
+        await txn.runAsync('INSERT INTO sets (session_exercise_id, position, weight_kg) VALUES (?, ?, ?)', newId, i + 1, weights[i] ?? null);
+      }
+    });
+    return newId;
+  }
 
   const previous = (await getLastTime(db, newExerciseId, se.session_id))?.sets ?? [];
   const sets = await db.getAllAsync<{ id: number }>(
@@ -181,6 +234,7 @@ export async function swapExercise(db: SQLiteDatabase, sessionExerciseId: number
     }
     await txn.runAsync('DELETE FROM sets WHERE session_exercise_id = ? AND is_warmup = 1', sessionExerciseId);
   });
+  return sessionExerciseId;
 }
 
 /** Has any set of this exercise been ticked yet today? */

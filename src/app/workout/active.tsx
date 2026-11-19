@@ -28,6 +28,7 @@ import { RestTimerBar } from '@/components/rest-timer-bar';
 import { closePad, NumberPad, usePadSpacer } from '@/components/number-pad';
 import { COLS, SetRow } from '@/components/set-row';
 import { confirmFinishWorkout } from '@/logic/finish';
+import { confirmSplitSwap } from '@/logic/swap';
 import { useRestTimer } from '@/logic/rest-timer';
 import {
   addSet,
@@ -53,7 +54,8 @@ function firstUnfinishedIndex(detail: SessionDetail) {
 export default function ActiveWorkoutScreen() {
   const db = useSQLiteContext();
   const { colors } = useTheme();
-  const params = useLocalSearchParams<{ index?: string }>();
+  // `at` changes on every jump, so jumping to the same index twice still works.
+  const params = useLocalSearchParams<{ index?: string; at?: string }>();
 
   const [detail, setDetail] = useState<SessionDetail | null>(null);
   const [index, setIndex] = useState<number | null>(params.index != null ? Number(params.index) : null);
@@ -89,7 +91,7 @@ export default function ActiveWorkoutScreen() {
       setIndex(Number(params.index));
       setRirForSetId(null);
     }
-  }, [params.index]);
+  }, [params.index, params.at]);
 
   if (!detail || index == null) {
     return <SkeletonScreen />;
@@ -112,11 +114,9 @@ export default function ActiveWorkoutScreen() {
 
   async function openSwap() {
     if (!exercise) return;
-    if (await hasCompletedSets(db, exercise.id)) {
-      Alert.alert('Already started', `You've logged sets for ${exercise.name}, so it can't be swapped now.`);
-      return;
-    }
-    router.push({ pathname: '/workout/swap', params: { sessionExerciseId: String(exercise.id) } });
+    const go = () => router.push({ pathname: '/workout/swap', params: { sessionExerciseId: String(exercise.id) } });
+    if (await hasCompletedSets(db, exercise.id)) confirmSplitSwap(exercise.name, go);
+    else go();
   }
 
   function goTo(i: number) {

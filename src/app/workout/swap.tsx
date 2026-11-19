@@ -5,7 +5,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, TextInput, View } from 'react-native';
+import { Alert, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
@@ -25,6 +25,10 @@ export default function SwapScreen() {
   const [currentName, setCurrentName] = useState('');
   const [lists, setLists] = useState<{ suggested: Exercise[]; others: Exercise[] } | null>(null);
   const [search, setSearch] = useState('');
+  const [sessionId, setSessionId] = useState<number | null>(null);
+  /** Working sets already ticked on the current exercise (they stay with it). */
+  const [startedSets, setStartedSets] = useState(0);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -34,15 +38,34 @@ export default function SwapScreen() {
       );
       if (!se) return;
       setCurrentName(se.exercise_name);
+      setSessionId(se.session_id);
       const detail = await getSessionDetail(db, se.session_id);
+      const current = detail?.exercises.find((e) => e.id === seId);
+      setStartedSets(current?.sets.filter((s) => !s.isWarmup && s.completedAt != null).length ?? 0);
       const inWorkout = detail?.exercises.map((e) => e.exerciseId) ?? [];
       setLists(await getSwapSuggestions(db, se.exercise_id, inWorkout));
     })();
   }, [db, seId]);
 
   async function choose(ex: Exercise) {
-    await swapExercise(db, seId, ex.id);
-    router.back();
+    if (busy) return; // guard against a double-tap
+    setBusy(true);
+    try {
+      const nextId = await swapExercise(db, seId, ex.id);
+      if (startedSets > 0 && nextId != null && sessionId != null) {
+        // The new exercise was added after the original: open it straight away.
+        const detail = await getSessionDetail(db, sessionId);
+        const i = detail?.exercises.findIndex((e) => e.id === nextId) ?? -1;
+        if (i >= 0) {
+          router.navigate({ pathname: '/workout/active', params: { index: String(i), at: String(nextId) } });
+          return;
+        }
+      }
+      router.back();
+    } catch {
+      setBusy(false);
+      Alert.alert("Couldn't swap", 'Nothing was changed. Try again.');
+    }
   }
 
   const q = search.trim().toLowerCase();
@@ -52,9 +75,17 @@ export default function SwapScreen() {
     <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: colors.background }}>
       <ScreenHeader title="Swap Exercise" onBack={() => router.back()} backIcon="xmark" backLabel="Close" />
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }}>
-        <AppText muted>
-          Replacing <AppText variant="label">{currentName}</AppText> for today only. Your plan stays the same.
-        </AppText>
+        {startedSets > 0 ? (
+          <AppText muted>
+            Your {startedSets} logged {startedSets === 1 ? 'set stays' : 'sets stay'} as{' '}
+            <AppText variant="label">{currentName}</AppText>. The sets still to do switch to the exercise you pick. Your plan
+            stays the same.
+          </AppText>
+        ) : (
+          <AppText muted>
+            Replacing <AppText variant="label">{currentName}</AppText> for today only. Your plan stays the same.
+          </AppText>
+        )}
 
         {lists && lists.suggested.length > 0 && !q && (
           <Section title="Same muscles">

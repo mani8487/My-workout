@@ -23,6 +23,7 @@ import {
   type SessionExercise,
 } from '@/db/sessions';
 import { confirmFinishWorkout } from '@/logic/finish';
+import { confirmSplitSwap } from '@/logic/swap';
 import { useRestTimer } from '@/logic/rest-timer';
 import { useTheme } from '@/theme/theme-context';
 import { radius, spacing } from '@/theme/typography';
@@ -64,11 +65,9 @@ export default function WorkoutOverviewScreen() {
   const onFinishPress = () => confirmFinishWorkout(db, detail, restTimer.skip);
 
   async function onSwap(e: SessionExercise) {
-    if (await hasCompletedSets(db, e.id)) {
-      Alert.alert('Already started', `You've logged sets for ${e.name}, so it can't be swapped now.`);
-      return;
-    }
-    router.push({ pathname: '/workout/swap', params: { sessionExerciseId: String(e.id) } });
+    const go = () => router.push({ pathname: '/workout/swap', params: { sessionExerciseId: String(e.id) } });
+    if (await hasCompletedSets(db, e.id)) confirmSplitSwap(e.name, go);
+    else go();
   }
 
   function confirmCancel() {
