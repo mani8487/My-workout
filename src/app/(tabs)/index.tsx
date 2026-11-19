@@ -10,10 +10,11 @@
  *    or "Rest day". Change Workout lets you reschedule that day.
  */
 import { addWeeks, format, isSameDay } from 'date-fns';
-import { router, useFocusEffect } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { SymbolView } from 'expo-symbols';
-import { useCallback, useState } from 'react';
+import { SymbolView, type SFSymbol } from 'expo-symbols';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
@@ -29,7 +30,7 @@ import { getSetting } from '@/db/settings';
 import type { Workout } from '@/db/types';
 import { acceptFreshStart, dismissFreshStart, freshStartOffer } from '@/logic/fresh-start';
 import type { Rotation } from '@/logic/rotation';
-import { dateKey, getWeekSchedule, weekStartOf, type ScheduleDay } from '@/logic/schedule';
+import { dateKey, getWeekSchedule, parseDateKey, weekStartOf, type ScheduleDay } from '@/logic/schedule';
 import { getRoutineCards, getToday, getWorkoutPreview, greeting, shortDate } from '@/logic/today';
 import { useTheme } from '@/theme/theme-context';
 import { radius, spacing } from '@/theme/typography';
@@ -55,6 +56,16 @@ export default function HomeScreen() {
   const [weekStart, setWeekStart] = useState(() => weekStartOf(new Date()));
   const [direction, setDirection] = useState<-1 | 0 | 1>(0);
   const [selectedKey, setSelectedKey] = useState(() => dateKey(new Date()));
+
+  // The Week Schedule screen can send us back with a day to select (?date=2026-11-24).
+  const params = useLocalSearchParams<{ date?: string }>();
+  useEffect(() => {
+    if (!params.date) return;
+    const day = parseDateKey(params.date);
+    setWeekStart(weekStartOf(day));
+    setDirection(0);
+    setSelectedKey(params.date);
+  }, [params.date]);
 
   // Reload every time Home comes into view, and when the week changes.
   useFocusEffect(
@@ -233,21 +244,18 @@ export default function HomeScreen() {
             <AppText style={{ fontSize: 34, fontWeight: '700', letterSpacing: -0.6 }}>{data.name}</AppText>
           )}
         </View>
-        <Pressable
-          onPress={() => router.push('/settings')}
-          accessibilityLabel="Settings"
-          style={{
-            width: 56,
-            height: 56,
-            borderRadius: 28,
-            backgroundColor: colors.card,
-            borderWidth: 1,
-            borderColor: colors.border,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}>
-          <SymbolView name="slider.horizontal.3" size={22} tintColor={colors.text} />
-        </Pressable>
+        {/* Week calendar + settings, side by side with a gap so they never overlap. */}
+        <View style={{ flexDirection: 'row', gap: spacing.md, alignSelf: 'flex-start' }}>
+          <RoundButton
+            icon="calendar"
+            label="Week schedule"
+            onPress={() => {
+              Haptics.selectionAsync().catch(() => {});
+              router.push({ pathname: '/week', params: { start: dateKey(weekStart) } });
+            }}
+          />
+          <RoundButton icon="slider.horizontal.3" label="Settings" onPress={() => router.push('/settings')} />
+        </View>
       </View>
 
       <WeekStrip
@@ -343,6 +351,29 @@ export default function HomeScreen() {
         “{quoteOfTheDay()}”
       </AppText>
     </Screen>
+  );
+}
+
+function RoundButton({ icon, label, onPress }: { icon: SFSymbol; label: string; onPress: () => void }) {
+  const { colors } = useTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityLabel={label}
+      hitSlop={4}
+      style={({ pressed }) => ({
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: colors.card,
+        borderWidth: 1,
+        borderColor: colors.border,
+        alignItems: 'center',
+        justifyContent: 'center',
+        opacity: pressed ? 0.7 : 1,
+      })}>
+      <SymbolView name={icon} size={20} tintColor={colors.text} />
+    </Pressable>
   );
 }
 

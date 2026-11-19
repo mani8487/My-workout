@@ -51,6 +51,8 @@ function Navigation() {
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="workout/preview" />
+        {/* Week Schedule slides up from the bottom. */}
+        <Stack.Screen name="week" options={{ presentation: 'modal' }} />
         <Stack.Screen name="workout/change" options={{ presentation: 'modal' }} />
         <Stack.Screen name="workout/active" />
         <Stack.Screen name="workout/overview" />

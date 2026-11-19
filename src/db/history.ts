@@ -15,9 +15,12 @@ export type HistoryItem = {
 /** A finished workout boiled down for the Home card: working sets, reps and kilos lifted. */
 export type DaySummary = {
   sessionId: number;
+  workoutId: string;
   workoutName: string;
   startedAt: number;
   durationMin: number | null;
+  /** Exercises with at least one ticked working set. */
+  exercises: number;
   workingSets: number;
   totalReps: number;
   volumeKg: number;
@@ -27,14 +30,17 @@ export type DaySummary = {
 export async function getSessionSummariesBetween(db: SQLiteDatabase, from: number, to: number): Promise<DaySummary[]> {
   const rows = await db.getAllAsync<{
     id: number;
+    workout_id: string;
     workout_name: string;
     started_at: number;
     finished_at: number | null;
+    exercises: number | null;
     sets: number | null;
     reps: number | null;
     volume: number | null;
   }>(
-    `SELECT s.id, s.workout_name, s.started_at, s.finished_at,
+    `SELECT s.id, s.workout_id, s.workout_name, s.started_at, s.finished_at,
+            COUNT(DISTINCT CASE WHEN st.completed_at IS NOT NULL AND st.is_warmup = 0 THEN se.id END) AS exercises,
             SUM(CASE WHEN st.completed_at IS NOT NULL AND st.is_warmup = 0 THEN 1 ELSE 0 END) AS sets,
             SUM(CASE WHEN st.completed_at IS NOT NULL AND st.is_warmup = 0 THEN st.reps ELSE 0 END) AS reps,
             SUM(CASE WHEN st.completed_at IS NOT NULL AND st.is_warmup = 0
@@ -50,8 +56,10 @@ export async function getSessionSummariesBetween(db: SQLiteDatabase, from: numbe
   );
   return rows.map((r) => ({
     sessionId: r.id,
+    workoutId: r.workout_id,
     workoutName: r.workout_name,
     startedAt: r.started_at,
+    exercises: r.exercises ?? 0,
     durationMin: r.finished_at ? Math.max(1, Math.round((r.finished_at - r.started_at) / 60000)) : null,
     workingSets: r.sets ?? 0,
     totalReps: r.reps ?? 0,
