@@ -4,6 +4,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import { Alert } from 'react-native';
 
 import { finishSession, type SessionDetail } from '@/db/sessions';
+import { syncMyWeek } from './social';
 
 export function workingSetsLeft(detail: SessionDetail) {
   return detail.exercises
@@ -15,6 +16,7 @@ export function confirmFinishWorkout(db: SQLiteDatabase, detail: SessionDetail, 
   async function finish() {
     stopRestTimer();
     await finishSession(db, detail.id);
+    syncMyWeek(db); // update the friends leaderboard in the background (does nothing offline or signed out)
     // Clear the workout screens away, then show the summary on top of Home.
     router.dismissTo('/');
     router.push({ pathname: '/workout/summary', params: { id: String(detail.id) } });
