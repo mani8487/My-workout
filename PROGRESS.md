@@ -46,6 +46,13 @@ A personal iPhone workout tracker built with **Expo (React Native, SDK 58)** on 
 ### Calendar animation (PR #4, `feature/calendar-animation`)
 - Week Schedule rebuilt as a **snapping focus wheel** (from the user's reference video). The middle day morphs from a circle into a big card; tapping it expands to full screen.
 
+### Polish (PR #5, `feature/polish`)
+- **Custom number pad** (`src/components/number-pad.tsx`) replaces the iPhone keyboard for kg / reps: big keys, −/+ steppers, Next (kg → reps), Done; it scrolls the open box above itself. Notes still use the normal keyboard.
+- **Tick-draw** checkmark (`animated-tick.tsx`) and a green **row wipe** when a set is ticked.
+- **Animated progress ring** (rest timer) that sweeps between values.
+- **Drag-to-reorder** in the plan editor (`drag-list.tsx`): hold the ≡ handle, then drag. VoiceOver can move items up / down.
+- **Skeleton loading screens** (`skeleton.tsx`) instead of blank screens on Home, Active Workout, Preview, Overview, Summary and Session detail.
+
 ## Main files
 
 | Area | Files |
@@ -57,22 +64,21 @@ A personal iPhone workout tracker built with **Expo (React Native, SDK 58)** on 
 | Online | `src/lib/supabase.ts`, `supabase/schema.sql`, `.env.example` |
 
 ## Services
-- **GitHub:** `mani8487/My-workout`. PRs #1 → #2 → #3 → #4 are stacked; merge them in that order.
+- **GitHub:** `mani8487/My-workout`. PRs #1–#4 are merged into `master` (20 Nov 2026). PR #5 (polish) is open.
 - **Expo / EAS:** project `@mani8487/WorkoutTracker`, updates published to branch / channel `main`.
 - **Supabase:** project `kczdhpranzekgswgmjuz` (free plan); email + password auth with "Confirm email" off.
 
 ## Known limitations
 - **Expo Go needs internet to open** the published version, and the dev-server version needs the PC. True offline use needs an installed build.
 - The "always latest" channel link didn't load new versions on the user's phone, so a fresh QR / group link is shared after each publish.
-- Reorder in the plan editor uses ▲/▼ rather than drag.
-- Not yet built from the theme spec: a full custom number pad, the row "wipe" and tick-draw animations, animated rings, and skeleton loading states.
+- The polish items (PR #5) pass the type checks and build, but haven't been tried on the phone yet. Check the number pad feel, the drag gesture inside the scrolling plan editor, and the row wipe in every theme.
 - Free Supabase email can't send sign-in codes, hence passwords. A friend needs Expo Go plus access to the Expo project until TestFlight exists.
 
 ## Next steps
-1. **Review and merge PRs #1–#4** in order.
-2. **Feedback on the new calendar animation**, then tweak speed and sizes.
+1. **Try PR #5 (polish) on the phone**, then merge it.
+2. **Feedback on the calendar animation and the new number pad**, then tweak speed and sizes.
 3. **Use it at the gym for 1–2 weeks** and collect pain points (the design doc says to revisit the Finish Summary after real use).
 4. **Apple Developer Program, an EAS Build and TestFlight:** a real installed app that opens offline, and easy sharing with friends.
 5. **App Store preparation:** unique name and icon, first-run onboarding (pick a routine, enter your name), backup / export of data, privacy policy page, store listing and screenshots.
 6. **AI progression (version 1.1):** after 4–6 weeks of real data, an online suggestion service. Keep the simple rule as the offline fallback; the API key must live on a server, never in the app.
-7. **Remaining polish:** custom number pad, tick and row animations, animated rings, drag-to-reorder, skeleton states.
+7. **Remaining polish:** adjust whatever feels off from step 1.

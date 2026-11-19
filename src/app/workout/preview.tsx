@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { SkeletonScreen } from '@/components/skeleton';
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
 import { ScreenHeader } from '@/components/screen-header';
@@ -45,7 +46,7 @@ export default function PreviewScreen() {
     }
   }
 
-  if (!data) return <View style={{ flex: 1, backgroundColor: colors.background }} />;
+  if (!data) return <SkeletonScreen />;
   const totalSets = data.plan.reduce((n, p) => n + p.targetSets, 0);
 
   return (

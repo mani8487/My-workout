@@ -9,6 +9,7 @@ import { type ComponentRef, useCallback, useRef, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { SkeletonScreen } from '@/components/skeleton';
 import { AppText } from '@/components/app-text';
 import { ScreenHeader } from '@/components/screen-header';
 import { NumberPad, usePadSpacer } from '@/components/number-pad';
@@ -36,7 +37,7 @@ export default function SessionDetailScreen() {
     }, [refresh]),
   );
 
-  if (!detail) return <View style={{ flex: 1, backgroundColor: colors.background }} />;
+  if (!detail) return <SkeletonScreen />;
 
   const workingSets = detail.exercises.flatMap((e) => e.sets).filter((s) => !s.isWarmup && s.completedAt != null).length;
   const minutes = detail.finishedAt ? Math.max(1, Math.round((detail.finishedAt - detail.startedAt) / 60000)) : null;

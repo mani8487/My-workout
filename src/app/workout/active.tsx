@@ -20,6 +20,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { SkeletonScreen } from '@/components/skeleton';
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
 import { LastTimeCards } from '@/components/last-time-cards';
@@ -91,7 +92,7 @@ export default function ActiveWorkoutScreen() {
   }, [params.index]);
 
   if (!detail || index == null) {
-    return <View style={{ flex: 1, backgroundColor: colors.background }} />;
+    return <SkeletonScreen />;
   }
 
   const total = detail.exercises.length;

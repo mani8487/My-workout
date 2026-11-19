@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { SkeletonScreen } from '@/components/skeleton';
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
 import { PrPill } from '@/components/pr-pill';
@@ -65,7 +66,7 @@ export default function SummaryScreen() {
     })();
   }, [db, id]);
 
-  if (!summary) return <View style={{ flex: 1, backgroundColor: colors.background }} />;
+  if (!summary) return <SkeletonScreen />;
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: colors.background }}>

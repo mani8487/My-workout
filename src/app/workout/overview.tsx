@@ -10,6 +10,7 @@ import { useCallback, useState } from 'react';
 import { ActionSheetIOS, Alert, Platform, Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { SkeletonScreen } from '@/components/skeleton';
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
 import { ScreenHeader } from '@/components/screen-header';
@@ -50,7 +51,7 @@ export default function WorkoutOverviewScreen() {
     }, [db]),
   );
 
-  if (!detail) return <View style={{ flex: 1, backgroundColor: colors.background }} />;
+  if (!detail) return <SkeletonScreen />;
 
   const totals = detail.exercises.reduce(
     (acc, e) => {

@@ -17,6 +17,7 @@ import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 
+import { SkeletonScreen } from '@/components/skeleton';
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
@@ -111,7 +112,7 @@ export default function HomeScreen() {
     setSelectedKey(isSameDay(next, thisWeek) ? dateKey(new Date()) : dateKey(next));
   }
 
-  if (!data) return <Screen>{null}</Screen>;
+  if (!data) return <SkeletonScreen />;
 
   const { rotation, workout, active, previews } = data;
   const selected = data.days.find((d) => d.key === selectedKey) ?? data.days[0];
