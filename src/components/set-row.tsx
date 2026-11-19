@@ -16,8 +16,9 @@ import { SymbolView } from 'expo-symbols';
 import { type ComponentRef, useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, TextInput, View } from 'react-native';
 import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
-import Animated, { FadeIn, FadeInDown, FadeOut } from 'react-native-reanimated';
+import Animated, { Easing, FadeIn, FadeInDown, FadeOut, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
+import { AnimatedTick } from '@/components/animated-tick';
 import { AppText } from '@/components/app-text';
 import { closePad, openPad, type PadField, updatePad, useActivePadId } from '@/components/number-pad';
 import type { PreviousSet, SessionSet, SetPatch } from '@/db/sessions';
@@ -142,6 +143,13 @@ export function SetRow({ set, label, previous, hidePrevious, showRir, onSave, on
     };
   }
 
+  // Row wipe: 0 = no tint, 1 = full green tint.
+  const wipe = useSharedValue(showDone ? 1 : 0);
+  useEffect(() => {
+    wipe.value = withTiming(showDone ? 1 : 0, { duration: showDone ? 320 : 160, easing: Easing.out(Easing.cubic) });
+  }, [showDone, wipe]);
+  const wipeStyle = useAnimatedStyle(() => ({ transform: [{ scaleX: wipe.value }], opacity: Math.min(1, wipe.value * 2) }));
+
   function saveNote() {
     const trimmed = noteText.trim();
     if (trimmed !== (set.note ?? '')) onSave({ note: trimmed === '' ? null : trimmed });
@@ -172,12 +180,14 @@ export function SetRow({ set, label, previous, hidePrevious, showRir, onSave, on
             // Solid card underneath so the swipe covers the Delete button; green tint on top when done.
             backgroundColor: colors.card,
           }}>
-          {showDone && (
-            <Animated.View
-              entering={FadeIn.duration(200)}
-              style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: colors.successSoft }}
-            />
-          )}
+          {/* Green tint that wipes across from the left when the set is ticked. */}
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: colors.successSoft, transformOrigin: 'left' },
+              wipeStyle,
+            ]}
+          />
 
           {/* Set number. Long-press toggles warm-up. */}
           <Pressable
@@ -261,11 +271,10 @@ export function SetRow({ set, label, previous, hidePrevious, showRir, onSave, on
               alignItems: 'center',
               justifyContent: 'center',
             }}>
-            <SymbolView
-              name="checkmark"
-              size={18}
-              weight="bold"
-              tintColor={showDone ? colors.background : editing ? colors.success : colors.faint}
+            <AnimatedTick
+              done={showDone}
+              color={colors.background}
+              idleColor={showDone ? 'transparent' : editing ? colors.success : colors.faint}
             />
           </Pressable>
 
