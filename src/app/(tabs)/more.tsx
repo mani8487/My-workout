@@ -1,4 +1,4 @@
-﻿/** More tab: plan editor, exercise library, plate calculator, settings. */
+/** More tab: plan editor, exercise library, plate calculator, settings. */
 import { router } from 'expo-router';
 
 import { AppText } from '@/components/app-text';

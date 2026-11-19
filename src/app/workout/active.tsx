@@ -79,6 +79,8 @@ export default function ActiveWorkoutScreen() {
   // Jump to an exercise when the Workout Progress screen sends us one.
   useEffect(() => {
     if (params.index != null) {
+      // Deliberate: follow the exercise chosen on the Workout Progress screen.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIndex(Number(params.index));
       setRirForSetId(null);
     }
@@ -173,16 +175,13 @@ export default function ActiveWorkoutScreen() {
   // Number the working sets 1, 2, 3… and show warm-ups as "W".
   const prevWorking = exercise.previous.filter((p) => !p.isWarmup);
   const prevWarmup = exercise.previous.filter((p) => p.isWarmup);
-  let workingNo = 0;
-  let warmupNo = 0;
-  const rows = exercise.sets.map((s) => {
+  const rows = exercise.sets.map((s, i) => {
+    const before = exercise.sets.slice(0, i);
     if (s.isWarmup) {
-      const prev = prevWarmup[warmupNo++];
-      return { set: s, label: 'W', previous: prev };
+      return { set: s, label: 'W', previous: prevWarmup[before.filter((x) => x.isWarmup).length] };
     }
-    const prev = prevWorking[workingNo];
-    workingNo += 1;
-    return { set: s, label: String(workingNo), previous: prev };
+    const n = before.filter((x) => !x.isWarmup).length;
+    return { set: s, label: String(n + 1), previous: prevWorking[n] };
   });
 
   const workingDone = exercise.sets.filter((s) => !s.isWarmup && s.completedAt != null).length;

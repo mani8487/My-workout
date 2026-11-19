@@ -1,40 +1,49 @@
 /**
- * Home: greeting, this week's strip (dots on days you trained), the big
- * "today's workout" card (first workout still owed in the active plan, or
- * your Change Workout pick), and a scroller of your plans.
- * If a workout is in progress, the card offers to resume it instead.
+ * Home: greeting, the Mon–Sun strip (tap a day, swipe for other weeks), a card
+ * for the selected day, and a scroller of your plans.
+ *
+ * The card follows the selected day:
+ *  - Today: today's workout (Start / Change), or Resume if one is in progress,
+ *    or what you did if you've already trained today.
+ *  - A past day: what you logged (tap to open it), or "No workout logged" / "Rest day".
+ *  - A future day: the planned workout (Start only works on the day itself),
+ *    or "Rest day". Change Workout lets you reschedule that day.
  */
-import { LinearGradient } from 'expo-linear-gradient';
+import { addWeeks, format, isSameDay } from 'date-fns';
 import { router, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { SymbolView, type SFSymbol } from 'expo-symbols';
-import { useCallback, useState, type ReactNode } from 'react';
+import { SymbolView } from 'expo-symbols';
+import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
+import { CompletedCard, EmptyDayCard } from '@/components/day-cards';
+import { Hero, HeroButton, HeroChip, HeroOutlineButton, HeroTitle } from '@/components/hero';
 import { Screen } from '@/components/screen';
+import { WeekStrip } from '@/components/week-strip';
 import { quoteOfTheDay } from '@/data/quotes';
 import { getActiveSessionId, getSessionDetail } from '@/db/sessions';
 import { getSetting } from '@/db/settings';
 import type { Workout } from '@/db/types';
 import { acceptFreshStart, dismissFreshStart, freshStartOffer } from '@/logic/fresh-start';
 import type { Rotation } from '@/logic/rotation';
-import { getRoutineCards, getToday, getWeekStrip, getWorkoutPreview, greeting, shortDate } from '@/logic/today';
+import { dateKey, getWeekSchedule, weekStartOf, type ScheduleDay } from '@/logic/schedule';
+import { getRoutineCards, getToday, getWorkoutPreview, greeting, shortDate } from '@/logic/today';
 import { useTheme } from '@/theme/theme-context';
 import { radius, spacing } from '@/theme/typography';
 
 type HomeData = {
   name: string | null;
   rotation: Rotation;
-  /** Null only when the active plan has no workouts yet. */
+  /** Today's workout. Null only when the active plan has no workouts yet. */
   workout: Workout | null;
-  exerciseCount: number;
-  minutes: number;
   active: { name: string; setsDone: number } | null;
-  week: Awaited<ReturnType<typeof getWeekStrip>>;
   plans: Awaited<ReturnType<typeof getRoutineCards>>;
+  days: ScheduleDay[];
+  /** Minutes / exercise count for each planned workout this week, by workout id. */
+  previews: Record<string, { minutes: number; exercises: number }>;
 };
 
 export default function HomeScreen() {
@@ -43,19 +52,28 @@ export default function HomeScreen() {
   const [data, setData] = useState<HomeData | null>(null);
   const [weeksAway, setWeeksAway] = useState<number | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [weekStart, setWeekStart] = useState(() => weekStartOf(new Date()));
+  const [direction, setDirection] = useState<-1 | 0 | 1>(0);
+  const [selectedKey, setSelectedKey] = useState(() => dateKey(new Date()));
 
-  // Reload every time Home comes into view (after a workout, after Change Workout…).
+  // Reload every time Home comes into view, and when the week changes.
   useFocusEffect(
     useCallback(() => {
       (async () => {
-        const [{ rotation, workout }, name, activeId, week, plans] = await Promise.all([
+        const [{ rotation, workout }, name, activeId, plans, days] = await Promise.all([
           getToday(db),
           getSetting(db, 'user_name'),
           getActiveSessionId(db),
-          getWeekStrip(db),
           getRoutineCards(db),
+          getWeekSchedule(db, weekStart),
         ]);
-        const { plan, minutes } = workout ? await getWorkoutPreview(db, workout.id) : { plan: [], minutes: 0 };
+        const previews: HomeData['previews'] = {};
+        for (const w of [workout, ...days.map((d) => d.planned)]) {
+          if (w && !previews[w.id]) {
+            const p = await getWorkoutPreview(db, w.id);
+            previews[w.id] = { minutes: p.minutes, exercises: p.plan.length };
+          }
+        }
         let active: HomeData['active'] = null;
         if (activeId != null) {
           const d = await getSessionDetail(db, activeId);
@@ -64,24 +82,143 @@ export default function HomeScreen() {
             active = { name: d.workoutName, setsDone };
           }
         }
-        setData({ name, rotation, workout, exerciseCount: plan.length, minutes, active, week, plans });
+        setData({ name, rotation, workout, active, plans, days, previews });
         setWeeksAway(activeId == null ? await freshStartOffer(db) : null);
       })();
-    }, [db, reloadKey]),
+    // reloadKey is listed on purpose: bumping it forces a reload (e.g. after Fresh Start).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [db, reloadKey, weekStart]),
   );
+
+  const thisWeek = weekStartOf(new Date());
+  const isCurrentWeek = isSameDay(weekStart, thisWeek);
+
+  function goToWeek(next: Date, dir: -1 | 0 | 1) {
+    setDirection(dir);
+    setWeekStart(next);
+    // Select today if it's in that week, otherwise its Monday.
+    setSelectedKey(isSameDay(next, thisWeek) ? dateKey(new Date()) : dateKey(next));
+  }
 
   if (!data) return <Screen>{null}</Screen>;
 
-  const { rotation, workout, active } = data;
+  const { rotation, workout, active, previews } = data;
+  const selected = data.days.find((d) => d.key === selectedKey) ?? data.days[0];
   const doneCount = rotation.done.size;
-  const isOwed = workout ? !rotation.done.has(workout.id) : true;
+  const isUpNext = workout ? !rotation.done.has(workout.id) : true;
   const statusLine = !workout
     ? ''
-    : isOwed
+    : isUpNext
       ? `${workout.name} is up next · ${doneCount} of ${rotation.workouts.length} done this cycle`
       : `${workout.name} was already done on ${shortDate(rotation.done.get(workout.id)!)} this cycle`;
 
   const openPreview = () => workout && router.push({ pathname: '/workout/preview', params: { id: workout.id } });
+  const changeFor = (day: ScheduleDay) =>
+    router.push(day.isToday ? '/workout/change' : { pathname: '/workout/change', params: { date: day.key } });
+
+  /** The card for the selected day. */
+  function DayCard() {
+    // ---- Today ----
+    if (selected.isToday) {
+      if (active) {
+        return (
+          <Hero>
+            <AppText variant="small" color={colors.onHeroMuted}>
+              IN PROGRESS
+            </AppText>
+            <HeroTitle>{active.name}</HeroTitle>
+            <AppText color={colors.onHeroMuted}>
+              {active.setsDone} {active.setsDone === 1 ? 'set' : 'sets'} logged so far
+            </AppText>
+            <HeroButton title="Resume Workout" onPress={() => router.push('/workout/active')} />
+          </Hero>
+        );
+      }
+      if (selected.sessions.length > 0) {
+        return (
+          <View style={{ gap: spacing.sm }}>
+            <CompletedCard day={selected} summary={selected.sessions[selected.sessions.length - 1]} />
+            {workout && (
+              <Pressable onPress={openPreview} hitSlop={8} style={{ alignSelf: 'center', padding: spacing.sm }}>
+                <AppText variant="small" muted style={{ textDecorationLine: 'underline' }}>
+                  Train again? Start {workout.name}
+                </AppText>
+              </Pressable>
+            )}
+          </View>
+        );
+      }
+      if (!workout) return <EmptyPlanCard />;
+      const p = previews[workout.id];
+      return (
+        <View style={{ gap: spacing.sm }}>
+          <Pressable onPress={openPreview} accessibilityLabel={`Preview ${workout.name}`}>
+            <Hero>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <AppText variant="small" color={colors.onHeroMuted} style={{ flex: 1, letterSpacing: 0.5 }}>
+                  TODAY&apos;S WORKOUT
+                </AppText>
+                <HeroChip>{isUpNext ? 'Up next' : 'Done'}</HeroChip>
+              </View>
+              <HeroTitle>{workout.name}</HeroTitle>
+              <AppText color={colors.onHeroMuted}>{workout.muscleLabel}</AppText>
+              {p && <PreviewChips minutes={p.minutes} exercises={p.exercises} />}
+              <HeroButton title="Start Workout" onPress={openPreview} />
+              <HeroOutlineButton title="Change Workout" onPress={() => changeFor(selected)} />
+            </Hero>
+          </Pressable>
+          <AppText variant="small" muted style={{ paddingHorizontal: spacing.xs }}>
+            {statusLine}
+          </AppText>
+        </View>
+      );
+    }
+
+    // ---- Past day ----
+    if (selected.sessions.length > 0) {
+      return <CompletedCard day={selected} summary={selected.sessions[selected.sessions.length - 1]} />;
+    }
+
+    // ---- Future day with a planned workout ----
+    if (selected.isFuture && selected.planned) {
+      const w = selected.planned;
+      const p = previews[w.id];
+      return (
+        <Hero>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <AppText variant="small" color={colors.onHeroMuted} style={{ flex: 1, letterSpacing: 0.5 }}>
+              {format(selected.date, 'EEEE d MMM').toUpperCase()}
+            </AppText>
+            <HeroChip>Planned</HeroChip>
+          </View>
+          <HeroTitle>{w.name}</HeroTitle>
+          <AppText color={colors.onHeroMuted}>{w.muscleLabel}</AppText>
+          {p && <PreviewChips minutes={p.minutes} exercises={p.exercises} />}
+          <HeroButton title="Start Workout" disabled onPress={() => {}} />
+          <AppText variant="small" color={colors.onHeroMuted} style={{ textAlign: 'center' }}>
+            You can start this on {format(selected.date, 'EEE d MMM')}
+          </AppText>
+          <HeroOutlineButton title="Change Workout" onPress={() => changeFor(selected)} />
+        </Hero>
+      );
+    }
+
+    // ---- Rest day, or a past day with nothing logged ----
+    return <EmptyDayCard day={selected} onPlan={() => changeFor(selected)} />;
+  }
+
+  function EmptyPlanCard() {
+    return (
+      <Card>
+        <AppText variant="heading">{rotation.routine.name}</AppText>
+        <AppText muted>This plan has no workouts yet. Add some in the Plan Editor.</AppText>
+        <Button
+          title="Open Plan"
+          onPress={() => router.push({ pathname: '/routine/[routineId]', params: { routineId: rotation.routine.id } })}
+        />
+      </Card>
+    );
+  }
 
   return (
     <Screen>
@@ -113,49 +250,16 @@ export default function HomeScreen() {
         </Pressable>
       </View>
 
-      {/* Week strip */}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-        {data.week.map((d) => (
-          <View
-            key={d.key}
-            style={{
-              alignItems: 'center',
-              gap: spacing.xs,
-              paddingVertical: spacing.sm,
-              paddingHorizontal: 4,
-              borderRadius: 999,
-              backgroundColor: d.isToday ? colors.accent : 'transparent',
-              minWidth: 44,
-            }}>
-            <AppText variant="small" color={d.isToday ? colors.onAccent : colors.textMuted}>
-              {d.weekday}
-            </AppText>
-            <View
-              style={{
-                width: 38,
-                height: 38,
-                borderRadius: 19,
-                backgroundColor: d.isToday ? colors.cardAlt : colors.card,
-                borderWidth: 1,
-                borderColor: colors.border,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}>
-              <AppText variant="label">
-                {d.day}
-              </AppText>
-            </View>
-            <View
-              style={{
-                width: 5,
-                height: 5,
-                borderRadius: 3,
-                backgroundColor: d.trained ? (d.isToday ? colors.onAccent : colors.text) : 'transparent',
-              }}
-            />
-          </View>
-        ))}
-      </View>
+      <WeekStrip
+        weekStart={weekStart}
+        days={data.days}
+        selectedKey={selected.key}
+        isCurrentWeek={isCurrentWeek}
+        direction={direction}
+        onSelect={(d) => setSelectedKey(d.key)}
+        onWeek={(delta) => goToWeek(addWeeks(weekStart, delta), delta)}
+        onToday={() => goToWeek(thisWeek, weekStart > thisWeek ? -1 : 1)}
+      />
 
       {weeksAway != null && (
         <Card>
@@ -188,69 +292,7 @@ export default function HomeScreen() {
         </Card>
       )}
 
-      {/* Hero card */}
-      {active ? (
-        <Hero>
-          <AppText variant="small" color={colors.onHeroMuted}>
-            IN PROGRESS
-          </AppText>
-          <AppText style={{ fontSize: 40, fontWeight: '700', letterSpacing: -0.8 }} color={colors.onHero}>
-            {active.name}
-          </AppText>
-          <AppText color={colors.onHeroMuted}>
-            {active.setsDone} {active.setsDone === 1 ? 'set' : 'sets'} logged so far
-          </AppText>
-          <HeroButton title="Resume Workout" onPress={() => router.push('/workout/active')} />
-        </Hero>
-      ) : workout ? (
-        <View style={{ gap: spacing.sm }}>
-          <Pressable onPress={openPreview} accessibilityLabel={`Preview ${workout.name}`}>
-            <Hero>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <AppText variant="small" color={colors.onHeroMuted} style={{ flex: 1, letterSpacing: 0.5 }}>
-                  TODAY&apos;S WORKOUT
-                </AppText>
-                <HeroChip>{isOwed ? 'Up next' : 'Done'}</HeroChip>
-              </View>
-              <AppText style={{ fontSize: 40, fontWeight: '700', letterSpacing: -0.8 }} color={colors.onHero}>
-                {workout.name}
-              </AppText>
-              <AppText color={colors.onHeroMuted}>{workout.muscleLabel}</AppText>
-              <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xs }}>
-                <HeroChip icon="clock">{`${data.minutes} min`}</HeroChip>
-                <HeroChip icon="list.bullet">{`${data.exerciseCount} exercises`}</HeroChip>
-              </View>
-              <HeroButton title="Start Workout" onPress={openPreview} />
-              <Pressable
-                onPress={() => router.push('/workout/change')}
-                style={{
-                  minHeight: 52,
-                  borderRadius: radius.md,
-                  borderWidth: 1,
-                  borderColor: colors.onHeroMuted,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}>
-                <AppText variant="label" color={colors.onHero}>
-                  Change Workout
-                </AppText>
-              </Pressable>
-            </Hero>
-          </Pressable>
-          <AppText variant="small" muted style={{ paddingHorizontal: spacing.xs }}>
-            {statusLine}
-          </AppText>
-        </View>
-      ) : (
-        <Card>
-          <AppText variant="heading">{rotation.routine.name}</AppText>
-          <AppText muted>This plan has no workouts yet. Add some in the Plan Editor.</AppText>
-          <Button
-            title="Open Plan"
-            onPress={() => router.push({ pathname: '/routine/[routineId]', params: { routineId: rotation.routine.id } })}
-          />
-        </Card>
-      )}
+      <DayCard />
 
       {/* Your plans */}
       <View style={{ gap: spacing.md }}>
@@ -264,7 +306,11 @@ export default function HomeScreen() {
             </AppText>
           </Pressable>
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.md }} style={{ marginHorizontal: -spacing.lg }}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: spacing.md }}
+          style={{ marginHorizontal: -spacing.lg }}>
           <View style={{ width: spacing.xs }} />
           {data.plans.map((p) => (
             <Pressable
@@ -300,58 +346,11 @@ export default function HomeScreen() {
   );
 }
 
-function Hero({ children }: { children: ReactNode }) {
-  const { colors } = useTheme();
+function PreviewChips({ minutes, exercises }: { minutes: number; exercises: number }) {
   return (
-    <LinearGradient
-      colors={[colors.heroStart, colors.heroEnd]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={{ borderRadius: radius.lg, padding: spacing.xl, gap: spacing.sm, borderWidth: 1, borderColor: colors.border }}>
-      {children}
-    </LinearGradient>
-  );
-}
-
-function HeroButton({ title, onPress }: { title: string; onPress: () => void }) {
-  const { colors } = useTheme();
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      style={({ pressed }) => ({
-        minHeight: 56,
-        marginTop: spacing.md,
-        borderRadius: radius.md,
-        backgroundColor: colors.heroButton,
-        alignItems: 'center',
-        justifyContent: 'center',
-        opacity: pressed ? 0.85 : 1,
-      })}>
-      <AppText variant="heading" style={{ fontSize: 20 }} color={colors.onHeroButton}>
-        {title}
-      </AppText>
-    </Pressable>
-  );
-}
-
-function HeroChip({ children, icon }: { children: string; icon?: SFSymbol }) {
-  const { colors } = useTheme();
-  return (
-    <View
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.xs,
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.sm - 2,
-        borderRadius: 999,
-        backgroundColor: colors.heroChip,
-      }}>
-      {icon && <SymbolView name={icon} size={14} tintColor={colors.onHero} />}
-      <AppText variant="small" color={colors.onHero}>
-        {children}
-      </AppText>
+    <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xs }}>
+      <HeroChip icon="clock">{`${minutes} min`}</HeroChip>
+      <HeroChip icon="list.bullet">{`${exercises} exercises`}</HeroChip>
     </View>
   );
 }

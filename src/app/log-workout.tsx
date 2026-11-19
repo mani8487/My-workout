@@ -3,7 +3,7 @@
  * sets on the next screen. It counts towards the rotation for that date.
  */
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { useEffect, useState } from 'react';
@@ -16,6 +16,7 @@ import { ScreenHeader } from '@/components/screen-header';
 import { getWorkouts } from '@/db/plan';
 import { startSession } from '@/db/sessions';
 import type { Workout } from '@/db/types';
+import { parseDateKey } from '@/logic/schedule';
 import { getWorkoutPreview } from '@/logic/today';
 import { useTheme } from '@/theme/theme-context';
 import { radius, spacing } from '@/theme/typography';
@@ -25,7 +26,10 @@ export default function LogWorkoutScreen() {
   const { colors, isDark } = useTheme();
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [chosen, setChosen] = useState<Workout | null>(null);
+  // Opened from a day on the Home strip? Start on that day.
+  const params = useLocalSearchParams<{ date?: string }>();
   const [date, setDate] = useState(() => {
+    if (params.date) return parseDateKey(params.date);
     const d = new Date();
     d.setDate(d.getDate() - 1); // most forgotten workouts were yesterday
     return d;

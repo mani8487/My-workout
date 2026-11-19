@@ -1,4 +1,4 @@
-﻿/**
+/**
  * The outermost layout of the app.
  * - Provides the colour roles (light/dark) to every screen.
  * - Holds a "stack" of screens: the tab bar lives at the bottom of the stack,

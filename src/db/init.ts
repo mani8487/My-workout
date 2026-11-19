@@ -7,11 +7,10 @@
  */
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-import { EXERCISE_LIBRARY } from '@/data/exercise-library';
+import { EXERCISE_LIBRARY, slugify } from '@/data/exercise-library';
 import { DEFAULT_PLAN, WORKOUTS } from '@/data/default-plan';
 import { runMigrations } from './migrations';
 import { STARTER_ROUTINES } from '@/data/starter-routines';
-import { slugify } from '@/data/exercise-library';
 import { addRoutine, addWorkout } from './plan';
 import { getSetting, setSetting } from './settings';
 

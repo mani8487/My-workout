@@ -3,9 +3,9 @@
  * reps in reserve and notes. Sets can be edited (tap the numbers), added,
  * swiped away, and the whole session can be deleted.
  */
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -25,9 +25,12 @@ export default function SessionDetailScreen() {
   const [rirForSetId, setRirForSetId] = useState<number | null>(null);
 
   const refresh = useCallback(async () => setDetail(await getSessionDetail(db, Number(id))), [db, id]);
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+  // Load (and reload when coming back to this screen).
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh]),
+  );
 
   if (!detail) return <View style={{ flex: 1, backgroundColor: colors.background }} />;
 

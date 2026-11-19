@@ -58,7 +58,7 @@ async function cancelAlert(id: string | null) {
 export function RestTimerProvider({ children }: { children: ReactNode }) {
   const db = useSQLiteContext();
   const [timer, setTimer] = useState<TimerState>(null);
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
 
   // Restore a running timer after the app was closed.
   useEffect(() => {

@@ -33,33 +33,6 @@ export async function getWorkoutPreview(db: SQLiteDatabase, id: WorkoutId) {
   return { plan, minutes: estimateMinutes(plan) };
 }
 
-/** Mon–Sun of this week, marking days you finished a workout. */
-export async function getWeekStrip(db: SQLiteDatabase) {
-  const now = new Date();
-  const monday = new Date(now);
-  monday.setHours(0, 0, 0, 0);
-  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
-  const nextMonday = monday.getTime() + 7 * 86_400_000;
-
-  const rows = await db.getAllAsync<{ started_at: number }>(
-    `SELECT started_at FROM sessions WHERE status = 'finished' AND started_at >= ? AND started_at < ?`,
-    monday.getTime(),
-    nextMonday,
-  );
-  const trained = new Set(rows.map((r) => new Date(r.started_at).toDateString()));
-
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(monday.getTime() + i * 86_400_000);
-    return {
-      key: d.toDateString(),
-      weekday: d.toLocaleDateString(undefined, { weekday: 'short' }),
-      day: d.getDate(),
-      isToday: d.toDateString() === now.toDateString(),
-      trained: trained.has(d.toDateString()),
-    };
-  });
-}
-
 /** One card per routine for the "Your plans" scroller. */
 export async function getRoutineCards(db: SQLiteDatabase) {
   const [routines, activeId] = await Promise.all([getRoutines(db), getActiveRoutineId(db)]);

@@ -4,7 +4,7 @@
  */
 import * as Haptics from 'expo-haptics';
 import { useEffect, useRef } from 'react';
-import { Pressable, View } from 'react-native';
+import { Pressable } from 'react-native';
 import Animated, { FadeInDown, FadeOutDown } from 'react-native-reanimated';
 
 import { AppText } from '@/components/app-text';

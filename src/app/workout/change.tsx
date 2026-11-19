@@ -3,7 +3,8 @@
  * highlighted with a tick; others show "Owed" or "Done <date>".
  * Picking a different one leaves the skipped workout owed.
  */
-import { router } from 'expo-router';
+import { format } from 'date-fns';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { useEffect, useState } from 'react';
@@ -11,10 +12,12 @@ import { Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
+import { Button } from '@/components/button';
 import { Backdrop } from '@/components/screen';
 import { ScreenHeader } from '@/components/screen-header';
 import type { Workout } from '@/db/types';
 import type { Rotation } from '@/logic/rotation';
+import { parseDateKey, setDayOverride } from '@/logic/schedule';
 import { chooseWorkout, getToday, shortDate } from '@/logic/today';
 import { useTheme } from '@/theme/theme-context';
 import { radius, spacing } from '@/theme/typography';
@@ -22,15 +25,18 @@ import { radius, spacing } from '@/theme/typography';
 export default function ChooseWorkoutScreen() {
   const db = useSQLiteContext();
   const { colors } = useTheme();
+  // Set when rescheduling a future day from the Home strip ("2026-11-24").
+  const { date } = useLocalSearchParams<{ date?: string }>();
   const [state, setState] = useState<{ rotation: Rotation; current: Workout | null } | null>(null);
 
   useEffect(() => {
-    getToday(db).then(({ rotation, workout }) => setState({ rotation, current: workout }));
-  }, [db]);
+    getToday(db).then(({ rotation, workout }) => setState({ rotation, current: date ? null : workout }));
+  }, [db, date]);
 
   async function pick(w: Workout) {
-    // Picking the suggested one clears any earlier override.
-    await chooseWorkout(db, w.id === state?.rotation.next?.id ? null : w.id);
+    if (date) await setDayOverride(db, date, w.id); // plan it on that day
+    // Today: picking the suggested one clears any earlier pick.
+    else await chooseWorkout(db, w.id === state?.rotation.next?.id ? null : w.id);
     router.back();
   }
 
@@ -40,7 +46,8 @@ export default function ChooseWorkoutScreen() {
       <ScreenHeader title="Choose Workout" onBack={() => router.back()} backIcon="xmark" backLabel="Close" />
       {state && (
         <AppText variant="small" muted style={{ textAlign: 'center' }}>
-          {state.rotation.routine.name} · switch routines in More → Plan Editor
+          {date ? `For ${format(parseDateKey(date), 'EEEE d MMM')} · ` : ''}
+          {state.rotation.routine.name}
         </AppText>
       )}
       <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}>
@@ -80,6 +87,31 @@ export default function ChooseWorkoutScreen() {
             </Pressable>
           );
         })}
+
+        {date && (
+          <View style={{ flexDirection: 'row', gap: spacing.md, marginTop: spacing.sm }}>
+            <View style={{ flex: 1 }}>
+              <Button
+                title="Make It a Rest Day"
+                kind="secondary"
+                onPress={async () => {
+                  await setDayOverride(db, date, 'rest');
+                  router.back();
+                }}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Button
+                title="Reset to Plan"
+                kind="secondary"
+                onPress={async () => {
+                  await setDayOverride(db, date, null);
+                  router.back();
+                }}
+              />
+            </View>
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );

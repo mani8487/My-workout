@@ -105,6 +105,7 @@ export async function setActiveRoutine(db: SQLiteDatabase, id: string) {
   await setSetting(db, 'active_routine', id);
   await setSetting(db, 'selected_workout', null);
   await setSetting(db, `cycle_start:${id}`, String(Date.now())); // same key as rotation.ts cycleKey()
+  await setSetting(db, 'schedule_overrides', null); // day-by-day changes belonged to the old plan
 }
 
 export async function addRoutine(db: SQLiteDatabase, name: string): Promise<string> {
