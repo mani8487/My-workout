@@ -165,5 +165,15 @@ drop policy if exists "challenges: either side can delete" on public.challenges;
 create policy "challenges: either side can delete" on public.challenges for delete
   using (from_id = auth.uid() or to_id = auth.uid());
 
+-- Let signed-in users reach these tables at all (row-level security above still
+-- decides WHICH rows). Signed-out visitors ("anon") get nothing.
+grant usage on schema public to authenticated;
+grant select, insert, update, delete on
+  public.profiles, public.friendships, public.weekly_stats, public.shared_plans, public.challenges
+  to authenticated;
+revoke all on
+  public.profiles, public.friendships, public.weekly_stats, public.shared_plans, public.challenges
+  from anon;
+
 grant execute on function public.add_friend_by_code(text) to authenticated;
 grant execute on function public.remove_friend(uuid) to authenticated;

@@ -26,18 +26,22 @@ export const supabase: SupabaseClient | null =
 
 export const isOnlineConfigured = supabase != null;
 
-/** Step 1 of signing in: email a 6-digit code. */
-export async function sendSignInCode(email: string) {
+/**
+ * Sign in with email and password. (Supabase's free email service can only send
+ * links, which can't open the app inside Expo Go, so we don't rely on email.)
+ */
+export async function signInWithEmail(email: string, password: string) {
   if (!supabase) throw new Error('Friends are not set up yet.');
-  const { error } = await supabase.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: true } });
+  const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
   if (error) throw error;
 }
 
-/** Step 2: check the code from the email. */
-export async function verifySignInCode(email: string, code: string) {
+/** Create an account. You're signed in straight away. */
+export async function createAccount(email: string, password: string) {
   if (!supabase) throw new Error('Friends are not set up yet.');
-  const { error } = await supabase.auth.verifyOtp({ email: email.trim(), token: code.trim(), type: 'email' });
+  const { data, error } = await supabase.auth.signUp({ email: email.trim(), password });
   if (error) throw error;
+  if (!data.session) throw new Error('Account created. Please sign in.');
 }
 
 export async function signOut() {

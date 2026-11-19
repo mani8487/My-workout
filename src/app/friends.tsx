@@ -1,5 +1,5 @@
 /**
- * Friends: sign in with an email code, invite friends with your code or a
+ * Friends: sign in with email and password, invite friends with your code or a
  * share link, a weekly leaderboard, challenges, and plans friends send you.
  * Friends only ever see your name, your weekly summary (while sharing is on),
  * and anything you choose to send them.
@@ -19,7 +19,7 @@ import { ListRow, Section } from '@/components/list';
 import { Page } from '@/components/page';
 import { Segmented } from '@/components/segmented';
 import { getRoutines } from '@/db/plan';
-import { currentUserId, isOnlineConfigured, sendSignInCode, signOut, verifySignInCode } from '@/lib/supabase';
+import { createAccount, currentUserId, isOnlineConfigured, signInWithEmail, signOut } from '@/lib/supabase';
 import {
   addFriendByCode,
   answerChallenge,
@@ -409,12 +409,11 @@ export default function FriendsScreen() {
   );
 }
 
-/** Email → 6-digit code → signed in. No password to remember. */
+/** Email + password: sign in, or create an account the first time. */
 function SignIn({ onDone }: { onDone: () => void }) {
   const { colors } = useTheme();
   const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
-  const [sent, setSent] = useState(false);
+  const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const input = {
     ...typography.body,
@@ -426,11 +425,13 @@ function SignIn({ onDone }: { onDone: () => void }) {
     padding: spacing.md,
     minHeight: MIN_TAP,
   };
+  const ready = email.includes('@') && password.length >= 6;
 
-  async function run(fn: () => Promise<void>) {
+  async function run(fn: (e: string, p: string) => Promise<void>) {
     setBusy(true);
     try {
-      await fn();
+      await fn(email, password);
+      onDone();
     } catch (e) {
       Alert.alert('That didn’t work', e instanceof Error ? e.message : 'Please try again.');
     } finally {
@@ -448,54 +449,39 @@ function SignIn({ onDone }: { onDone: () => void }) {
         </AppText>
       </Card>
       <Card>
-        <AppText variant="label">{sent ? 'Enter the code we emailed you' : 'Your email'}</AppText>
-        {!sent ? (
-          <>
-            <TextInput
-              value={email}
-              onChangeText={setEmail}
-              placeholder="name@example.com"
-              placeholderTextColor={colors.faint}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
-              style={input}
-            />
-            <Button
-              title={busy ? 'Sending…' : 'Email Me a Code'}
-              disabled={busy || !email.includes('@')}
-              onPress={() => run(async () => {
-                await sendSignInCode(email);
-                setSent(true);
-              })}
-            />
-          </>
-        ) : (
-          <>
-            <TextInput
-              value={code}
-              onChangeText={setCode}
-              placeholder="6-digit code"
-              placeholderTextColor={colors.faint}
-              keyboardType="number-pad"
-              maxLength={6}
-              style={[input, { letterSpacing: 4, fontSize: 22 }]}
-            />
-            <Button
-              title={busy ? 'Checking…' : 'Sign In'}
-              disabled={busy || code.trim().length < 6}
-              onPress={() => run(async () => {
-                await verifySignInCode(email, code);
-                onDone();
-              })}
-            />
-            <Pressable onPress={() => setSent(false)} style={{ alignSelf: 'center', padding: spacing.sm }}>
-              <AppText variant="small" muted style={{ textDecorationLine: 'underline' }}>
-                Use a different email
-              </AppText>
-            </Pressable>
-          </>
-        )}
+        <AppText variant="label">Email</AppText>
+        <TextInput
+          value={email}
+          onChangeText={setEmail}
+          placeholder="name@example.com"
+          placeholderTextColor={colors.faint}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoComplete="email"
+          textContentType="emailAddress"
+          style={input}
+        />
+        <AppText variant="label">Password</AppText>
+        <TextInput
+          value={password}
+          onChangeText={setPassword}
+          placeholder="At least 6 characters"
+          placeholderTextColor={colors.faint}
+          secureTextEntry
+          autoCapitalize="none"
+          textContentType="password"
+          style={input}
+        />
+        <Button title={busy ? 'Please wait…' : 'Sign In'} disabled={busy || !ready} onPress={() => run(signInWithEmail)} />
+        <Button
+          title="Create Account"
+          kind="secondary"
+          disabled={busy || !ready}
+          onPress={() => run(createAccount)}
+        />
+        <AppText variant="small" muted>
+          First time? Type your email and a new password, then tap Create Account.
+        </AppText>
       </Card>
     </Page>
   );
