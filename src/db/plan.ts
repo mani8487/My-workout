@@ -178,6 +178,11 @@ export async function movePlanItem(db: SQLiteDatabase, workoutId: WorkoutId, id:
   await renumber(db, ids);
 }
 
+/** Saves a new order for a workout's exercises (plan item ids, first to last). */
+export async function reorderPlanItems(db: SQLiteDatabase, ids: number[]) {
+  await renumber(db, ids);
+}
+
 export async function removePlanItem(db: SQLiteDatabase, workoutId: WorkoutId, id: number) {
   await db.runAsync('DELETE FROM plan_items WHERE id = ?', id);
   await renumber(db, await planIds(db, workoutId));

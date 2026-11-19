@@ -1,25 +1,26 @@
 /**
- * Edit one workout's plan: sets, rep range and rest per exercise, move
- * exercises up/down, remove them, or add new ones from the library.
+ * Edit one workout's plan: sets, rep range and rest per exercise, drag
+ * exercises (≡ handle) to reorder, remove them, or add new ones from the library.
  * Every change saves straight away.
  */
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
-import { useCallback, useState } from 'react';
+import { type ReactNode, useCallback, useState } from 'react';
 import { Alert, Pressable, TextInput, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
+import { DragList } from '@/components/drag-list';
 import { Page } from '@/components/page';
 import {
   deleteWorkout,
   isCustomWorkout,
   getPlanForWorkout,
   getWorkouts,
-  movePlanItem,
   removePlanItem,
+  reorderPlanItems,
   updatePlanItem,
   type PlannedExercise,
 } from '@/db/plan';
@@ -82,38 +83,45 @@ export default function PlanEditorScreen() {
           : undefined
       }>
       {plan.length === 0 && <AppText muted>No exercises yet. Tap Add Exercise.</AppText>}
-      {plan.map((p, i) => (
-        <PlanItemCard
-          key={p.planItemId}
-          item={p}
-          isFirst={i === 0}
-          isLast={i === plan.length - 1}
-          onMove={(dir) => change(() => movePlanItem(db, workoutId, p.planItemId, dir))}
-          onRemove={() =>
-            Alert.alert(`Remove ${p.exercise.name}?`, 'It will no longer be part of this workout.', [
-              { text: 'Keep', style: 'cancel' },
-              { text: 'Remove', style: 'destructive', onPress: () => change(() => removePlanItem(db, workoutId, p.planItemId)) },
-            ])
-          }
-          onUpdate={(patch) => change(() => updatePlanItem(db, p.planItemId, patch))}
-        />
-      ))}
+      <DragList
+        items={plan}
+        keyOf={(p) => p.planItemId}
+        gap={spacing.lg}
+        onReorder={(from, to) => {
+          // Show the new order straight away, then save it.
+          const next = plan.slice();
+          const [moved] = next.splice(from, 1);
+          next.splice(to, 0, moved);
+          setPlan(next);
+          change(() => reorderPlanItems(db, next.map((p) => p.planItemId)));
+        }}
+        renderItem={(p, _i, handle) => (
+          <PlanItemCard
+            item={p}
+            handle={handle}
+            onRemove={() =>
+              Alert.alert(`Remove ${p.exercise.name}?`, 'It will no longer be part of this workout.', [
+                { text: 'Keep', style: 'cancel' },
+                { text: 'Remove', style: 'destructive', onPress: () => change(() => removePlanItem(db, workoutId, p.planItemId)) },
+              ])
+            }
+            onUpdate={(patch) => change(() => updatePlanItem(db, p.planItemId, patch))}
+          />
+        )}
+      />
     </Page>
   );
 }
 
 function PlanItemCard({
   item,
-  isFirst,
-  isLast,
-  onMove,
+  handle,
   onRemove,
   onUpdate,
 }: {
   item: PlannedExercise;
-  isFirst: boolean;
-  isLast: boolean;
-  onMove: (dir: -1 | 1) => void;
+  /** The drag grip from DragList. */
+  handle: ReactNode;
   onRemove: () => void;
   onUpdate: (patch: Partial<{ targetSets: number; repMin: number; repMax: number; restSeconds: number }>) => void;
 }) {
@@ -145,11 +153,10 @@ function PlanItemCard({
   return (
     <Card>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+        {handle}
         <AppText variant="label" style={{ flex: 1 }}>
           {item.exercise.name}
         </AppText>
-        <IconButton icon="chevron.up" label="Move up" disabled={isFirst} onPress={() => onMove(-1)} />
-        <IconButton icon="chevron.down" label="Move down" disabled={isLast} onPress={() => onMove(1)} />
         <IconButton icon="trash" label="Remove" danger onPress={onRemove} />
       </View>
 
