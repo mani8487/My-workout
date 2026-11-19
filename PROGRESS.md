@@ -64,7 +64,7 @@ A personal iPhone workout tracker built with **Expo (React Native, SDK 58)** on 
 | Online | `src/lib/supabase.ts`, `supabase/schema.sql`, `.env.example` |
 
 ## Services
-- **GitHub:** `mani8487/My-workout`. PRs #1–#4 are merged into `master` (20 Nov 2026). PR #5 (polish) is open.
+- **GitHub:** `mani8487/My-workout`. PRs #1–#5 are merged into `master` (20 Nov 2026). PR #6 (mid-workout swap, security and crash hardening) is open.
 - **Expo / EAS:** project `@mani8487/WorkoutTracker`, updates published to branch / channel `main`.
 - **Supabase:** project `kczdhpranzekgswgmjuz` (free plan); email + password auth with "Confirm email" off.
 
@@ -75,7 +75,7 @@ A personal iPhone workout tracker built with **Expo (React Native, SDK 58)** on 
 - Free Supabase email can't send sign-in codes, hence passwords. A friend needs Expo Go plus access to the Expo project until TestFlight exists.
 
 ## Next steps
-1. **Try PR #5 (polish) on the phone**, then merge it.
+1. **Try PR #6 on the phone**, then merge it. **Not done yet (user said wait):** run the "Security hardening" section of `supabase/schema.sql` in the Supabase SQL Editor.
 2. **Feedback on the calendar animation and the new number pad**, then tweak speed and sizes.
 3. **Use it at the gym for 1–2 weeks** and collect pain points (the design doc says to revisit the Finish Summary after real use).
 4. **Apple Developer Program, an EAS Build and TestFlight:** a real installed app that opens offline, and easy sharing with friends.
