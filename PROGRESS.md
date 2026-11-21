@@ -75,7 +75,9 @@ A personal iPhone workout tracker built with **Expo (React Native, SDK 58)** on 
 - Fourth theme: true black, orange `#FF7A1A` (black text on it), iOS green for done sets, pill shapes.
 - Fonts: Instrument Serif titles, Geist body, Geist Mono weights / reps (`@expo-google-fonts/*`).
 - Home (Ember only): smaller serif date, Apple Fitness-style `CompactDayCard` with a round play button, "This week" tiles, "Coming up" list, small-caps section labels.
-- Not built yet from the mock-up: orange dot on the current set, bottom exercise bar with a "3/8" progress ring.
+
+### Ember workout screen (PR #10, `feature/ember-workout`)
+- Orange dot on the next set to do; bottom bar with a progress ring (exercise of total), exercise name, round Previous button and a Next / Finish capsule that turns orange once the exercise is done. Other themes keep Previous / Next.
 
 ## Main files
 
@@ -88,7 +90,7 @@ A personal iPhone workout tracker built with **Expo (React Native, SDK 58)** on 
 | Online | `src/lib/supabase.ts`, `supabase/schema.sql`, `.env.example` |
 
 ## Services
-- **GitHub:** `mani8487/My-workout`. PRs #1–#9 are merged into `master` (#8 and #9 on 21 Nov 2026). PRs are opened through Claude in Chrome (GitHub sign-in lives in the user's Chrome).
+- **GitHub:** `mani8487/My-workout`. PRs #1–#10 are merged into `master` (#8–#10 on 21 Nov 2026). PRs are opened through Claude in Chrome (GitHub sign-in lives in the user's Chrome).
 - **Expo / EAS:** project `@mani8487/WorkoutTracker`, updates published to branch / channel `main`.
 - **Supabase:** project `kczdhpranzekgswgmjuz` (free plan); email + password auth with "Confirm email" off.
 
