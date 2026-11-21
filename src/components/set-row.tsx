@@ -81,6 +81,8 @@ type Props = {
   set: SessionSet;
   /** "1", "2"… for working sets, "W" for warm-ups. */
   label: string;
+  /** The next set to do: shown as an orange dot instead of its number (Ember). */
+  isCurrent?: boolean;
   previous?: PreviousSet;
   hidePrevious?: boolean;
   showRir: boolean;
@@ -91,7 +93,7 @@ type Props = {
   onDelete: () => void;
 };
 
-export function SetRow({ set, label, previous, hidePrevious, showRir, onSave, onCompleted, onRir, onDelete }: Props) {
+export function SetRow({ set, label, isCurrent = false, previous, hidePrevious, showRir, onSave, onCompleted, onRir, onDelete }: Props) {
   const { colors } = useTheme();
   const isDone = set.completedAt != null;
 
@@ -237,7 +239,9 @@ export function SetRow({ set, label, previous, hidePrevious, showRir, onSave, on
               onSave({ isWarmup: !set.isWarmup });
             }}
             delayLongPress={350}
-            accessibilityLabel={set.isWarmup ? 'Warm-up set. Tap for options' : `Set ${label}. Tap for options`}
+            accessibilityLabel={
+              set.isWarmup ? 'Warm-up set. Tap for options' : `Set ${label}${isCurrent ? ', up now' : ''}. Tap for options`
+            }
             style={{
               width: COLS.set,
               height: MIN_TAP,
@@ -246,9 +250,13 @@ export function SetRow({ set, label, previous, hidePrevious, showRir, onSave, on
               justifyContent: 'center',
               backgroundColor: set.isWarmup ? colors.accentSoft : 'transparent',
             }}>
-            <AppText variant="label" color={set.isWarmup ? colors.accent : colors.text}>
-              {label}
-            </AppText>
+            {isCurrent && !set.isWarmup ? (
+              <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: colors.accent }} />
+            ) : (
+              <AppText variant="label" color={set.isWarmup ? colors.accent : colors.text}>
+                {label}
+              </AppText>
+            )}
           </Pressable>
 
           {/* Last time's result, muted (hidden in History). */}

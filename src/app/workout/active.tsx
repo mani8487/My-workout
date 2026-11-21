@@ -25,6 +25,7 @@ import { SkeletonScreen } from '@/components/skeleton';
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
 import { LastTimeCards } from '@/components/last-time-cards';
+import { ProgressRing } from '@/components/progress-ring';
 import { RestTimerBar } from '@/components/rest-timer-bar';
 import { closePad, NumberPad, usePadSpacer } from '@/components/number-pad';
 import { COLS, SetRow } from '@/components/set-row';
@@ -57,7 +58,9 @@ function firstUnfinishedIndex(detail: SessionDetail) {
 
 export default function ActiveWorkoutScreen() {
   const db = useSQLiteContext();
-  const { colors } = useTheme();
+  const { colors, name: themeName } = useTheme();
+  // Ember gets the compact bottom bar and the orange current-set dot.
+  const compact = themeName === 'ember';
   // `at` changes on every jump, so jumping to the same index twice still works.
   const params = useLocalSearchParams<{ index?: string; at?: string }>();
 
@@ -212,6 +215,9 @@ export default function ActiveWorkoutScreen() {
   const allWorking = detail.exercises.flatMap((e) => e.sets.filter((s) => !s.isWarmup));
   const allDone = allWorking.filter((s) => s.completedAt != null).length;
   const progress = allWorking.length > 0 ? allDone / allWorking.length : 0;
+  // Where you are in the workout: finished exercises plus the share of this one done.
+  const exerciseFraction = (safeIndex + (workingTotal > 0 ? workingDone / workingTotal : 0)) / total;
+  const currentSetId = exercise.sets.find((s) => s.completedAt == null)?.id;
   const prevExercise = detail.exercises[safeIndex - 1];
   const nextExercise = detail.exercises[safeIndex + 1];
 
@@ -299,6 +305,7 @@ export default function ActiveWorkoutScreen() {
                 <SetRow
                   set={set}
                   label={label}
+                  isCurrent={compact && set.id === currentSetId}
                   previous={previous}
                   showRir={rirForSetId === set.id}
                   onSave={(patch) => save(set.id, patch)}
@@ -365,6 +372,66 @@ export default function ActiveWorkoutScreen() {
       <RestTimerBar />
 
       {/* Previous / Next exercise */}
+      {compact ? (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: spacing.sm,
+            paddingHorizontal: spacing.lg,
+            paddingTop: spacing.md,
+            borderTopWidth: 1,
+            borderTopColor: colors.border,
+            backgroundColor: colors.background,
+          }}>
+          <PressableScale
+            onPress={openOverview}
+            pressedScale={0.98}
+            accessibilityRole="button"
+            accessibilityLabel={`Exercise ${safeIndex + 1} of ${total}, ${exercise.name}. Open workout overview`}
+            style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+            <ProgressRing size={48} stroke={3} fraction={exerciseFraction}>
+              <AppText variant="small" maxFontSizeMultiplier={1.1}>
+                {safeIndex + 1}/{total}
+              </AppText>
+            </ProgressRing>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <AppText variant="label" numberOfLines={1}>
+                {exercise.name}
+              </AppText>
+              <AppText variant="small" muted numberOfLines={1}>
+                {nextExercise ? `Next: ${nextExercise.name}` : 'Last exercise'}
+              </AppText>
+            </View>
+          </PressableScale>
+          {prevExercise && (
+            <PressableScale
+              onPress={() => goTo(safeIndex - 1)}
+              accessibilityRole="button"
+              accessibilityLabel={`Previous exercise, ${prevExercise.name}`}
+              style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' }}>
+              <SymbolView name="chevron.left" size={16} tintColor={colors.text} />
+            </PressableScale>
+          )}
+          <PressableScale
+            onPress={() => (nextExercise ? goTo(safeIndex + 1) : openOverview())}
+            accessibilityRole="button"
+            accessibilityLabel={nextExercise ? `Next exercise, ${nextExercise.name}` : 'Overview and finish'}
+            style={{
+              height: 44,
+              paddingHorizontal: spacing.lg + 2,
+              borderRadius: 22,
+              // Solid orange once this exercise is done: the obvious next move.
+              backgroundColor: exerciseDone ? colors.accent : colors.card,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+            <AppText variant="label" color={exerciseDone ? colors.onAccent : colors.text}>
+              {nextExercise ? 'Next' : 'Finish'}
+            </AppText>
+          </PressableScale>
+        </View>
+      ) : (
       <View
         style={{
           flexDirection: 'row',
@@ -389,6 +456,7 @@ export default function ActiveWorkoutScreen() {
           onPress={() => (nextExercise ? goTo(safeIndex + 1) : openOverview())}
         />
       </View>
+      )}
 
       <NumberPad scrollRef={scrollRef} scrollY={scrollY} />
     </SafeAreaView>
