@@ -4,7 +4,8 @@
  *
  * - Tick: saves the set instantly (with a light haptic). Tick again to un-tick.
  * - Tap the numbers of a ticked set to edit them, then tick to save.
- * - Long-press the set number: toggle warm-up (shown as "W").
+ * - Tap the set number: menu with warm-up on/off and Delete. Long-press
+ *   toggles warm-up straight away (shown as "W").
  * - Swipe left: reveals Delete.
  * - Note icon: opens a text box under the row.
  * - After ticking, an optional "reps left" row (0–3) slides in.
@@ -14,7 +15,7 @@
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { type ComponentRef, useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, TextInput, View } from 'react-native';
+import { ActionSheetIOS, Alert, Platform, Pressable, TextInput, View } from 'react-native';
 import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Animated, { Easing, FadeIn, FadeInDown, FadeOut, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
@@ -27,7 +28,7 @@ import { useTheme } from '@/theme/theme-context';
 import { MAX_FONT_SCALE, MIN_TAP, radius, spacing, typography } from '@/theme/typography';
 
 /** Column widths, shared with the table header so everything lines up. */
-export const COLS = { set: 34, kg: 78, reps: 56, tick: 44, note: 28 } as const;
+export const COLS = { set: 34, kg: 78, reps: 56, tick: 44, note: 40 } as const;
 
 type PadBoxProps = Omit<PadField, 'measure'> & { placeholder: string; width: number; label: string };
 
@@ -58,7 +59,7 @@ function PadBox({ placeholder, width, label, ...rest }: PadBoxProps) {
         alignItems: 'center',
         justifyContent: 'center',
       }}>
-      <AppText variant="number" color={rest.value ? colors.text : colors.faint} maxFontSizeMultiplier={1.2} numberOfLines={1}>
+      <AppText variant="number" color={rest.value ? colors.text : colors.textMuted} maxFontSizeMultiplier={1.2} numberOfLines={1}>
         {rest.value || placeholder}
       </AppText>
     </Pressable>
@@ -150,6 +151,26 @@ export function SetRow({ set, label, previous, hidePrevious, showRir, onSave, on
   }, [showDone, wipe]);
   const wipeStyle = useAnimatedStyle(() => ({ transform: [{ scaleX: wipe.value }], opacity: Math.min(1, wipe.value * 2) }));
 
+  function openSetMenu() {
+    const warmLabel = set.isWarmup ? 'Make Working Set' : 'Mark as Warm-up';
+    const toggle = () => onSave({ isWarmup: !set.isWarmup });
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        { options: [warmLabel, 'Delete Set', 'Cancel'], destructiveButtonIndex: 1, cancelButtonIndex: 2 },
+        (i) => {
+          if (i === 0) toggle();
+          if (i === 1) onDelete();
+        },
+      );
+    } else {
+      Alert.alert('Set options', undefined, [
+        { text: warmLabel, onPress: toggle },
+        { text: 'Delete Set', style: 'destructive', onPress: onDelete },
+        { text: 'Cancel', style: 'cancel' },
+      ]);
+    }
+  }
+
   function saveNote() {
     const trimmed = noteText.trim();
     if (trimmed !== (set.note ?? '')) onSave({ note: trimmed === '' ? null : trimmed });
@@ -189,14 +210,15 @@ export function SetRow({ set, label, previous, hidePrevious, showRir, onSave, on
             ]}
           />
 
-          {/* Set number. Long-press toggles warm-up. */}
+          {/* Set number. Tap for a menu; long-press toggles warm-up. */}
           <Pressable
+            onPress={openSetMenu}
             onLongPress={() => {
               Haptics.selectionAsync().catch(() => {});
               onSave({ isWarmup: !set.isWarmup });
             }}
             delayLongPress={350}
-            accessibilityLabel={set.isWarmup ? 'Warm-up set. Long press to make it a working set' : `Set ${label}. Long press to mark as warm-up`}
+            accessibilityLabel={set.isWarmup ? 'Warm-up set. Tap for options' : `Set ${label}. Tap for options`}
             style={{
               width: COLS.set,
               height: MIN_TAP,
@@ -248,7 +270,7 @@ export function SetRow({ set, label, previous, hidePrevious, showRir, onSave, on
                   {set.reps}
                 </AppText>
                 {set.rir != null && (
-                  <AppText variant="small" muted style={{ fontSize: 11, marginTop: -4 }} maxFontSizeMultiplier={1}>
+                  <AppText variant="small" muted style={{ marginTop: -4 }} maxFontSizeMultiplier={1.2}>
                     {set.rir} left
                   </AppText>
                 )}
@@ -281,7 +303,7 @@ export function SetRow({ set, label, previous, hidePrevious, showRir, onSave, on
           {/* Note */}
           <Pressable
             onPress={() => setNoteOpen((o) => !o)}
-            hitSlop={10}
+            hitSlop={4}
             accessibilityLabel={set.note ? 'Edit note' : 'Add note'}
             style={{ width: COLS.note, height: MIN_TAP, alignItems: 'center', justifyContent: 'center' }}>
             <SymbolView

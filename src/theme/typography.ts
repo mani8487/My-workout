@@ -57,6 +57,8 @@ export const typography = {
   get previous(): TextStyle { return { fontSize: 15, fontFamily: f('regular'), ...tab }; },
   /** Small labels and metadata. */
   get small(): TextStyle { return { fontSize: 13, fontFamily: f('medium'), ...tab }; },
+  /** The big Home greeting. */
+  get display(): TextStyle { return { fontSize: 34, fontFamily: f('bold'), letterSpacing: -0.6, ...tab }; },
 };
 
 export type TextVariant = keyof typeof typography;

@@ -42,8 +42,11 @@ import {
   type SessionExercise,
   type SetPatch,
 } from '@/db/sessions';
+import { getSetting, setSetting } from '@/db/settings';
 import { useTheme } from '@/theme/theme-context';
 import { radius, spacing } from '@/theme/typography';
+
+const TIP_KEY = 'tip.setMenuSeen';
 
 /** First exercise that still has unticked working sets (where you left off). */
 function firstUnfinishedIndex(detail: SessionDetail) {
@@ -64,6 +67,15 @@ export default function ActiveWorkoutScreen() {
   const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const scrollY = useRef(0);
   const padSpacer = usePadSpacer();
+  // One-time tip about the set-number menu; hidden for good once dismissed.
+  const [showTip, setShowTip] = useState(false);
+  useEffect(() => {
+    getSetting(db, TIP_KEY).then((v) => setShowTip(v == null)).catch(() => {});
+  }, [db]);
+  function dismissTip() {
+    setShowTip(false);
+    setSetting(db, TIP_KEY, '1').catch(() => {});
+  }
 
   const refresh = useCallback(async () => {
     const id = await getActiveSessionId(db);
@@ -194,6 +206,11 @@ export default function ActiveWorkoutScreen() {
 
   const workingDone = exercise.sets.filter((s) => !s.isWarmup && s.completedAt != null).length;
   const workingTotal = exercise.sets.filter((s) => !s.isWarmup).length;
+  const exerciseDone = workingTotal > 0 && workingDone === workingTotal;
+  // Whole-workout progress, by working sets ticked (not by exercise position).
+  const allWorking = detail.exercises.flatMap((e) => e.sets.filter((s) => !s.isWarmup));
+  const allDone = allWorking.filter((s) => s.completedAt != null).length;
+  const progress = allWorking.length > 0 ? allDone / allWorking.length : 0;
   const prevExercise = detail.exercises[safeIndex - 1];
   const nextExercise = detail.exercises[safeIndex + 1];
 
@@ -227,13 +244,13 @@ export default function ActiveWorkoutScreen() {
                 {detail.workoutName} · Exercise {safeIndex + 1} of {total}
               </AppText>
               <AppText variant="small" muted>
-                {workingDone}/{workingTotal} sets
+                {allDone}/{allWorking.length} sets done
               </AppText>
             </View>
             <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.cardAlt, overflow: 'hidden' }}>
               <View
                 style={{
-                  width: `${((safeIndex + 1) / total) * 100}%`,
+                  width: `${progress * 100}%`,
                   height: '100%',
                   backgroundColor: colors.accent,
                 }}
@@ -317,9 +334,25 @@ export default function ActiveWorkoutScreen() {
             }}
           />
 
-          <AppText variant="small" muted style={{ textAlign: 'center' }}>
-            Long-press a set number for warm-up · Swipe a set left to delete · Tap a ticked set to edit
-          </AppText>
+          {showTip && (
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: spacing.md,
+                padding: spacing.md,
+                borderRadius: radius.lg,
+                backgroundColor: colors.accentSoft,
+              }}>
+              <SymbolView name="lightbulb" size={18} tintColor={colors.text} />
+              <AppText variant="small" style={{ flex: 1 }}>
+                Tip: tap a set number to mark a warm-up or delete it. Tap a ticked set&apos;s numbers to edit them.
+              </AppText>
+              <Pressable onPress={dismissTip} hitSlop={12} accessibilityLabel="Dismiss tip">
+                <SymbolView name="xmark" size={14} tintColor={colors.textMuted} />
+              </Pressable>
+            </View>
+          )}
 
           <Button
             title="Finish Workout"
@@ -351,6 +384,7 @@ export default function ActiveWorkoutScreen() {
           direction="next"
           label={nextExercise?.name ?? 'Overview & Finish'}
           disabled={false}
+          highlight={exerciseDone}
           onPress={() => (nextExercise ? goTo(safeIndex + 1) : openOverview())}
         />
       </View>
@@ -374,15 +408,19 @@ function NavButton({
   direction,
   label,
   disabled,
+  highlight = false,
   onPress,
 }: {
   direction: 'prev' | 'next';
   label?: string;
   disabled: boolean;
+  /** Solid accent fill: this exercise is done, so Next is the obvious move. */
+  highlight?: boolean;
   onPress: () => void;
 }) {
   const { colors } = useTheme();
   const isNext = direction === 'next';
+  const fg = highlight ? colors.onAccent : colors.text;
   return (
     <Pressable
       onPress={onPress}
@@ -397,21 +435,21 @@ function NavButton({
         paddingVertical: spacing.md,
         paddingHorizontal: spacing.md,
         borderRadius: radius.md,
-        backgroundColor: colors.card,
+        backgroundColor: highlight ? colors.accent : colors.card,
         borderWidth: 1,
-        borderColor: colors.border,
+        borderColor: highlight ? colors.accent : colors.border,
         opacity: disabled ? 0.4 : pressed ? 0.75 : 1,
       })}>
-      {!isNext && <SymbolView name="chevron.left" size={14} tintColor={colors.text} />}
+      {!isNext && <SymbolView name="chevron.left" size={14} tintColor={fg} />}
       <View style={{ flexShrink: 1, alignItems: isNext ? 'flex-end' : 'flex-start' }}>
-        <AppText variant="small" muted>
+        <AppText variant="small" muted={!highlight} color={highlight ? fg : undefined}>
           {isNext ? 'Next' : 'Previous'}
         </AppText>
-        <AppText variant="label" numberOfLines={1}>
+        <AppText variant="label" numberOfLines={1} color={highlight ? fg : undefined}>
           {label ?? '—'}
         </AppText>
       </View>
-      {isNext && <SymbolView name="chevron.right" size={14} tintColor={colors.text} />}
+      {isNext && <SymbolView name="chevron.right" size={14} tintColor={fg} />}
     </Pressable>
   );
 }

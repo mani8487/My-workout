@@ -152,7 +152,7 @@ export default function HomeScreen() {
             <CompletedCard day={selected} summary={selected.sessions[selected.sessions.length - 1]} />
             {workout && (
               <Pressable onPress={openPreview} hitSlop={8} style={{ alignSelf: 'center', padding: spacing.sm }}>
-                <AppText variant="small" muted style={{ textDecorationLine: 'underline' }}>
+                <AppText variant="small" color={colors.accent}>
                   Train again? Start {workout.name}
                 </AppText>
               </Pressable>
@@ -206,9 +206,8 @@ export default function HomeScreen() {
           <HeroTitle>{w.name}</HeroTitle>
           <AppText color={colors.onHeroMuted}>{w.muscleLabel}</AppText>
           {p && <PreviewChips minutes={p.minutes} exercises={p.exercises} />}
-          <HeroButton title="Start Workout" disabled onPress={() => {}} />
-          <AppText variant="small" color={colors.onHeroMuted} style={{ textAlign: 'center' }}>
-            You can start this on {format(selected.date, 'EEE d MMM')}
+          <AppText variant="label" color={colors.onHero}>
+            Planned for {format(selected.date, 'EEEE')}
           </AppText>
           <HeroOutlineButton title="Change Workout" onPress={() => changeFor(selected)} />
         </Hero>
@@ -237,13 +236,11 @@ export default function HomeScreen() {
       {/* Greeting (light lead-in, name in semibold) + settings */}
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
         <View style={{ flex: 1 }}>
-          <AppText style={{ fontSize: 34, fontWeight: '300', letterSpacing: -0.6 }}>
+          <AppText variant="display" style={{ fontWeight: '300' }}>
             {greeting()}
             {data.name ? ',' : ''}
           </AppText>
-          {data.name && (
-            <AppText style={{ fontSize: 34, fontWeight: '700', letterSpacing: -0.6 }}>{data.name}</AppText>
-          )}
+          {data.name && <AppText variant="display">{data.name}</AppText>}
         </View>
         {/* Week calendar + settings, side by side with a gap so they never overlap. */}
         <View style={{ flexDirection: 'row', gap: spacing.md, alignSelf: 'flex-start' }}>
@@ -309,8 +306,8 @@ export default function HomeScreen() {
           <AppText variant="heading" style={{ flex: 1 }}>
             Your plans
           </AppText>
-          <Pressable onPress={() => router.push('/plans')} hitSlop={12}>
-            <AppText variant="label" muted style={{ textDecorationLine: 'underline' }}>
+          <Pressable onPress={() => router.push('/plans')} hitSlop={12} accessibilityRole="button">
+            <AppText variant="label" color={colors.accent}>
               Manage
             </AppText>
           </Pressable>
@@ -334,7 +331,7 @@ export default function HomeScreen() {
                 borderWidth: p.active ? 2 : 1,
                 borderColor: p.active ? colors.accent : colors.border,
               }}>
-              <AppText variant="label" numberOfLines={1} style={{ fontSize: 18 }}>
+              <AppText variant="label" numberOfLines={1}>
                 {p.routine.name}
               </AppText>
               <View style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' }}>

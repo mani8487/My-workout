@@ -99,8 +99,9 @@ export const darkColors: ColorRoles = {
   sage: '#9DBFAE',
   sageSoft: 'rgba(157,191,174,0.14)',
 
-  danger: '#B84A4A',
-  dangerSoft: 'rgba(184,74,74,0.18)',
+  // Lighter red than Light/Frost so red text stays readable on near-black (AA).
+  danger: '#D25C5C',
+  dangerSoft: 'rgba(210,92,92,0.18)',
 
   backgroundGradient: null,
   heroStart: '#1E2126',
@@ -128,9 +129,11 @@ export const lightColors: ColorRoles = {
   textMuted: '#5F6773',
   faint: '#A3A8B0',
 
-  accent: '#9A7B34',
-  onAccent: '#0E0F11', // dark text on brass passes contrast; white would not
-  accentSoft: 'rgba(154,123,52,0.12)',
+  // Deeper brass so brass text on white passes contrast (the old #9A7B34 didn't),
+  // which in turn means white text on brass now passes too.
+  accent: '#7F6428',
+  onAccent: '#FFFFFF',
+  accentSoft: 'rgba(127,100,40,0.12)',
 
   chart: '#7C8594',
 
@@ -152,12 +155,12 @@ export const lightColors: ColorRoles = {
   onHero: '#17191D',
   onHeroMuted: '#5F6773',
   heroChip: 'rgba(0,0,0,0.05)',
-  heroButton: '#9A7B34',
-  onHeroButton: '#0E0F11',
+  heroButton: '#7F6428',
+  onHeroButton: '#FFFFFF',
 
   suggestBg: '#FFFFFF',
   onSuggest: '#17191D',
-  suggestEdge: '#9A7B34',
+  suggestEdge: '#7F6428',
 };
 
 /**
@@ -183,13 +186,14 @@ export const frostColors: ColorRoles = {
 
   chart: '#8C98AA',
 
-  success: '#3F8F7A',
+  // Darker green than the design's #3F8F7A so green text passes AA on the pale background.
+  success: '#2F7464',
   successSoft: 'rgba(63,143,122,0.16)',
 
   warning: '#9A6A12',
   warningSoft: 'rgba(224,178,92,0.20)',
 
-  sage: '#3F8F7A',
+  sage: '#2F7464',
   sageSoft: 'rgba(63,143,122,0.12)',
 
   danger: '#B84A4A',
