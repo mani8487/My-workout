@@ -56,7 +56,7 @@ A personal iPhone workout tracker built with **Expo (React Native, SDK 58)** on 
 ### Swap and hardening (PR #6, `fix/swap-and-hardening`)
 - **Mid-workout swap** after sets are logged: ticked sets stay, the rest move to a new exercise inserted after it.
 - **Crash screen** (ErrorBoundary), **friend-plan validation** (`src/logic/plan-payload.ts`), stronger passwords.
-- A "Security hardening" SQL section at the end of `supabase/schema.sql` (**not yet run** on the live project).
+- A "Security hardening" SQL section at the end of `supabase/schema.sql` (run on the live project 21 Nov 2026).
 
 ### UI review (PR #7, `design/ui-review`)
 - Workout progress bar fills by working sets ticked across the whole workout; **Next** turns solid accent once the exercise is done.
@@ -86,7 +86,7 @@ A personal iPhone workout tracker built with **Expo (React Native, SDK 58)** on 
 - Free Supabase email can't send sign-in codes, hence passwords. A friend needs Expo Go plus access to the Expo project until TestFlight exists.
 
 ## Next steps
-1. **Run the "Security hardening" section** of `supabase/schema.sql` in the Supabase SQL Editor (ask the user first; it changes the live project).
+1. **Done 21 Nov 2026:** the "Security hardening" SQL was run on the live Supabase project and verified (3 limits, attempts table, friendships insert revoked, anon blocked, rate limit on). Next: try adding a friend once to confirm Friends still works.
 2. **Feedback on the calendar animation and the number pad**, then tweak speed and sizes.
 3. **Use it at the gym for 1–2 weeks** and collect pain points (the design doc says to revisit the Finish Summary after real use).
 4. **Apple Developer Program, an EAS Build and TestFlight:** a real installed app that opens offline, and easy sharing with friends.
