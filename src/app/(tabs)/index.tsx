@@ -279,7 +279,7 @@ export default function HomeScreen() {
       {/* Greeting (light lead-in, name in semibold) + settings */}
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
         {compact ? (
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, paddingTop: spacing.sm }}>
             <AppText variant="small" muted>
               {greeting()}
               {data.name ? `, ${data.name}` : ''}
@@ -358,12 +358,20 @@ export default function HomeScreen() {
 
       <DayCard />
 
+      {compact && <WeekSummary days={data.days} onSelect={(d) => setSelectedKey(d.key)} />}
+
       {/* Your plans */}
-      <View style={{ gap: spacing.md }}>
+      <View style={{ gap: spacing.md, marginTop: compact ? spacing.md : 0 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <AppText variant="heading" style={{ flex: 1 }}>
-            Your plans
-          </AppText>
+          {compact ? (
+            <View style={{ flex: 1 }}>
+              <SectionLabel>Your plans</SectionLabel>
+            </View>
+          ) : (
+            <AppText variant="heading" style={{ flex: 1 }}>
+              Your plans
+            </AppText>
+          )}
           <Pressable onPress={() => router.push('/plans')} hitSlop={12} accessibilityRole="button">
             <AppText variant="label" color={colors.accent}>
               Manage
@@ -468,5 +476,90 @@ function TextLink({ title, onPress }: { title: string; onPress: () => void }) {
         {title}
       </AppText>
     </Pressable>
+  );
+}
+
+/**
+ * Ember Home: "This week" tiles and the next planned days, so the screen has a
+ * calm rhythm top to bottom instead of everything bunched at the top.
+ */
+function WeekSummary({ days, onSelect }: { days: ScheduleDay[]; onSelect: (d: ScheduleDay) => void }) {
+  const { colors } = useTheme();
+  const sessions = days.flatMap((d) => d.sessions);
+  const trainingDays = days.filter((d) => d.status !== 'rest').length;
+  const tonnes = sessions.reduce((sum, x) => sum + x.volumeKg, 0) / 1000;
+  const upcoming = days.filter((d) => d.isFuture && d.planned).slice(0, 3);
+
+  return (
+    <View style={{ gap: spacing.md, marginTop: spacing.md }}>
+      <SectionLabel>This week</SectionLabel>
+      <View style={{ flexDirection: 'row', gap: spacing.md }}>
+        <StatTile label="Workouts" value={String(sessions.length)} unit={trainingDays ? `of ${trainingDays}` : ''} />
+        <StatTile label="Volume" value={tonnes >= 10 ? tonnes.toFixed(0) : tonnes.toFixed(1)} unit="t" />
+      </View>
+
+      {upcoming.length > 0 && (
+        <>
+          <SectionLabel style={{ marginTop: spacing.md }}>Coming up</SectionLabel>
+          <View style={{ borderRadius: radius.lg, backgroundColor: colors.card, overflow: 'hidden' }}>
+            {upcoming.map((d, i) => (
+              <Pressable
+                key={d.key}
+                onPress={() => onSelect(d)}
+                accessibilityRole="button"
+                accessibilityLabel={`${d.planned!.name}, ${format(d.date, 'EEEE')}`}
+                style={({ pressed }) => ({
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: spacing.md,
+                  minHeight: 56,
+                  paddingHorizontal: spacing.lg,
+                  borderTopWidth: i > 0 ? 1 : 0,
+                  borderTopColor: colors.border,
+                  backgroundColor: pressed ? colors.cardAlt : 'transparent',
+                })}>
+                <View style={{ flex: 1 }}>
+                  <AppText variant="label" numberOfLines={1}>
+                    {d.planned!.name}
+                  </AppText>
+                  <AppText variant="small" muted>
+                    {format(d.date, 'EEEE')}
+                  </AppText>
+                </View>
+                <SymbolView name="chevron.right" size={13} tintColor={colors.faint} />
+              </Pressable>
+            ))}
+          </View>
+        </>
+      )}
+    </View>
+  );
+}
+
+function SectionLabel({ children, style }: { children: string; style?: object }) {
+  return (
+    <AppText variant="small" muted style={[{ letterSpacing: 0.8, paddingHorizontal: spacing.xs }, style]}>
+      {children.toUpperCase()}
+    </AppText>
+  );
+}
+
+function StatTile({ label, value, unit }: { label: string; value: string; unit: string }) {
+  const { colors } = useTheme();
+  return (
+    <View style={{ flex: 1, padding: spacing.lg, gap: spacing.xs, borderRadius: radius.lg, backgroundColor: colors.card }}>
+      <AppText variant="small" muted>
+        {label}
+      </AppText>
+      <AppText variant="title">
+        {value}
+        {unit ? (
+          <AppText variant="body" muted>
+            {' '}
+            {unit}
+          </AppText>
+        ) : null}
+      </AppText>
+    </View>
   );
 }
