@@ -54,6 +54,7 @@ export default function SettingsScreen() {
             { value: 'dark', label: 'Dark' },
             { value: 'light', label: 'Light' },
             { value: 'frost', label: 'Frost' },
+            { value: 'ember', label: 'Ember' },
             { value: 'auto', label: 'Auto' },
           ]}
         />

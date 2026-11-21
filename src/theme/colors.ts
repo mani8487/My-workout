@@ -212,3 +212,52 @@ export const frostColors: ColorRoles = {
   onSuggest: '#FFFFFF',
   suggestEdge: 'transparent',
 };
+
+/**
+ * Ember: Apple-style true black with one bright orange for actions, iOS green
+ * for finished sets. Orange is used sparingly (play button, current set, Next)
+ * so it always means "do this". Text on orange is black: white would fail contrast.
+ */
+export const emberColors: ColorRoles = {
+  background: '#000000',
+  card: '#1C1C1E',
+  cardAlt: '#2C2C2E',
+  border: 'rgba(255,255,255,0.08)',
+  input: '#1C1C1E',
+  inputBorder: '#2C2C2E',
+
+  text: '#F5F5F7',
+  textMuted: '#98989F',
+  faint: '#48484A',
+
+  accent: '#FF7A1A',
+  onAccent: '#000000',
+  accentSoft: 'rgba(255,122,26,0.16)',
+
+  chart: '#8E8E93',
+
+  success: '#30D158',
+  successSoft: 'rgba(48,209,88,0.16)',
+
+  warning: '#FFB340',
+  warningSoft: 'rgba(255,179,64,0.16)',
+
+  sage: '#30D158',
+  sageSoft: 'rgba(48,209,88,0.14)',
+
+  danger: '#FF453A',
+  dangerSoft: 'rgba(255,69,58,0.18)',
+
+  backgroundGradient: null,
+  heroStart: '#1C1C1E',
+  heroEnd: '#1C1C1E',
+  onHero: '#F5F5F7',
+  onHeroMuted: '#98989F',
+  heroChip: '#2C2C2E',
+  heroButton: '#FF7A1A',
+  onHeroButton: '#000000',
+
+  suggestBg: '#1C1C1E',
+  onSuggest: '#F5F5F7',
+  suggestEdge: '#FF7A1A',
+};

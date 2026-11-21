@@ -1,17 +1,17 @@
 /**
  * Decides which theme is on and hands its colour roles to every screen.
  *
- * Choices (Settings): Auto (follows the iPhone's light/dark), Dark, Light, Frost.
+ * Choices (Settings): Auto (follows the iPhone's light/dark), Dark, Light, Frost, Ember.
  */
 import { useSQLiteContext } from 'expo-sqlite';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useColorScheme } from 'react-native';
 
 import { getSetting, setSetting } from '@/db/settings';
-import { darkColors, frostColors, lightColors, type ColorRoles } from './colors';
+import { darkColors, emberColors, frostColors, lightColors, type ColorRoles } from './colors';
 import { applyThemeStyle, type ThemeName } from './typography';
 
-export type ThemePreference = 'auto' | 'dark' | 'light' | 'frost';
+export type ThemePreference = 'auto' | 'dark' | 'light' | 'frost' | 'ember';
 
 type ThemeValue = {
   colors: ColorRoles;
@@ -24,7 +24,7 @@ type ThemeValue = {
 };
 
 const ThemeContext = createContext<ThemeValue | null>(null);
-const COLORS: Record<ThemeName, ColorRoles> = { dark: darkColors, light: lightColors, frost: frostColors };
+const COLORS: Record<ThemeName, ColorRoles> = { dark: darkColors, light: lightColors, frost: frostColors, ember: emberColors };
 
 export function AppThemeProvider({ children }: { children: ReactNode }) {
   const db = useSQLiteContext();
@@ -35,7 +35,7 @@ export function AppThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     getSetting(db, 'theme').then((v) => {
       if (v === 'system') setPreferenceState('auto');
-      else if (v === 'light' || v === 'dark' || v === 'frost' || v === 'auto') setPreferenceState(v);
+      else if (v === 'light' || v === 'dark' || v === 'frost' || v === 'ember' || v === 'auto') setPreferenceState(v);
     });
   }, [db]);
 
@@ -51,7 +51,7 @@ export function AppThemeProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo(() => {
     applyThemeStyle(name); // fonts and corner shapes for this theme
-    return { colors: COLORS[name], name, isDark: name === 'dark', preference, setPreference };
+    return { colors: COLORS[name], name, isDark: name === 'dark' || name === 'ember', preference, setPreference };
   }, [name, preference, setPreference]);
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

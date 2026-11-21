@@ -23,6 +23,7 @@ import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { CompletedCard, EmptyDayCard } from '@/components/day-cards';
+import { CompactDayCard } from '@/components/compact-day-card';
 import { Hero, HeroButton, HeroChip, HeroOutlineButton, HeroTitle } from '@/components/hero';
 import { Screen } from '@/components/screen';
 import { WeekStrip } from '@/components/week-strip';
@@ -35,7 +36,7 @@ import type { Rotation } from '@/logic/rotation';
 import { dateKey, getWeekSchedule, parseDateKey, weekStartOf, type ScheduleDay } from '@/logic/schedule';
 import { getRoutineCards, getToday, getWorkoutPreview, greeting, shortDate } from '@/logic/today';
 import { useTheme } from '@/theme/theme-context';
-import { radius, spacing } from '@/theme/typography';
+import { radius, SERIF_ITALIC, spacing } from '@/theme/typography';
 
 type HomeData = {
   name: string | null;
@@ -51,7 +52,9 @@ type HomeData = {
 
 export default function HomeScreen() {
   const db = useSQLiteContext();
-  const { colors } = useTheme();
+  const { colors, name: themeName } = useTheme();
+  // Ember uses the quiet Apple-style row card and a small serif date.
+  const compact = themeName === 'ember';
   const [data, setData] = useState<HomeData | null>(null);
   const [weeksAway, setWeeksAway] = useState<number | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -134,6 +137,19 @@ export default function HomeScreen() {
     // ---- Today ----
     if (selected.isToday) {
       if (active) {
+        const resume = () => router.push('/workout/active');
+        if (compact) {
+          return (
+            <CompactDayCard
+              eyebrow="In progress"
+              title={active.name}
+              detail={`${active.setsDone} ${active.setsDone === 1 ? 'set' : 'sets'} logged so far`}
+              onPress={resume}
+              onPlay={resume}
+              playLabel="Resume workout"
+            />
+          );
+        }
         return (
           <Hero>
             <AppText variant="small" color={colors.onHeroMuted}>
@@ -163,6 +179,20 @@ export default function HomeScreen() {
       }
       if (!workout) return <EmptyPlanCard />;
       const p = previews[workout.id];
+      if (compact) {
+        return (
+          <View style={{ gap: spacing.xs }}>
+            <CompactDayCard
+              eyebrow={isUpNext ? 'Today · up next' : 'Today · done this cycle'}
+              title={workout.name}
+              detail={[workout.muscleLabel, p?.minutes ? `~${p.minutes} min` : null].filter(Boolean).join(' · ')}
+              onPress={openPreview}
+              onPlay={openPreview}
+            />
+            <TextLink title="Change workout" onPress={() => changeFor(selected)} />
+          </View>
+        );
+      }
       return (
         <View style={{ gap: spacing.sm }}>
           <Pressable onPress={openPreview} accessibilityLabel={`Preview ${workout.name}`}>
@@ -196,6 +226,18 @@ export default function HomeScreen() {
     if (selected.isFuture && selected.planned) {
       const w = selected.planned;
       const p = previews[w.id];
+      if (compact) {
+        return (
+          <View style={{ gap: spacing.xs }}>
+            <CompactDayCard
+              eyebrow={`Planned · ${format(selected.date, 'EEEE')}`}
+              title={w.name}
+              detail={[w.muscleLabel, p?.minutes ? `~${p.minutes} min` : null].filter(Boolean).join(' · ')}
+            />
+            <TextLink title="Change workout" onPress={() => changeFor(selected)} />
+          </View>
+        );
+      }
       return (
         <Hero>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -236,6 +278,20 @@ export default function HomeScreen() {
     <Screen>
       {/* Greeting (light lead-in, name in semibold) + settings */}
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        {compact ? (
+          <View style={{ flex: 1 }}>
+            <AppText variant="small" muted>
+              {greeting()}
+              {data.name ? `, ${data.name}` : ''}
+            </AppText>
+            <AppText variant="display">
+              {format(new Date(), 'd')}{' '}
+              <AppText variant="display" muted style={{ fontFamily: SERIF_ITALIC }}>
+                {format(new Date(), 'EEEE')}
+              </AppText>
+            </AppText>
+          </View>
+        ) : (
         <View style={{ flex: 1 }}>
           <AppText variant="display" style={{ fontWeight: '300' }}>
             {greeting()}
@@ -243,6 +299,7 @@ export default function HomeScreen() {
           </AppText>
           {data.name && <AppText variant="display">{data.name}</AppText>}
         </View>
+        )}
         {/* Week calendar + settings, side by side with a gap so they never overlap. */}
         <View style={{ flexDirection: 'row', gap: spacing.md, alignSelf: 'flex-start' }}>
           <RoundButton
@@ -399,5 +456,17 @@ function Chip({ children, strong }: { children: string; strong?: boolean }) {
         {children}
       </AppText>
     </View>
+  );
+}
+
+/** A quiet accent-coloured text button, centred (Apple's style for secondary actions). */
+function TextLink({ title, onPress }: { title: string; onPress: () => void }) {
+  const { colors } = useTheme();
+  return (
+    <Pressable onPress={onPress} hitSlop={8} accessibilityRole="button" style={{ alignSelf: 'center', padding: spacing.sm }}>
+      <AppText variant="label" color={colors.accent}>
+        {title}
+      </AppText>
+    </Pressable>
   );
 }
