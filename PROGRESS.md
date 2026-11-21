@@ -1,6 +1,6 @@
 # WorkoutTracker: Progress
 
-_Last updated: 20 Nov 2026_
+_Last updated: 21 Nov 2026_
 
 A personal iPhone workout tracker built with **Expo (React Native, SDK 58)** on Windows, tested on iPhone in **Expo Go**. Kilos only. Logging works fully offline (on-phone SQLite); only the optional Friends features go online (Supabase).
 
@@ -53,6 +53,18 @@ A personal iPhone workout tracker built with **Expo (React Native, SDK 58)** on 
 - **Drag-to-reorder** in the plan editor (`drag-list.tsx`): hold the ≡ handle, then drag. VoiceOver can move items up / down.
 - **Skeleton loading screens** (`skeleton.tsx`) instead of blank screens on Home, Active Workout, Preview, Overview, Summary and Session detail.
 
+### Swap and hardening (PR #6, `fix/swap-and-hardening`)
+- **Mid-workout swap** after sets are logged: ticked sets stay, the rest move to a new exercise inserted after it.
+- **Crash screen** (ErrorBoundary), **friend-plan validation** (`src/logic/plan-payload.ts`), stronger passwords.
+- A "Security hardening" SQL section at the end of `supabase/schema.sql` (**not yet run** on the live project).
+
+### UI review (PR #7, `design/ui-review`)
+- Workout progress bar fills by working sets ticked across the whole workout; **Next** turns solid accent once the exercise is done.
+- **Tap a set number** for Mark as Warm-up / Delete Set; a one-time tip (`tip.setMenuSeen` setting) replaces the gesture hint line.
+- Wider note button; "reps left" follows iPhone text size; readable placeholder grey.
+- Contrast: deeper Light brass `#7F6428` (white text on it), lighter Dark red `#D25C5C`, darker Frost green `#2F7464`.
+- Home: future days say "Planned for <day>" instead of a disabled Start button; new `display` text style for the greeting; links are accent text, not underlined grey.
+
 ## Main files
 
 | Area | Files |
@@ -64,19 +76,18 @@ A personal iPhone workout tracker built with **Expo (React Native, SDK 58)** on 
 | Online | `src/lib/supabase.ts`, `supabase/schema.sql`, `.env.example` |
 
 ## Services
-- **GitHub:** `mani8487/My-workout`. PRs #1–#5 are merged into `master` (20 Nov 2026). PR #6 (mid-workout swap, security and crash hardening) is open.
+- **GitHub:** `mani8487/My-workout`. PRs #1–#7 are merged into `master` (#6 and #7 on 21 Nov 2026, after testing on the phone). PRs are opened through Claude in Chrome (GitHub sign-in lives in the user's Chrome).
 - **Expo / EAS:** project `@mani8487/WorkoutTracker`, updates published to branch / channel `main`.
 - **Supabase:** project `kczdhpranzekgswgmjuz` (free plan); email + password auth with "Confirm email" off.
 
 ## Known limitations
 - **Expo Go needs internet to open** the published version, and the dev-server version needs the PC. True offline use needs an installed build.
 - The "always latest" channel link didn't load new versions on the user's phone, so a fresh QR / group link is shared after each publish.
-- The polish items (PR #5) pass the type checks and build, but haven't been tried on the phone yet. Check the number pad feel, the drag gesture inside the scrolling plan editor, and the row wipe in every theme.
 - Free Supabase email can't send sign-in codes, hence passwords. A friend needs Expo Go plus access to the Expo project until TestFlight exists.
 
 ## Next steps
-1. **Try PR #6 on the phone**, then merge it. **Not done yet (user said wait):** run the "Security hardening" section of `supabase/schema.sql` in the Supabase SQL Editor.
-2. **Feedback on the calendar animation and the new number pad**, then tweak speed and sizes.
+1. **Run the "Security hardening" section** of `supabase/schema.sql` in the Supabase SQL Editor (ask the user first; it changes the live project).
+2. **Feedback on the calendar animation and the number pad**, then tweak speed and sizes.
 3. **Use it at the gym for 1–2 weeks** and collect pain points (the design doc says to revisit the Finish Summary after real use).
 4. **Apple Developer Program, an EAS Build and TestFlight:** a real installed app that opens offline, and easy sharing with friends.
 5. **App Store preparation:** unique name and icon, first-run onboarding (pick a routine, enter your name), backup / export of data, privacy policy page, store listing and screenshots.
