@@ -65,6 +65,18 @@ A personal iPhone workout tracker built with **Expo (React Native, SDK 58)** on 
 - Contrast: deeper Light brass `#7F6428` (white text on it), lighter Dark red `#D25C5C`, darker Frost green `#2F7464`.
 - Home: future days say "Planned for <day>" instead of a disabled Start button; new `display` text style for the greeting; links are accent text, not underlined grey.
 
+### Motion polish (PR #8, `feature/motion-polish`)
+- Based on Emil Kowalski's animate-expo and apple-design skills (read from github.com/emilkowalski/skills).
+- `PressableScale`: buttons shrink to 97% on press-in (dim instead with Reduce Motion).
+- Week strip swipe tracks the finger 1:1 (Gesture Handler), counts flicks, springs into place.
+- Springs for the row wipe, drag-to-reorder drop and the week card; shared constants in `src/theme/motion.ts`.
+
+### Ember theme (PR #9, `feature/ember-theme`)
+- Fourth theme: true black, orange `#FF7A1A` (black text on it), iOS green for done sets, pill shapes.
+- Fonts: Instrument Serif titles, Geist body, Geist Mono weights / reps (`@expo-google-fonts/*`).
+- Home (Ember only): smaller serif date, Apple Fitness-style `CompactDayCard` with a round play button, "This week" tiles, "Coming up" list, small-caps section labels.
+- Not built yet from the mock-up: orange dot on the current set, bottom exercise bar with a "3/8" progress ring.
+
 ## Main files
 
 | Area | Files |
@@ -76,7 +88,7 @@ A personal iPhone workout tracker built with **Expo (React Native, SDK 58)** on 
 | Online | `src/lib/supabase.ts`, `supabase/schema.sql`, `.env.example` |
 
 ## Services
-- **GitHub:** `mani8487/My-workout`. PRs #1–#7 are merged into `master` (#6 and #7 on 21 Nov 2026, after testing on the phone). PRs are opened through Claude in Chrome (GitHub sign-in lives in the user's Chrome).
+- **GitHub:** `mani8487/My-workout`. PRs #1–#9 are merged into `master` (#8 and #9 on 21 Nov 2026). PRs are opened through Claude in Chrome (GitHub sign-in lives in the user's Chrome).
 - **Expo / EAS:** project `@mani8487/WorkoutTracker`, updates published to branch / channel `main`.
 - **Supabase:** project `kczdhpranzekgswgmjuz` (free plan); email + password auth with "Confirm email" off.
 
