@@ -2,8 +2,9 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
 import type { ReactNode } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 
+import { PressableScale } from '@/components/pressable-scale';
 import { AppText } from '@/components/app-text';
 import { useTheme } from '@/theme/theme-context';
 import { radius, spacing } from '@/theme/typography';
@@ -33,24 +34,24 @@ export function HeroTitle({ children }: { children: string }) {
 export function HeroButton({ title, onPress, disabled }: { title: string; onPress: () => void; disabled?: boolean }) {
   const { colors } = useTheme();
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
       disabled={disabled}
       accessibilityRole="button"
       accessibilityState={{ disabled }}
-      style={({ pressed }) => ({
+      style={{
         minHeight: 56,
         marginTop: spacing.md,
         borderRadius: radius.md,
         backgroundColor: colors.heroButton,
         alignItems: 'center',
         justifyContent: 'center',
-        opacity: disabled ? 0.35 : pressed ? 0.85 : 1,
-      })}>
+        opacity: disabled ? 0.35 : 1,
+      }}>
       <AppText variant="heading" style={{ fontSize: 20 }} color={colors.onHeroButton}>
         {title}
       </AppText>
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -58,22 +59,21 @@ export function HeroButton({ title, onPress, disabled }: { title: string; onPres
 export function HeroOutlineButton({ title, onPress }: { title: string; onPress: () => void }) {
   const { colors } = useTheme();
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
       accessibilityRole="button"
-      style={({ pressed }) => ({
+      style={{
         minHeight: 52,
         borderRadius: radius.md,
         borderWidth: 1,
         borderColor: colors.onHeroMuted,
         alignItems: 'center',
         justifyContent: 'center',
-        opacity: pressed ? 0.75 : 1,
-      })}>
+      }}>
       <AppText variant="label" color={colors.onHero}>
         {title}
       </AppText>
-    </Pressable>
+    </PressableScale>
   );
 }
 

@@ -4,9 +4,9 @@
  */
 import * as Haptics from 'expo-haptics';
 import { useEffect, useRef } from 'react';
-import { Pressable } from 'react-native';
 import Animated, { FadeInDown, FadeOutDown } from 'react-native-reanimated';
 
+import { PressableScale } from '@/components/pressable-scale';
 import { AppText } from '@/components/app-text';
 import { ProgressRing } from '@/components/progress-ring';
 import { useRestTimer } from '@/logic/rest-timer';
@@ -67,9 +67,9 @@ export function RestTimerBar() {
 function TimerButton({ label, onPress }: { label: string; onPress: () => void }) {
   const { colors } = useTheme();
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
-      style={({ pressed }) => ({
+      style={{
         height: MIN_TAP,
         minWidth: 64,
         paddingHorizontal: spacing.md,
@@ -78,11 +78,10 @@ function TimerButton({ label, onPress }: { label: string; onPress: () => void })
         borderColor: colors.inputBorder,
         alignItems: 'center',
         justifyContent: 'center',
-        opacity: pressed ? 0.7 : 1,
-      })}>
+      }}>
       <AppText variant="label" color={colors.accent}>
         {label}
       </AppText>
-    </Pressable>
+    </PressableScale>
   );
 }

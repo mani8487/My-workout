@@ -19,7 +19,6 @@ import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { useCallback, useRef, useState, type ComponentRef } from 'react';
 import { Pressable, useWindowDimensions, View, type LayoutChangeEvent } from 'react-native';
 import Animated, {
-  Easing,
   Extrapolation,
   interpolate,
   useAnimatedReaction,
@@ -27,12 +26,14 @@ import Animated, {
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
+  withSpring,
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 
+import { PressableScale } from '@/components/pressable-scale';
 import { AppText } from '@/components/app-text';
 import { Backdrop } from '@/components/screen';
 import { ScreenHeader } from '@/components/screen-header';
@@ -41,6 +42,7 @@ import type { Workout } from '@/db/types';
 import { formatDuration } from '@/logic/format';
 import { getWeekSchedule, parseDateKey, weekStartOf, type ScheduleDay } from '@/logic/schedule';
 import { getWorkoutPreview } from '@/logic/today';
+import { EASE_OUT, SPRING_RELEASE } from '@/theme/motion';
 import { useTheme } from '@/theme/theme-context';
 import { MIN_TAP, spacing } from '@/theme/typography';
 
@@ -168,13 +170,14 @@ export default function WeekScheduleScreen() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
         setExpanded({ row: rows[index], from: { x: bx - rx, y: by - ry, w: bw, h: bh } });
         grow.value = 0;
-        grow.value = withTiming(1, { duration: 380, easing: Easing.out(Easing.cubic) });
+        grow.value = withSpring(1, { ...SPRING_RELEASE, dampingRatio: 0.9 });
       });
     });
   }
 
   function collapse() {
-    grow.value = withTiming(0, { duration: 260, easing: Easing.in(Easing.cubic) }, (finished) => {
+    // Ease-out, never ease-in: the card starts moving the instant you tap.
+    grow.value = withTiming(0, { duration: 240, easing: EASE_OUT }, (finished) => {
       if (finished) scheduleOnRN(setExpanded, null);
     });
   }
@@ -453,21 +456,20 @@ function ExpandedDay({
               </View>
             </View>
 
-            <Pressable
+            <PressableScale
               onPress={onAct}
               accessibilityRole="button"
-              style={({ pressed }) => ({
+              style={{
                 minHeight: 56,
                 borderRadius: 999,
                 backgroundColor: rest ? colors.accent : colors.heroButton,
                 alignItems: 'center',
                 justifyContent: 'center',
-                opacity: pressed ? 0.85 : 1,
-              })}>
+              }}>
               <AppText variant="heading" style={{ fontSize: 20 }} color={rest ? colors.onAccent : colors.onHeroButton}>
                 {actionLabel}
               </AppText>
-            </Pressable>
+            </PressableScale>
           </Animated.View>
         </LinearGradient>
       </Animated.View>
@@ -496,10 +498,10 @@ function Badge({ badge }: { badge: Row['badge'] }) {
 function ArrowButton({ icon, label, onPress }: { icon: SFSymbol; label: string; onPress: () => void }) {
   const { colors } = useTheme();
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
       accessibilityLabel={label}
-      style={({ pressed }) => ({
+      style={{
         width: MIN_TAP,
         height: MIN_TAP,
         borderRadius: MIN_TAP / 2,
@@ -508,9 +510,8 @@ function ArrowButton({ icon, label, onPress }: { icon: SFSymbol; label: string; 
         borderColor: colors.border,
         alignItems: 'center',
         justifyContent: 'center',
-        opacity: pressed ? 0.7 : 1,
-      })}>
+      }}>
       <SymbolView name={icon} size={16} tintColor={colors.text} />
-    </Pressable>
+    </PressableScale>
   );
 }

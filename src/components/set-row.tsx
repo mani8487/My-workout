@@ -17,13 +17,24 @@ import { SymbolView } from 'expo-symbols';
 import { type ComponentRef, useEffect, useRef, useState } from 'react';
 import { ActionSheetIOS, Alert, Platform, Pressable, TextInput, View } from 'react-native';
 import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
-import Animated, { Easing, FadeIn, FadeInDown, FadeOut, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  FadeOut,
+  ReduceMotion,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { AnimatedTick } from '@/components/animated-tick';
 import { AppText } from '@/components/app-text';
 import { closePad, openPad, type PadField, updatePad, useActivePadId } from '@/components/number-pad';
 import type { PreviousSet, SessionSet, SetPatch } from '@/db/sessions';
 import { formatKg, formatSet, parseKg, parseReps } from '@/logic/format';
+import { SPRING_SETTLE } from '@/theme/motion';
 import { useTheme } from '@/theme/theme-context';
 import { MAX_FONT_SCALE, MIN_TAP, radius, spacing, typography } from '@/theme/typography';
 
@@ -145,11 +156,19 @@ export function SetRow({ set, label, previous, hidePrevious, showRir, onSave, on
   }
 
   // Row wipe: 0 = no tint, 1 = full green tint.
+  const reduced = useReducedMotion();
   const wipe = useSharedValue(showDone ? 1 : 0);
   useEffect(() => {
-    wipe.value = withTiming(showDone ? 1 : 0, { duration: showDone ? 320 : 160, easing: Easing.out(Easing.cubic) });
-  }, [showDone, wipe]);
-  const wipeStyle = useAnimatedStyle(() => ({ transform: [{ scaleX: wipe.value }], opacity: Math.min(1, wipe.value * 2) }));
+    // Reduce Motion: a gentle fade instead of the sweep.
+    wipe.value = reduced
+      ? withTiming(showDone ? 1 : 0, { duration: 200, reduceMotion: ReduceMotion.Never })
+      : withSpring(showDone ? 1 : 0, { ...SPRING_SETTLE, duration: showDone ? 400 : 250 });
+  }, [showDone, wipe, reduced]);
+  const wipeStyle = useAnimatedStyle(() =>
+    reduced
+      ? { opacity: wipe.value }
+      : { transform: [{ scaleX: wipe.value }], opacity: Math.min(1, wipe.value * 2) },
+  );
 
   function openSetMenu() {
     const warmLabel = set.isWarmup ? 'Make Working Set' : 'Mark as Warm-up';

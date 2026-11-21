@@ -1,10 +1,10 @@
-import { Pressable, type PressableProps } from 'react-native';
-
+import type { ComponentProps } from 'react';
 import { AppText } from '@/components/app-text';
+import { PressableScale } from '@/components/pressable-scale';
 import { useTheme } from '@/theme/theme-context';
 import { MIN_TAP, radius, spacing } from '@/theme/typography';
 
-type Props = Omit<PressableProps, 'children'> & {
+type Props = Omit<ComponentProps<typeof PressableScale>, 'children'> & {
   title: string;
   /**
    * primary   = filled accent colour (the main action, e.g. Start Workout)
@@ -19,9 +19,9 @@ export function Button({ title, kind = 'primary', size = 'normal', style, ...res
   const isPrimary = kind === 'primary';
 
   return (
-    <Pressable
+    <PressableScale
       accessibilityRole="button"
-      style={(state) => [
+      style={[
         {
           // Primary = solid brass. Secondary = quiet outline.
           backgroundColor: isPrimary ? colors.accent : 'transparent',
@@ -33,9 +33,8 @@ export function Button({ title, kind = 'primary', size = 'normal', style, ...res
           paddingHorizontal: spacing.lg,
           alignItems: 'center',
           justifyContent: 'center',
-          opacity: state.pressed ? 0.75 : 1,
         },
-        typeof style === 'function' ? style(state) : style,
+        style,
       ]}
       {...rest}>
       <AppText
@@ -43,6 +42,6 @@ export function Button({ title, kind = 'primary', size = 'normal', style, ...res
         color={isPrimary ? colors.onAccent : colors.text}>
         {title}
       </AppText>
-    </Pressable>
+    </PressableScale>
   );
 }

@@ -1,18 +1,22 @@
 /**
  * The Mon–Sun strip on Home.
  * - Tap a day to select it (dark pill). Today has a ring around its date.
- * - Swipe left/right to move a week at a time; "Today" jumps back.
+ * - Swipe left/right to move a week at a time. The strip follows your finger
+ *   1:1, and a quick flick counts even if it was short. "Today" jumps back.
  * - Marker under each date: filled = done, outline = planned,
  *   none = rest, small red dash = missed.
  */
 import { addDays, format } from 'date-fns';
 import * as Haptics from 'expo-haptics';
-import { useMemo } from 'react';
-import { PanResponder, Pressable, View } from 'react-native';
-import Animated, { FadeIn, SlideInLeft, SlideInRight } from 'react-native-reanimated';
+import { useEffect } from 'react';
+import { Pressable, View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 
 import { AppText } from '@/components/app-text';
 import type { ScheduleDay } from '@/logic/schedule';
+import { EASE_OUT, SPRING_RELEASE } from '@/theme/motion';
 import { useTheme } from '@/theme/theme-context';
 import { spacing } from '@/theme/typography';
 
@@ -31,21 +35,47 @@ type Props = {
 export function WeekStrip({ weekStart, days, selectedKey, isCurrentWeek, direction, onSelect, onWeek, onToday }: Props) {
   const { colors } = useTheme();
 
-  // Horizontal swipe = change week. Taps still reach the day buttons.
-  const pan = useMemo(
-    () =>
-      PanResponder.create({
-        onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 12 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
-        onPanResponderRelease: (_, g) => {
-          if (g.dx <= -50) onWeek(1);
-          else if (g.dx >= 50) onWeek(-1);
-        },
-      }),
-    [onWeek],
-  );
+  const width = useSharedValue(360);
+  const x = useSharedValue(0);
 
-  const entering =
-    direction > 0 ? SlideInRight.duration(220) : direction < 0 ? SlideInLeft.duration(220) : FadeIn.duration(150);
+  const commit = (delta: -1 | 1) => {
+    Haptics.selectionAsync().catch(() => {});
+    onWeek(delta);
+  };
+
+  // Horizontal swipe = change week. The strip tracks the finger; on release we
+  // look at where the flick is heading (position + velocity), not just where it
+  // stopped. Taps still reach the day buttons.
+  const pan = Gesture.Pan()
+    .activeOffsetX([-12, 12])
+    .failOffsetY([-12, 12])
+    .onUpdate((e) => {
+      x.set(e.translationX);
+    })
+    .onEnd((e) => {
+      const projected = e.translationX + e.velocityX * 0.2;
+      const w = width.get();
+      if (Math.abs(projected) > w * 0.3) {
+        const delta = projected < 0 ? 1 : -1;
+        // Finish the throw off-screen, then swap in the next week.
+        x.set(
+          withTiming(-delta * w, { duration: 160, easing: EASE_OUT }, (done) => {
+            if (done) scheduleOnRN(commit, delta);
+          }),
+        );
+      } else {
+        x.set(withSpring(0, { ...SPRING_RELEASE, velocity: e.velocityX }));
+      }
+    });
+
+  // A new week arrives from the side it was swiped (or tapped) towards.
+  const weekTime = weekStart.getTime();
+  useEffect(() => {
+    if (direction === 0) return;
+    x.set(withSequence(withTiming(direction * width.get(), { duration: 0 }), withSpring(0, SPRING_RELEASE)));
+  }, [weekTime, direction, x, width]);
+
+  const slide = useAnimatedStyle(() => ({ transform: [{ translateX: x.get() }] }));
 
   return (
     <View style={{ gap: spacing.sm }}>
@@ -71,11 +101,9 @@ export function WeekStrip({ weekStart, days, selectedKey, isCurrentWeek, directi
         </View>
       )}
 
-      <Animated.View
-        key={weekStart.toISOString()}
-        entering={entering}
-        {...pan.panHandlers}
-        style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+      <GestureDetector gesture={pan}>
+      <View style={{ overflow: 'hidden' }} onLayout={(e) => width.set(e.nativeEvent.layout.width)}>
+      <Animated.View style={[{ flexDirection: 'row', justifyContent: 'space-between' }, slide]}>
         {days.map((d) => {
           const selected = d.key === selectedKey;
           return (
@@ -117,6 +145,8 @@ export function WeekStrip({ weekStart, days, selectedKey, isCurrentWeek, directi
           );
         })}
       </Animated.View>
+      </View>
+      </GestureDetector>
     </View>
   );
 }

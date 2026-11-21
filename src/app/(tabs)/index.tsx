@@ -17,6 +17,7 @@ import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 
+import { PressableScale } from '@/components/pressable-scale';
 import { SkeletonScreen } from '@/components/skeleton';
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
@@ -355,11 +356,11 @@ export default function HomeScreen() {
 function RoundButton({ icon, label, onPress }: { icon: SFSymbol; label: string; onPress: () => void }) {
   const { colors } = useTheme();
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
       accessibilityLabel={label}
       hitSlop={4}
-      style={({ pressed }) => ({
+      style={{
         width: 48,
         height: 48,
         borderRadius: 24,
@@ -368,10 +369,9 @@ function RoundButton({ icon, label, onPress }: { icon: SFSymbol; label: string; 
         borderColor: colors.border,
         alignItems: 'center',
         justifyContent: 'center',
-        opacity: pressed ? 0.7 : 1,
-      })}>
+      }}>
       <SymbolView name={icon} size={20} tintColor={colors.text} />
-    </Pressable>
+    </PressableScale>
   );
 }
 

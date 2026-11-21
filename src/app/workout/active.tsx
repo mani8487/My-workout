@@ -20,6 +20,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { PressableScale } from '@/components/pressable-scale';
 import { SkeletonScreen } from '@/components/skeleton';
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
@@ -422,11 +423,11 @@ function NavButton({
   const isNext = direction === 'next';
   const fg = highlight ? colors.onAccent : colors.text;
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
       disabled={disabled}
       accessibilityLabel={isNext ? 'Next exercise' : 'Previous exercise'}
-      style={({ pressed }) => ({
+      style={{
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
@@ -438,8 +439,8 @@ function NavButton({
         backgroundColor: highlight ? colors.accent : colors.card,
         borderWidth: 1,
         borderColor: highlight ? colors.accent : colors.border,
-        opacity: disabled ? 0.4 : pressed ? 0.75 : 1,
-      })}>
+        opacity: disabled ? 0.4 : 1,
+      }}>
       {!isNext && <SymbolView name="chevron.left" size={14} tintColor={fg} />}
       <View style={{ flexShrink: 1, alignItems: isNext ? 'flex-end' : 'flex-start' }}>
         <AppText variant="small" muted={!highlight} color={highlight ? fg : undefined}>
@@ -450,6 +451,6 @@ function NavButton({
         </AppText>
       </View>
       {isNext && <SymbolView name="chevron.right" size={14} tintColor={fg} />}
-    </Pressable>
+    </PressableScale>
   );
 }
