@@ -34,7 +34,7 @@ export default function PickExerciseScreen() {
             overflow: 'hidden',
           }}>
           {list.map((e, i) => (
-            <Pressable
+            <Pressable accessibilityRole="button"
               key={e.id}
               onPress={async () => {
                 await setSetting(db, 'progress_exercise', e.id);

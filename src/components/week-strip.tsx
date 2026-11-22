@@ -18,7 +18,7 @@ import { AppText } from '@/components/app-text';
 import type { ScheduleDay } from '@/logic/schedule';
 import { EASE_OUT, SPRING_RELEASE } from '@/theme/motion';
 import { useTheme } from '@/theme/theme-context';
-import { spacing } from '@/theme/typography';
+import { spacing, TIGHT_FONT_SCALE } from '@/theme/typography';
 
 type Props = {
   weekStart: Date;
@@ -124,7 +124,7 @@ export function WeekStrip({ weekStart, days, selectedKey, isCurrentWeek, directi
                 backgroundColor: selected ? colors.accent : 'transparent',
                 minWidth: 44,
               }}>
-              <AppText variant="small" color={selected ? colors.onAccent : colors.textMuted}>
+              <AppText variant="small" maxFontSizeMultiplier={TIGHT_FONT_SCALE} color={selected ? colors.onAccent : colors.textMuted}>
                 {format(d.date, 'EEE')}
               </AppText>
               <View
@@ -138,7 +138,7 @@ export function WeekStrip({ weekStart, days, selectedKey, isCurrentWeek, directi
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}>
-                <AppText variant="label">{format(d.date, 'd')}</AppText>
+                <AppText variant="label" maxFontSizeMultiplier={TIGHT_FONT_SCALE}>{format(d.date, 'd')}</AppText>
               </View>
               <Marker status={d.status} onPill={selected} />
             </Pressable>

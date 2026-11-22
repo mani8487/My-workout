@@ -152,7 +152,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function ExerciseRow({ exercise, first, onPress }: { exercise: Exercise; first: boolean; onPress: () => void }) {
   const { colors } = useTheme();
   return (
-    <Pressable
+    <Pressable accessibilityRole="button"
       onPress={onPress}
       style={({ pressed }) => ({
         padding: spacing.lg,

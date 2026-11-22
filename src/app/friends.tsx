@@ -401,7 +401,7 @@ export default function FriendsScreen() {
         </Section>
       )}
 
-      <Pressable onPress={() => act(signOut)} style={{ alignSelf: 'center', padding: spacing.md }}>
+      <Pressable accessibilityRole="button" onPress={() => act(signOut)} style={{ alignSelf: 'center', padding: spacing.md }}>
         <AppText variant="small" muted style={{ textDecorationLine: 'underline' }}>
           Sign out
         </AppText>

@@ -20,7 +20,7 @@ export function Segmented<T extends string>({
       {options.map((o) => {
         const on = o.value === value;
         return (
-          <Pressable
+          <Pressable accessibilityRole="button"
             key={o.value}
             onPress={() => onChange(o.value)}
             accessibilityState={{ selected: on }}

@@ -27,7 +27,8 @@ import { CompactDayCard } from '@/components/compact-day-card';
 import { Hero, HeroButton, HeroChip, HeroOutlineButton, HeroTitle } from '@/components/hero';
 import { Screen } from '@/components/screen';
 import { WeekStrip } from '@/components/week-strip';
-import { quoteOfTheDay } from '@/data/quotes';
+import { getLastSessionHighlight } from '@/db/history';
+import { formatKg } from '@/logic/format';
 import { getActiveSessionId, getSessionDetail } from '@/db/sessions';
 import { getSetting } from '@/db/settings';
 import type { Workout } from '@/db/types';
@@ -106,6 +107,23 @@ export default function HomeScreen() {
     }, [db, reloadKey, weekStart]),
   );
 
+  // A real line from your last session of this workout (instead of a stock quote).
+  const highlightFor = data?.workout?.id ?? null;
+  const [highlight, setHighlight] = useState<string | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      if (!highlightFor) {
+        setHighlight(null);
+        return;
+      }
+      getLastSessionHighlight(db, highlightFor).then((h) =>
+        setHighlight(
+          h ? `Last ${h.workoutName}: ${h.exerciseName} ${h.weightKg ? `${formatKg(h.weightKg)} kg` : 'bodyweight'} × ${h.reps}` : null,
+        ),
+      );
+    }, [db, highlightFor]),
+  );
+
   const thisWeek = weekStartOf(new Date());
   const isCurrentWeek = isSameDay(weekStart, thisWeek);
 
@@ -168,7 +186,7 @@ export default function HomeScreen() {
           <View style={{ gap: spacing.sm }}>
             <CompletedCard day={selected} summary={selected.sessions[selected.sessions.length - 1]} />
             {workout && (
-              <Pressable onPress={openPreview} hitSlop={8} style={{ alignSelf: 'center', padding: spacing.sm }}>
+              <Pressable accessibilityRole="button" onPress={openPreview} hitSlop={8} style={{ alignSelf: 'center', padding: spacing.sm }}>
                 <AppText variant="small" color={colors.accent}>
                   Train again? Start {workout.name}
                 </AppText>
@@ -385,7 +403,7 @@ export default function HomeScreen() {
           style={{ marginHorizontal: -spacing.lg }}>
           <View style={{ width: spacing.xs }} />
           {data.plans.map((p) => (
-            <Pressable
+            <Pressable accessibilityRole="button"
               key={p.routine.id}
               onPress={() => router.push({ pathname: '/routine/[routineId]', params: { routineId: p.routine.id } })}
               style={{
@@ -411,9 +429,11 @@ export default function HomeScreen() {
         </ScrollView>
       </View>
 
-      <AppText variant="small" muted style={{ textAlign: 'center', marginTop: spacing.sm }}>
-        “{quoteOfTheDay()}”
-      </AppText>
+      {highlight && (
+        <AppText variant="small" muted style={{ textAlign: 'center', marginTop: spacing.sm }}>
+          {highlight}
+        </AppText>
+      )}
     </Screen>
   );
 }

@@ -75,3 +75,52 @@ export async function getSessionRecords(db: SQLiteDatabase, sessionId: number): 
   }
   return records;
 }
+
+/**
+ * Which finished sessions set at least one PR, worked out in ONE database read
+ * (History used to run getSessionRecords per session, which slows down as the
+ * log grows). Same rules as getSessionRecords: a session is compared only with
+ * sessions that started earlier; a weight PR beats the old top weight, a rep PR
+ * beats the old most reps at a weight used before.
+ */
+export async function getSessionIdsWithRecords(db: SQLiteDatabase): Promise<Set<number>> {
+  const rows = await db.getAllAsync<{ session_id: number; started_at: number; exercise_id: string; weight_kg: number | null; reps: number }>(
+    `SELECT s.id AS session_id, s.started_at, se.exercise_id, st.weight_kg, st.reps
+     FROM sets st
+     JOIN session_exercises se ON se.id = st.session_exercise_id
+     JOIN sessions s ON s.id = se.session_id
+     WHERE s.status = 'finished' AND st.completed_at IS NOT NULL AND st.is_warmup = 0 AND st.reps > 0
+     ORDER BY s.started_at, s.id`,
+  );
+
+  // Best-so-far per exercise: top weight, and most reps at each weight.
+  const top = new Map<string, number>();
+  const repsAt = new Map<string, Map<number, number>>();
+  const withRecord = new Set<number>();
+
+  // Sessions that started at the same moment are judged against the same "before".
+  let i = 0;
+  while (i < rows.length) {
+    const t = rows[i].started_at;
+    let j = i;
+    while (j < rows.length && rows[j].started_at === t) j++;
+    const batch = rows.slice(i, j);
+
+    for (const r of batch) {
+      const w = r.weight_kg ?? 0;
+      const oldTop = top.get(r.exercise_id);
+      if (oldTop === undefined) continue; // first time doing this exercise: no PR
+      const oldReps = repsAt.get(r.exercise_id)?.get(w);
+      if (w > oldTop || (oldReps !== undefined && r.reps > oldReps)) withRecord.add(r.session_id);
+    }
+    for (const r of batch) {
+      const w = r.weight_kg ?? 0;
+      top.set(r.exercise_id, Math.max(top.get(r.exercise_id) ?? -Infinity, w));
+      const m = repsAt.get(r.exercise_id) ?? new Map<number, number>();
+      m.set(w, Math.max(m.get(w) ?? 0, r.reps));
+      repsAt.set(r.exercise_id, m);
+    }
+    i = j;
+  }
+  return withRecord;
+}

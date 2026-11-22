@@ -52,7 +52,7 @@ export function ListRow({
 }) {
   const { colors } = useTheme();
   return (
-    <Pressable
+    <Pressable accessibilityRole="button"
       onPress={onPress}
       disabled={!onPress}
       style={({ pressed }) => ({

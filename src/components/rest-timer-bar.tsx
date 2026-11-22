@@ -67,7 +67,7 @@ export function RestTimerBar() {
 function TimerButton({ label, onPress }: { label: string; onPress: () => void }) {
   const { colors } = useTheme();
   return (
-    <PressableScale
+    <PressableScale accessibilityRole="button"
       onPress={onPress}
       style={{
         height: MIN_TAP,

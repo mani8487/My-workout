@@ -74,7 +74,7 @@ function Chips<T extends string>({ items, isOn, onToggle }: { items: T[]; isOn: 
       {items.map((t) => {
         const on = isOn(t);
         return (
-          <Pressable
+          <Pressable accessibilityRole="button" accessibilityState={{ selected: on }}
             key={t}
             onPress={() => onToggle(t)}
             style={{

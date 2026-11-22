@@ -75,8 +75,13 @@ export const typography = {
 
 export type TextVariant = keyof typeof typography;
 
-/** Larger iPhone text sizes are honoured, up to this multiple, so layouts don't break. */
-export const MAX_FONT_SCALE = 1.4;
+/**
+ * Larger iPhone text sizes are honoured up to this multiple (Apple expects text to
+ * keep growing). Tight spots like the set table and week strip use their own lower cap.
+ */
+export const MAX_FONT_SCALE = 2;
+/** For text inside fixed-size cells (week strip, table headers). */
+export const TIGHT_FONT_SCALE = 1.3;
 
 /** Spacing steps, so gaps look consistent everywhere. */
 export const spacing = {

@@ -94,3 +94,25 @@ export async function listFinishedSessions(db: SQLiteDatabase, workoutId: Workou
     workingSets: r.working_sets,
   }));
 }
+
+/**
+ * The heaviest working set from the last finished session of a workout, for the
+ * line at the bottom of Home ("Last Push A: Bench Press 82.5 kg × 8").
+ */
+export async function getLastSessionHighlight(
+  db: SQLiteDatabase,
+  workoutId: WorkoutId,
+): Promise<{ workoutName: string; exerciseName: string; weightKg: number | null; reps: number } | null> {
+  const row = await db.getFirstAsync<{ workout_name: string; exercise_name: string; weight_kg: number | null; reps: number }>(
+    `SELECT s.workout_name, se.exercise_name, st.weight_kg, st.reps
+     FROM sets st
+     JOIN session_exercises se ON se.id = st.session_exercise_id
+     JOIN sessions s ON s.id = se.session_id
+     WHERE s.id = (SELECT id FROM sessions WHERE status = 'finished' AND workout_id = ? ORDER BY started_at DESC LIMIT 1)
+       AND st.completed_at IS NOT NULL AND st.is_warmup = 0 AND st.reps > 0
+     ORDER BY COALESCE(st.weight_kg, 0) DESC, st.reps DESC
+     LIMIT 1`,
+    workoutId,
+  );
+  return row ? { workoutName: row.workout_name, exerciseName: row.exercise_name, weightKg: row.weight_kg, reps: row.reps } : null;
+}

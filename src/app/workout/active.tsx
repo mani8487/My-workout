@@ -46,7 +46,7 @@ import {
 } from '@/db/sessions';
 import { getSetting, setSetting } from '@/db/settings';
 import { useTheme } from '@/theme/theme-context';
-import { radius, spacing } from '@/theme/typography';
+import { radius, spacing, TIGHT_FONT_SCALE } from '@/theme/typography';
 
 const TIP_KEY = 'tip.setMenuSeen';
 
@@ -290,7 +290,7 @@ export default function ActiveWorkoutScreen() {
               }}>
               <HeaderCell width={COLS.set} text="SET" />
               <View style={{ flex: 1 }}>
-                <AppText variant="small" muted style={{ fontWeight: '600' }}>
+                <AppText variant="small" muted maxFontSizeMultiplier={TIGHT_FONT_SCALE} style={{ fontWeight: '600' }}>
                   PREVIOUS
                 </AppText>
               </View>
@@ -466,7 +466,7 @@ export default function ActiveWorkoutScreen() {
 function HeaderCell({ width, text }: { width: number; text: string }) {
   return (
     <View style={{ width, alignItems: 'center' }}>
-      <AppText variant="small" muted style={{ fontWeight: '600' }}>
+      <AppText variant="small" muted maxFontSizeMultiplier={TIGHT_FONT_SCALE} style={{ fontWeight: '600' }}>
         {text}
       </AppText>
     </View>

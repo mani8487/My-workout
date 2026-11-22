@@ -117,7 +117,7 @@ export default function SessionDetailScreen() {
                       />
                     </View>
                   ))}
-                  <Pressable
+                  <Pressable accessibilityRole="button"
                     onPress={async () => {
                       await addSet(db, e.id);
                       await refresh();
@@ -141,7 +141,7 @@ export default function SessionDetailScreen() {
             Tap a set&apos;s numbers to edit · Enter numbers and tick to log · Swipe left to delete
           </AppText>
 
-          <Pressable onPress={confirmDelete} style={{ padding: spacing.md, alignItems: 'center' }}>
+          <Pressable accessibilityRole="button" onPress={confirmDelete} style={{ padding: spacing.md, alignItems: 'center' }}>
             <AppText variant="label" color={colors.danger}>
               Delete Workout
             </AppText>

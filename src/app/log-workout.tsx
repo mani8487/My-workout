@@ -68,7 +68,7 @@ export default function LogWorkoutScreen() {
           {workouts.map((w) => {
             const on = chosen?.id === w.id;
             return (
-              <Pressable
+              <Pressable accessibilityRole="button" accessibilityState={{ selected: on }}
                 key={w.id}
                 onPress={() => setChosen(w)}
                 style={{
