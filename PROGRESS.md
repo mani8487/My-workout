@@ -79,6 +79,10 @@ A personal iPhone workout tracker built with **Expo (React Native, SDK 58)** on 
 ### Ember workout screen (PR #10, `feature/ember-workout`)
 - Orange dot on the next set to do; bottom bar with a progress ring (exercise of total), exercise name, round Previous button and a Next / Finish capsule that turns orange once the exercise is done. Other themes keep Previous / Next.
 
+### Audit fixes (PR #11, `fix/audit-polish`)
+- From an Impeccable native audit + Taste anti-slop pass: History is a SectionList with one query for PR trophies (`getSessionIdsWithRecords`); text grows to 2x with iPhone text size (fixed cells 1.3x, `TIGHT_FONT_SCALE`); Home quote replaced by the top set of the last session of this workout; button roles / selected states for VoiceOver.
+- Still open from that audit: crash screen and PR pill use fixed colours; some decorative entrance fades.
+
 ## Main files
 
 | Area | Files |
@@ -90,7 +94,7 @@ A personal iPhone workout tracker built with **Expo (React Native, SDK 58)** on 
 | Online | `src/lib/supabase.ts`, `supabase/schema.sql`, `.env.example` |
 
 ## Services
-- **GitHub:** `mani8487/My-workout`. PRs #1–#10 are merged into `master` (#8–#10 on 21 Nov 2026). PRs are opened through Claude in Chrome (GitHub sign-in lives in the user's Chrome).
+- **GitHub:** `mani8487/My-workout`. PRs #1–#11 are merged into `master` (#11 on 22 Nov 2026). PRs are opened through Claude in Chrome (GitHub sign-in lives in the user's Chrome).
 - **Expo / EAS:** project `@mani8487/WorkoutTracker`, updates published to branch / channel `main`.
 - **Supabase:** project `kczdhpranzekgswgmjuz` (free plan); email + password auth with "Confirm email" off.
 
