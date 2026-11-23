@@ -2,19 +2,24 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
+import * as Haptics from 'expo-haptics';
 import { useEffect, useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SkeletonScreen } from '@/components/skeleton';
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
+import { PressableScale } from '@/components/pressable-scale';
 import { ScreenHeader } from '@/components/screen-header';
-import { getWorkouts, type PlannedExercise } from '@/db/plan';
+import { getAllExercises, getWorkouts, type PlannedExercise } from '@/db/plan';
+import { getActiveMinutesBetween, getGroupsTrainedSince, getQuickLogsBetween } from '@/db/quick-log';
+import { weekStartOf } from '@/logic/schedule';
+import { suggestForWorkout, type Suggestion } from '@/logic/suggestions';
 import { getActiveSessionId, startSession } from '@/db/sessions';
 import type { Workout, WorkoutId } from '@/db/types';
 import { titleCase } from '@/logic/format';
-import { getWorkoutPreview } from '@/logic/today';
+import { estimateMinutes, getWorkoutPreview } from '@/logic/today';
 import { useTheme } from '@/theme/theme-context';
 import { radius, spacing } from '@/theme/typography';
 
@@ -24,6 +29,9 @@ export default function PreviewScreen() {
   const { id } = useLocalSearchParams<{ id: WorkoutId }>();
   const [data, setData] = useState<{ workout: Workout; plan: PlannedExercise[]; minutes: number } | null>(null);
   const [starting, setStarting] = useState(false);
+  const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
+  /** Set once you accept: the plan for this session only. */
+  const [override, setOverride] = useState<PlannedExercise[] | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -31,6 +39,18 @@ export default function PreviewScreen() {
       if (!workout) return;
       const { plan, minutes } = await getWorkoutPreview(db, workout.id);
       setData({ workout, plan, minutes });
+
+      // Suggestions only when you've quick-logged something in the last 24 hours.
+      const now = Date.now();
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const [recentLogs, activeTodayMin, groupsThisWeek, library] = await Promise.all([
+        getQuickLogsBetween(db, now - 24 * 3600_000, now + 1),
+        getActiveMinutesBetween(db, todayStart.getTime(), now + 1),
+        getGroupsTrainedSince(db, weekStartOf(new Date()).getTime()),
+        getAllExercises(db),
+      ]);
+      setSuggestion(suggestForWorkout({ plan, recentLogs, activeTodayMin, groupsThisWeek, library }));
     })();
   }, [db, id]);
 
@@ -39,7 +59,7 @@ export default function PreviewScreen() {
     setStarting(true);
     try {
       if ((await getActiveSessionId(db)) == null) {
-        await startSession(db, data.workout.id, data.workout.name);
+        await startSession(db, data.workout.id, data.workout.name, undefined, override ?? undefined);
       }
       router.replace('/workout/active');
     } finally {
@@ -48,7 +68,9 @@ export default function PreviewScreen() {
   }
 
   if (!data) return <SkeletonScreen />;
-  const totalSets = data.plan.reduce((n, p) => n + p.targetSets, 0);
+  const plan = override ?? data.plan;
+  const minutes = override ? estimateMinutes(override) : data.minutes;
+  const totalSets = plan.reduce((n, p) => n + p.targetSets, 0);
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: colors.background }}>
@@ -63,7 +85,7 @@ export default function PreviewScreen() {
         </View>
 
         <AppText variant="label">
-          {data.plan.length} exercises · {totalSets} sets · about {data.minutes} min
+          {plan.length} exercises · {totalSets} sets · about {minutes} min
         </AppText>
 
         <View
@@ -74,9 +96,9 @@ export default function PreviewScreen() {
             borderColor: colors.border,
             overflow: 'hidden',
           }}>
-          {data.plan.map((p, i) => (
+          {plan.map((p, i) => (
             <View
-              key={p.planItemId}
+              key={`${p.planItemId}-${p.exercise.id}`}
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
@@ -101,9 +123,57 @@ export default function PreviewScreen() {
           ))}
         </View>
       </ScrollView>
-      <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md }}>
+      <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.md }}>
+        {suggestion && !override && (
+          <SuggestionBanner
+            message={suggestion.message}
+            onAccept={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+              setOverride(suggestion.apply(data.plan));
+            }}
+            onDismiss={() => setSuggestion(null)}
+          />
+        )}
+        {override && (
+          <AppText variant="small" muted style={{ textAlign: 'center' }}>
+            Changed for today only. Your saved plan stays the same.
+          </AppText>
+        )}
         <Button title="Start Workout" size="large" onPress={start} />
       </View>
     </SafeAreaView>
+  );
+}
+
+/** "You did 40 squats earlier. Swap Squats for Lunges?" with Accept / Dismiss. */
+function SuggestionBanner({ message, onAccept, onDismiss }: { message: string; onAccept: () => void; onDismiss: () => void }) {
+  const { colors } = useTheme();
+  return (
+    <View
+      accessibilityLiveRegion="polite"
+      style={{ gap: spacing.md, padding: spacing.lg, borderRadius: radius.lg, backgroundColor: colors.accentSoft }}>
+      <View style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' }}>
+        <SymbolView name="lightbulb" size={18} tintColor={colors.accent} />
+        <AppText variant="body" style={{ flex: 1 }}>
+          {message}
+        </AppText>
+      </View>
+      <View style={{ flexDirection: 'row', gap: spacing.md, justifyContent: 'flex-end' }}>
+        <Pressable onPress={onDismiss} hitSlop={8} accessibilityRole="button" style={{ justifyContent: 'center', paddingHorizontal: spacing.md, minHeight: 44 }}>
+          <AppText variant="label" muted>
+            Dismiss
+          </AppText>
+        </Pressable>
+        <PressableScale
+          onPress={onAccept}
+          accessibilityRole="button"
+          accessibilityLabel="Accept suggestion for today only"
+          style={{ justifyContent: 'center', minHeight: 44, paddingHorizontal: spacing.lg, borderRadius: 22, backgroundColor: colors.accent }}>
+          <AppText variant="label" color={colors.onAccent}>
+            Accept
+          </AppText>
+        </PressableScale>
+      </View>
+    </View>
   );
 }

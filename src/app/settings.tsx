@@ -1,13 +1,16 @@
 /** Settings: your name (for the Home greeting) and light/dark appearance. Kilos only, always. */
 import { useSQLiteContext } from 'expo-sqlite';
+import { SymbolView } from 'expo-symbols';
 import { useEffect, useState } from 'react';
-import { TextInput } from 'react-native';
+import { TextInput, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { Card } from '@/components/card';
 import { Page } from '@/components/page';
+import { PressableScale } from '@/components/pressable-scale';
 import { Segmented } from '@/components/segmented';
 import { getSetting, setSetting } from '@/db/settings';
+import { ACTIVE_GOAL_KEY, DEFAULT_ACTIVE_GOAL_MIN } from '@/logic/activity';
 import { useTheme, type ThemePreference } from '@/theme/theme-context';
 import { radius, spacing, typography } from '@/theme/typography';
 
@@ -15,10 +18,18 @@ export default function SettingsScreen() {
   const db = useSQLiteContext();
   const { colors, preference, setPreference } = useTheme();
   const [name, setName] = useState('');
+  const [goal, setGoal] = useState(DEFAULT_ACTIVE_GOAL_MIN);
 
   useEffect(() => {
     getSetting(db, 'user_name').then((v) => setName(v ?? ''));
+    getSetting(db, ACTIVE_GOAL_KEY).then((v) => setGoal(Number(v) > 0 ? Number(v) : DEFAULT_ACTIVE_GOAL_MIN));
   }, [db]);
+
+  function changeGoal(delta: number) {
+    const next = Math.min(240, Math.max(5, goal + delta));
+    setGoal(next);
+    setSetting(db, ACTIVE_GOAL_KEY, String(next));
+  }
 
   return (
     <Page title="Settings">
@@ -46,6 +57,20 @@ export default function SettingsScreen() {
       </Card>
 
       <Card>
+        <AppText variant="label">Daily active goal</AppText>
+        <AppText variant="small" muted>
+          Workouts and Quick Logs both count. 10 reps count as about 1 minute.
+        </AppText>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+          <StepButton icon="minus" label="Lower goal by 5 minutes" onPress={() => changeGoal(-5)} />
+          <AppText variant="heading" style={{ flex: 1, textAlign: 'center' }} accessibilityLiveRegion="polite">
+            {goal} min
+          </AppText>
+          <StepButton icon="plus" label="Raise goal by 5 minutes" onPress={() => changeGoal(5)} />
+        </View>
+      </Card>
+
+      <Card>
         <AppText variant="label">Appearance</AppText>
         <Segmented<ThemePreference>
           value={preference}
@@ -67,5 +92,18 @@ export default function SettingsScreen() {
         All weights are in kilos. Everything is stored on this phone and works offline.
       </AppText>
     </Page>
+  );
+}
+
+function StepButton({ icon, label, onPress }: { icon: 'minus' | 'plus'; label: string; onPress: () => void }) {
+  const { colors } = useTheme();
+  return (
+    <PressableScale
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: colors.cardAlt, alignItems: 'center', justifyContent: 'center' }}>
+      <SymbolView name={icon} size={18} tintColor={colors.text} />
+    </PressableScale>
   );
 }

@@ -9,7 +9,7 @@
  *  - A future day: the planned workout (Start only works on the day itself),
  *    or "Rest day". Change Workout lets you reschedule that day.
  */
-import { addWeeks, format, isSameDay } from 'date-fns';
+import { addDays, addWeeks, format, isSameDay } from 'date-fns';
 import * as Haptics from 'expo-haptics';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
@@ -23,7 +23,10 @@ import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { CompletedCard, EmptyDayCard } from '@/components/day-cards';
+import { ActiveTodayCard, DayLogList } from '@/components/active-today';
 import { CompactDayCard } from '@/components/compact-day-card';
+import { deleteQuickLog, getActiveMinutesBetween, getQuickLogsBetween, type QuickLog } from '@/db/quick-log';
+import { ACTIVE_GOAL_KEY, DEFAULT_ACTIVE_GOAL_MIN } from '@/logic/activity';
 import { Hero, HeroButton, HeroChip, HeroOutlineButton, HeroTitle } from '@/components/hero';
 import { Screen } from '@/components/screen';
 import { WeekStrip } from '@/components/week-strip';
@@ -49,6 +52,11 @@ type HomeData = {
   days: ScheduleDay[];
   /** Minutes / exercise count for each planned workout this week, by workout id. */
   previews: Record<string, { minutes: number; exercises: number }>;
+  /** Quick logs in the shown week. */
+  logs: QuickLog[];
+  /** Today's active minutes (workouts + quick logs) and the daily goal. */
+  activeToday: number;
+  goal: number;
 };
 
 export default function HomeScreen() {
@@ -77,13 +85,19 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       (async () => {
-        const [{ rotation, workout }, name, activeId, plans, days] = await Promise.all([
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        const [{ rotation, workout }, name, activeId, plans, days, logs, activeToday, goalSetting] = await Promise.all([
           getToday(db),
           getSetting(db, 'user_name'),
           getActiveSessionId(db),
           getRoutineCards(db),
           getWeekSchedule(db, weekStart),
+          getQuickLogsBetween(db, weekStart.getTime(), addDays(weekStart, 7).getTime()),
+          getActiveMinutesBetween(db, todayStart.getTime(), addDays(todayStart, 1).getTime()),
+          getSetting(db, ACTIVE_GOAL_KEY),
         ]);
+        const goal = Number(goalSetting) > 0 ? Number(goalSetting) : DEFAULT_ACTIVE_GOAL_MIN;
         const previews: HomeData['previews'] = {};
         for (const w of [workout, ...days.map((d) => d.planned)]) {
           if (w && !previews[w.id]) {
@@ -99,7 +113,7 @@ export default function HomeScreen() {
             active = { name: d.workoutName, setsDone };
           }
         }
-        setData({ name, rotation, workout, active, plans, days, previews });
+        setData({ name, rotation, workout, active, plans, days, previews, logs, activeToday, goal });
         setWeeksAway(activeId == null ? await freshStartOffer(db) : null);
       })();
     // reloadKey is listed on purpose: bumping it forces a reload (e.g. after Fresh Start).
@@ -333,6 +347,7 @@ export default function HomeScreen() {
       </View>
 
       <WeekStrip
+        loggedKeys={new Set(data.logs.map((l) => dateKey(new Date(l.loggedAt))))}
         weekStart={weekStart}
         days={data.days}
         selectedKey={selected.key}
@@ -375,6 +390,15 @@ export default function HomeScreen() {
       )}
 
       <DayCard />
+
+      <ActiveTodayCard minutes={data.activeToday} goal={data.goal} onLog={() => router.push('/quick-log')} />
+      <DayLogList
+        logs={data.logs.filter((l) => dateKey(new Date(l.loggedAt)) === selected.key)}
+        onDelete={async (l) => {
+          await deleteQuickLog(db, l.id);
+          setReloadKey((k) => k + 1);
+        }}
+      />
 
       {compact && <WeekSummary days={data.days} onSelect={(d) => setSelectedKey(d.key)} />}
 

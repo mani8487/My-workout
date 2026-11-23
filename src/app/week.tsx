@@ -40,7 +40,9 @@ import { ScreenHeader } from '@/components/screen-header';
 import { getWorkouts } from '@/db/plan';
 import type { Workout } from '@/db/types';
 import { formatDuration } from '@/logic/format';
-import { getWeekSchedule, parseDateKey, weekStartOf, type ScheduleDay } from '@/logic/schedule';
+import { dateKey, getWeekSchedule, parseDateKey, weekStartOf, type ScheduleDay } from '@/logic/schedule';
+import { getQuickLogsBetween } from '@/db/quick-log';
+import { activeMinutes, describeLog } from '@/logic/activity';
 import { getWorkoutPreview } from '@/logic/today';
 import { EASE_OUT, SPRING_RELEASE } from '@/theme/motion';
 import { useTheme } from '@/theme/theme-context';
@@ -87,7 +89,11 @@ export default function WeekScheduleScreen() {
   useFocusEffect(
     useCallback(() => {
       (async () => {
-        const [days, workouts] = await Promise.all([getWeekSchedule(db, weekStart), getWorkouts(db)]);
+        const [days, workouts, logs] = await Promise.all([
+          getWeekSchedule(db, weekStart),
+          getWorkouts(db),
+          getQuickLogsBetween(db, weekStart.getTime(), addDays(weekStart, 7).getTime()),
+        ]);
         const byId = new Map<string, Workout>(workouts.map((w) => [w.id, w]));
         const out: Row[] = [];
         for (const day of days) {
@@ -125,6 +131,14 @@ export default function WeekScheduleScreen() {
               badge: missed ? 'Missed' : day.isToday ? 'Today' : 'Rest',
             });
           }
+        }
+        // Quick Logs: add "+ 2 activities · 25 min" to that day's details.
+        for (const r of out) {
+          const mine = logs.filter((l) => dateKey(new Date(l.loggedAt)) === r.day.key);
+          if (mine.length === 0) continue;
+          const min = Math.round(mine.reduce((sum, l) => sum + activeMinutes(l.amount, l.unit), 0));
+          const tag = mine.length === 1 ? capitalise(describeLog(mine[0].name, mine[0].amount, mine[0].unit)) : `${mine.length} activities · ${min} min`;
+          r.meta = r.meta ? `${r.meta} · + ${tag}` : `+ ${tag}`;
         }
         setRows(out);
         // Start with today in the middle (or Monday for other weeks).
@@ -515,3 +529,5 @@ function ArrowButton({ icon, label, onPress }: { icon: SFSymbol; label: string; 
     </PressableScale>
   );
 }
+
+const capitalise = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);

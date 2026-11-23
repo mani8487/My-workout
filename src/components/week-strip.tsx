@@ -23,6 +23,8 @@ import { spacing, TIGHT_FONT_SCALE } from '@/theme/typography';
 type Props = {
   weekStart: Date;
   days: ScheduleDay[];
+  /** Days with a Quick Log ("2026-11-23"), shown with a small orange dot. */
+  loggedKeys?: Set<string>;
   selectedKey: string;
   isCurrentWeek: boolean;
   /** -1 = last change went back a week, 1 = forward (for the slide direction). */
@@ -32,7 +34,7 @@ type Props = {
   onToday: () => void;
 };
 
-export function WeekStrip({ weekStart, days, selectedKey, isCurrentWeek, direction, onSelect, onWeek, onToday }: Props) {
+export function WeekStrip({ weekStart, days, loggedKeys, selectedKey, isCurrentWeek, direction, onSelect, onWeek, onToday }: Props) {
   const { colors } = useTheme();
 
   const width = useSharedValue(360);
@@ -113,7 +115,7 @@ export function WeekStrip({ weekStart, days, selectedKey, isCurrentWeek, directi
                 Haptics.selectionAsync().catch(() => {});
                 onSelect(d);
               }}
-              accessibilityLabel={`${format(d.date, 'EEEE d MMMM')}, ${d.status}${d.isToday ? ', today' : ''}`}
+              accessibilityLabel={`${format(d.date, 'EEEE d MMMM')}, ${d.status}${loggedKeys?.has(d.key) ? ', activity logged' : ''}${d.isToday ? ', today' : ''}`}
               accessibilityState={{ selected }}
               style={{
                 alignItems: 'center',
@@ -140,7 +142,12 @@ export function WeekStrip({ weekStart, days, selectedKey, isCurrentWeek, directi
                 }}>
                 <AppText variant="label" maxFontSizeMultiplier={TIGHT_FONT_SCALE}>{format(d.date, 'd')}</AppText>
               </View>
-              <Marker status={d.status} onPill={selected} />
+              <View style={{ flexDirection: 'row', gap: 3, alignItems: 'center' }}>
+                <Marker status={d.status} onPill={selected} />
+                {loggedKeys?.has(d.key) && (
+                  <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: selected ? colors.onAccent : colors.accent }} />
+                )}
+              </View>
             </Pressable>
           );
         })}

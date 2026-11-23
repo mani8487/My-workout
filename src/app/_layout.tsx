@@ -69,6 +69,10 @@ function Navigation() {
         <Stack.Screen name="workout/summary" options={{ gestureEnabled: false }} />
         <Stack.Screen name="session/[id]" />
         <Stack.Screen name="log-workout" options={{ presentation: 'modal' }} />
+        <Stack.Screen
+          name="quick-log"
+          options={{ presentation: 'formSheet', sheetAllowedDetents: [0.75, 1], sheetGrabberVisible: true, sheetCornerRadius: 28 }}
+        />
         <Stack.Screen name="pick-exercise" options={{ presentation: 'modal' }} />
         <Stack.Screen name="settings" />
         <Stack.Screen name="plates" />

@@ -10,7 +10,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { suggestWeight } from '@/logic/suggestion';
 import { easeBack, planWarmups } from '@/logic/warmup';
-import { getPlanForWorkout } from './plan';
+import { getPlanForWorkout, type PlannedExercise } from './plan';
 import { getSetting } from './settings';
 import type { WorkoutId } from './types';
 
@@ -257,8 +257,10 @@ export async function startSession(
   workoutName: string,
   /** For logging a forgotten workout: when it happened and how long it took. */
   past?: { startedAt: number; finishedAt: number },
+  /** A one-off plan for this session only (an accepted suggestion). The saved plan is untouched. */
+  planOverride?: PlannedExercise[],
 ): Promise<number> {
-  const plan = await getPlanForWorkout(db, workoutId);
+  const plan = planOverride ?? (await getPlanForWorkout(db, workoutId));
   const lastTimes = new Map<string, LastTime | null>();
   for (const p of plan) lastTimes.set(p.exercise.id, await getLastTime(db, p.exercise.id));
   // Set by the "welcome back" fresh start: first session back on each exercise is ~10% lighter.

@@ -105,6 +105,21 @@ const MIGRATIONS: string[] = [
   -- Every existing workout belongs to the original routine.
   ALTER TABLE workouts ADD COLUMN routine_id TEXT NOT NULL DEFAULT 'main';
   `,
+
+  // ---- Upgrade 3: quick logs (any activity outside a full workout: a walk, 20 squats, yoga) ----
+  `
+  CREATE TABLE quick_logs (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    activity      TEXT NOT NULL,            -- preset id ('squats') or 'custom'
+    name          TEXT NOT NULL,            -- what to show, e.g. "Squats" or a custom name
+    amount        REAL NOT NULL,            -- reps or minutes, see unit
+    unit          TEXT NOT NULL,            -- 'reps' or 'min'
+    distance_km   REAL,                     -- optional, for run / swim / cycling
+    muscle_group  TEXT NOT NULL,            -- legs, upper, core, cardio, mobility
+    logged_at     INTEGER NOT NULL          -- when it happened (ms since 1970)
+  );
+  CREATE INDEX quick_logs_logged_at ON quick_logs (logged_at);
+  `,
 ];
 
 export async function runMigrations(db: SQLiteDatabase) {
