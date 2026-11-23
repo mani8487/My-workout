@@ -83,6 +83,12 @@ A personal iPhone workout tracker built with **Expo (React Native, SDK 58)** on 
 - From an Impeccable native audit + Taste anti-slop pass: History is a SectionList with one query for PR trophies (`getSessionIdsWithRecords`); text grows to 2x with iPhone text size (fixed cells 1.3x, `TIGHT_FONT_SCALE`); Home quote replaced by the top set of the last session of this workout; button roles / selected states for VoiceOver.
 - Still open from that audit: crash screen and PR pill use fixed colours; some decorative entrance fades.
 
+### Quick Log (PR #12, `feature/quick-log`)
+- The app is for staying active any way (walks, yoga, bodyweight), not only the gym.
+- `quick_logs` table (database upgrade 3), `src/db/quick-log.ts`; Quick Log bottom sheet (`src/app/quick-log.tsx`, 9 presets + Custom).
+- Home: "Active today" ring (workouts + quick logs vs daily goal, Settings) with a Quick log button; day logs listed; orange dot in the week strip. Week Schedule shows logs per day.
+- Rules in `src/logic/activity.ts` (10 reps = about 1 min, default goal 30 min). Workout Preview suggestions in `src/logic/suggestions.ts` (swap / shorter / add legs); Accept changes that session only (`startSession` plan override).
+
 ## Main files
 
 | Area | Files |
@@ -94,7 +100,7 @@ A personal iPhone workout tracker built with **Expo (React Native, SDK 58)** on 
 | Online | `src/lib/supabase.ts`, `supabase/schema.sql`, `.env.example` |
 
 ## Services
-- **GitHub:** `mani8487/My-workout`. PRs #1–#11 are merged into `master` (#11 on 22 Nov 2026). PRs are opened through Claude in Chrome (GitHub sign-in lives in the user's Chrome).
+- **GitHub:** `mani8487/My-workout`. PRs #1–#12 are merged into `master` (#12 on 23 Nov 2026). PRs are opened through Claude in Chrome (GitHub sign-in lives in the user's Chrome).
 - **Expo / EAS:** project `@mani8487/WorkoutTracker`, updates published to branch / channel `main`.
 - **Supabase:** project `kczdhpranzekgswgmjuz` (free plan); email + password auth with "Confirm email" off.
 
