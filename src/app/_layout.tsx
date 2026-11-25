@@ -27,6 +27,7 @@ import {
   Geist_700Bold,
 } from '@expo-google-fonts/geist';
 import { GeistMono_500Medium } from '@expo-google-fonts/geist-mono';
+import { DMSans_300Light, DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold, DMSans_700Bold } from '@expo-google-fonts/dm-sans';
 import { InstrumentSerif_400Regular, InstrumentSerif_400Regular_Italic } from '@expo-google-fonts/instrument-serif';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import { SQLiteProvider } from 'expo-sqlite';
@@ -116,6 +117,11 @@ export default function RootLayout() {
     Geist_600SemiBold,
     Geist_700Bold,
     GeistMono_500Medium,
+    DMSans_300Light,
+    DMSans_400Regular,
+    DMSans_500Medium,
+    DMSans_600SemiBold,
+    DMSans_700Bold,
     InstrumentSerif_400Regular,
     InstrumentSerif_400Regular_Italic,
   });

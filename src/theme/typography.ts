@@ -2,7 +2,7 @@
  * Text sizes, fonts and shapes.
  *
  * Fonts and corner shapes depend on the theme: Dark and Light use Inter with
- * 12pt cards; Frost uses Manrope with very rounded 24pt cards and pill buttons.
+ * 12pt cards; Frost uses Manrope with very rounded 24pt cards and pill buttons; Mist uses DM Sans.
  * The theme provider calls applyThemeStyle() when the theme changes, and every
  * screen re-draws, so screens never need to know which theme is on.
  */
@@ -22,6 +22,13 @@ const FONTS = {
     medium: 'Geist_500Medium',
     semibold: 'Geist_600SemiBold',
     bold: 'Geist_700Bold',
+  },
+  dmsans: {
+    light: 'DMSans_300Light',
+    regular: 'DMSans_400Regular',
+    medium: 'DMSans_500Medium',
+    semibold: 'DMSans_600SemiBold',
+    bold: 'DMSans_700Bold',
   },
   manrope: {
     light: 'Manrope_300Light',
@@ -114,7 +121,7 @@ export function applyThemeStyle(name: ThemeName) {
   const frost = name === 'frost';
   const ember = name === 'ember';
   const mist = isMistTheme(name);
-  family = frost ? FONTS.manrope : ember ? FONTS.geist : FONTS.inter;
+  family = frost ? FONTS.manrope : ember ? FONTS.geist : mist ? FONTS.dmsans : FONTS.inter;
   serif = ember ? 'InstrumentSerif_400Regular' : null;
   mono = ember ? 'GeistMono_500Medium' : null;
   radius.sm = ember ? MIN_TAP / 2 : frost || mist ? 14 : 8; // Ember kg / reps boxes are pills
