@@ -104,16 +104,20 @@ export const radius = {
 /** Gym rule: nothing you tap is smaller than this. */
 export const MIN_TAP = 48;
 
-export type ThemeName = 'dark' | 'light' | 'frost' | 'ember';
+export type ThemeName = 'dark' | 'light' | 'frost' | 'ember' | 'mist' | 'mist-dark';
+
+/** Mist & Mint, in either its light or dark version. */
+export const isMistTheme = (name: ThemeName) => name === 'mist' || name === 'mist-dark';
 
 /** Called by the theme provider whenever the theme changes. */
 export function applyThemeStyle(name: ThemeName) {
   const frost = name === 'frost';
   const ember = name === 'ember';
+  const mist = isMistTheme(name);
   family = frost ? FONTS.manrope : ember ? FONTS.geist : FONTS.inter;
   serif = ember ? 'InstrumentSerif_400Regular' : null;
   mono = ember ? 'GeistMono_500Medium' : null;
-  radius.sm = ember ? MIN_TAP / 2 : frost ? 14 : 8; // Ember kg / reps boxes are pills
-  radius.md = frost || ember ? 999 : 8; // Frost and Ember buttons are full pills
-  radius.lg = ember ? 22 : frost ? 24 : 12;
+  radius.sm = ember ? MIN_TAP / 2 : frost || mist ? 14 : 8; // Ember kg / reps boxes are pills
+  radius.md = frost || ember || mist ? 999 : 8; // Frost and Ember buttons are full pills
+  radius.lg = ember ? 22 : frost ? 24 : mist ? 20 : 12;
 }

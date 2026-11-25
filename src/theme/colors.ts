@@ -35,6 +35,8 @@ export type ColorRoles = {
 
   /** Titanium grey for chart lines and the timer track. */
   chart: string;
+  /** Water tracking: the droplet gauge and hydration bars (aqua). */
+  water: string;
 
   /** Completed sets: mint tick and a deep green row tint. */
   success: string;
@@ -89,6 +91,7 @@ export const darkColors: ColorRoles = {
   accentSoft: 'rgba(200,169,106,0.14)',
 
   chart: '#7C8594',
+  water: '#55CBE3',
 
   success: '#6EE7B7',
   successSoft: 'rgba(46,111,94,0.25)',
@@ -136,6 +139,7 @@ export const lightColors: ColorRoles = {
   accentSoft: 'rgba(127,100,40,0.12)',
 
   chart: '#7C8594',
+  water: '#36B6D5',
 
   success: '#2E6F5E',
   successSoft: 'rgba(46,111,94,0.14)',
@@ -185,6 +189,7 @@ export const frostColors: ColorRoles = {
   accentSoft: 'rgba(62,71,86,0.10)',
 
   chart: '#8C98AA',
+  water: '#36B6D5',
 
   // Darker green than the design's #3F8F7A so green text passes AA on the pale background.
   success: '#2F7464',
@@ -235,6 +240,7 @@ export const emberColors: ColorRoles = {
   accentSoft: 'rgba(255,122,26,0.16)',
 
   chart: '#8E8E93',
+  water: '#55CBE3',
 
   success: '#30D158',
   successSoft: 'rgba(48,209,88,0.16)',
@@ -260,4 +266,99 @@ export const emberColors: ColorRoles = {
   suggestBg: '#1C1C1E',
   onSuggest: '#F5F5F7',
   suggestEdge: '#FF7A1A',
+};
+
+/**
+ * Mist & Mint (light): soft blue-grey mist, white cards, navy text and
+ * buttons, mint for achievements (always with navy text on it), aqua for water.
+ */
+export const mistColors: ColorRoles = {
+  background: '#EDF0F4',
+  card: '#FFFFFF',
+  cardAlt: '#F4F6F9',
+  border: 'rgba(40,56,74,0.08)',
+  input: '#F4F6F9',
+  inputBorder: '#D5DCE5',
+
+  text: '#28384A',
+  textMuted: '#616E80',
+  faint: '#AAB3BF',
+
+  accent: '#28384A',
+  onAccent: '#FFFFFF',
+  accentSoft: 'rgba(40,56,74,0.07)',
+
+  chart: '#8C98AA',
+  water: '#36B6D5',
+
+  success: '#A8DCC6',
+  successSoft: 'rgba(168,220,198,0.32)',
+
+  warning: '#9A6A12',
+  warningSoft: 'rgba(224,178,92,0.18)',
+
+  sage: '#A8DCC6',
+  sageSoft: 'rgba(168,220,198,0.32)',
+
+  danger: '#B84A4A',
+  dangerSoft: 'rgba(184,74,74,0.12)',
+
+  backgroundGradient: null,
+  heroStart: '#FFFFFF',
+  heroEnd: '#FFFFFF',
+  onHero: '#28384A',
+  onHeroMuted: '#616E80',
+  heroChip: 'rgba(40,56,74,0.06)',
+  heroButton: '#28384A',
+  onHeroButton: '#FFFFFF',
+
+  suggestBg: '#FFFFFF',
+  onSuggest: '#28384A',
+  suggestEdge: '#A8DCC6',
+};
+
+/** Mist & Mint (dark): deep navy, slate cards, mint buttons with navy text. */
+export const mistDarkColors: ColorRoles = {
+  background: '#151C26',
+  card: '#222D3B',
+  cardAlt: '#2B3848',
+  border: 'rgba(241,244,248,0.07)',
+  input: '#2B3848',
+  inputBorder: '#3A4859',
+
+  text: '#F1F4F8',
+  textMuted: '#AAB6C6',
+  faint: '#4A5869',
+
+  accent: '#A8DCC6',
+  onAccent: '#28384A',
+  accentSoft: 'rgba(168,220,198,0.14)',
+
+  chart: '#7D8A9C',
+  water: '#55CBE3',
+
+  success: '#A8DCC6',
+  successSoft: 'rgba(168,220,198,0.16)',
+
+  warning: '#E8B860',
+  warningSoft: 'rgba(232,184,96,0.16)',
+
+  sage: '#A8DCC6',
+  sageSoft: 'rgba(168,220,198,0.14)',
+
+  danger: '#E07070',
+  dangerSoft: 'rgba(224,112,112,0.16)',
+
+  backgroundGradient: null,
+  heroStart: '#222D3B',
+  heroEnd: '#222D3B',
+  onHero: '#F1F4F8',
+  onHeroMuted: '#AAB6C6',
+  heroChip: 'rgba(241,244,248,0.08)',
+  heroButton: '#A8DCC6',
+  onHeroButton: '#28384A',
+
+  suggestBg: '#222D3B',
+  onSuggest: '#F1F4F8',
+  suggestEdge: '#A8DCC6',
 };

@@ -80,11 +80,12 @@ export default function SettingsScreen() {
             { value: 'light', label: 'Light' },
             { value: 'frost', label: 'Frost' },
             { value: 'ember', label: 'Ember' },
+            { value: 'mist', label: 'Mist' },
             { value: 'auto', label: 'Auto' },
           ]}
         />
         <AppText variant="small" muted>
-          Auto follows your iPhone&apos;s light or dark setting.
+          Auto and Mist follow your iPhone&apos;s light or dark setting.
         </AppText>
       </Card>
 

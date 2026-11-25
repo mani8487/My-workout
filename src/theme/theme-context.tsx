@@ -1,17 +1,18 @@
 /**
  * Decides which theme is on and hands its colour roles to every screen.
  *
- * Choices (Settings): Auto (follows the iPhone's light/dark), Dark, Light, Frost, Ember.
+ * Choices (Settings): Auto (follows the iPhone's light/dark), Dark, Light, Frost, Ember,
+ * Mist (Mist & Mint, which also follows the iPhone's light/dark).
  */
 import { useSQLiteContext } from 'expo-sqlite';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useColorScheme } from 'react-native';
 
 import { getSetting, setSetting } from '@/db/settings';
-import { darkColors, emberColors, frostColors, lightColors, type ColorRoles } from './colors';
+import { darkColors, emberColors, frostColors, lightColors, mistColors, mistDarkColors, type ColorRoles } from './colors';
 import { applyThemeStyle, type ThemeName } from './typography';
 
-export type ThemePreference = 'auto' | 'dark' | 'light' | 'frost' | 'ember';
+export type ThemePreference = 'auto' | 'dark' | 'light' | 'frost' | 'ember' | 'mist';
 
 type ThemeValue = {
   colors: ColorRoles;
@@ -24,7 +25,14 @@ type ThemeValue = {
 };
 
 const ThemeContext = createContext<ThemeValue | null>(null);
-const COLORS: Record<ThemeName, ColorRoles> = { dark: darkColors, light: lightColors, frost: frostColors, ember: emberColors };
+const COLORS: Record<ThemeName, ColorRoles> = {
+  dark: darkColors,
+  light: lightColors,
+  frost: frostColors,
+  ember: emberColors,
+  mist: mistColors,
+  'mist-dark': mistDarkColors,
+};
 
 export function AppThemeProvider({ children }: { children: ReactNode }) {
   const db = useSQLiteContext();
@@ -35,7 +43,7 @@ export function AppThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     getSetting(db, 'theme').then((v) => {
       if (v === 'system') setPreferenceState('auto');
-      else if (v === 'light' || v === 'dark' || v === 'frost' || v === 'ember' || v === 'auto') setPreferenceState(v);
+      else if (v === 'light' || v === 'dark' || v === 'frost' || v === 'ember' || v === 'mist' || v === 'auto') setPreferenceState(v);
     });
   }, [db]);
 
@@ -47,11 +55,13 @@ export function AppThemeProvider({ children }: { children: ReactNode }) {
     [db],
   );
 
-  const name: ThemeName = preference === 'auto' ? (systemScheme === 'dark' ? 'dark' : 'light') : preference;
+  const systemDark = systemScheme === 'dark';
+  const name: ThemeName =
+    preference === 'auto' ? (systemDark ? 'dark' : 'light') : preference === 'mist' ? (systemDark ? 'mist-dark' : 'mist') : preference;
 
   const value = useMemo(() => {
     applyThemeStyle(name); // fonts and corner shapes for this theme
-    return { colors: COLORS[name], name, isDark: name === 'dark' || name === 'ember', preference, setPreference };
+    return { colors: COLORS[name], name, isDark: name === 'dark' || name === 'ember' || name === 'mist-dark', preference, setPreference };
   }, [name, preference, setPreference]);
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
