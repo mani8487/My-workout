@@ -10,7 +10,7 @@ import { AppState } from 'react-native';
 
 import { getActiveMinutesBetween } from '@/db/quick-log';
 import { getSetting, setSetting } from '@/db/settings';
-import { BODY_WEIGHT_KEY, LAST_WATER_KEY, waterGoalMl } from '@/logic/hydration';
+import { BODY_WEIGHT_KEY, effectiveWeightKg, HEIGHT_KEY, LAST_WATER_KEY, waterGoalMl } from '@/logic/hydration';
 
 export type WaterLog = { id: number; ml: number; loggedAt: number };
 
@@ -43,17 +43,22 @@ export async function undoLastWater(db: SQLiteDatabase): Promise<number | null> 
 
 export async function getWaterToday(db: SQLiteDatabase) {
   const [from, to] = todayRange();
-  const [sum, weight, exercise, last] = await Promise.all([
+  const [sum, weight, exercise, last, height] = await Promise.all([
     db.getFirstAsync<{ ml: number | null }>('SELECT SUM(ml) AS ml FROM water_logs WHERE logged_at >= ? AND logged_at < ?', from, to),
     getSetting(db, BODY_WEIGHT_KEY),
     getActiveMinutesBetween(db, from, to),
     getSetting(db, LAST_WATER_KEY),
+    getSetting(db, HEIGHT_KEY),
   ]);
+  const heightCm = Number(height) > 0 ? Number(height) : null;
   const weightKg = Number(weight) > 0 ? Number(weight) : null;
   return {
     ml: sum?.ml ?? 0,
-    goal: waterGoalMl(weightKg, exercise),
+    goal: waterGoalMl(weightKg, exercise, heightCm),
     weightKg,
+    heightCm,
+    /** The weight the goal actually uses (lean-adjusted when height is set). */
+    goalWeightKg: weightKg ? Math.round(effectiveWeightKg(weightKg, heightCm) * 10) / 10 : null,
     exerciseMin: Math.round(exercise),
     lastMl: Number(last) > 0 ? Number(last) : 250,
   };

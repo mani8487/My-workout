@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { dayFraction, fmtMl, waterGoalMl, waterPace } from './hydration.ts';
+import { dayFraction, effectiveWeightKg, fmtMl, waterGoalMl, waterPace } from './hydration.ts';
 
 const at = (h: number, m = 0) => new Date(2026, 10, 26, h, m, 0);
 
@@ -26,6 +26,21 @@ describe('waterGoalMl', () => {
   });
   it('ignores negative exercise', () => {
     assert.equal(waterGoalMl(70, -30), 2300);
+  });
+});
+
+describe('height', () => {
+  it('changes nothing at or below BMI 25', () => {
+    assert.equal(effectiveWeightKg(70, 175), 70); // BMI 22.9
+    assert.equal(waterGoalMl(70, 0, 175), 2300);
+  });
+  it('counts only 40% of weight above BMI 25', () => {
+    // 180 cm: BMI 25 = 81 kg. 111 kg → 81 + 0.4 × 30 = 93 kg
+    assert.ok(Math.abs(effectiveWeightKg(111, 180) - 93) < 1e-9);
+    assert.equal(waterGoalMl(111, 0, 180), 3050); // 3069 → 3050 (vs 3650 by weight alone)
+  });
+  it('is ignored when missing', () => {
+    assert.equal(waterGoalMl(111, 0, null), 3650);
   });
 });
 

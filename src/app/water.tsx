@@ -166,10 +166,20 @@ export default function WaterSheet() {
           <GlassTile style={{ borderRadius: 20, padding: spacing.lg, gap: spacing.sm }}>
             <AppText variant="label">How your goal is worked out</AppText>
             <AppText variant="small">
-              {water.weightKg
-                ? `Body weight ${water.weightKg} kg × ${ML_PER_KG} ml = ${fmtMl(water.weightKg * ML_PER_KG)} ml`
+              {water.weightKg && water.goalWeightKg
+                ? `Body weight ${water.goalWeightKg} kg × ${ML_PER_KG} ml = ${fmtMl(water.goalWeightKg * ML_PER_KG)} ml`
                 : 'No body weight set, so we start from 2,000 ml. Add it in Settings for a personal goal.'}
             </AppText>
+            {water.weightKg != null && water.goalWeightKg != null && water.goalWeightKg < water.weightKg && (
+              <AppText variant="small" muted>
+                Adjusted from {water.weightKg} kg using your height ({water.heightCm} cm): above a BMI of 25, 40% of the extra weight counts, since lean body holds most water.
+              </AppText>
+            )}
+            {water.weightKg != null && water.heightCm == null && (
+              <AppText variant="small" muted>
+                Add your height in Settings to allow for build.
+              </AppText>
+            )}
             <AppText variant="small">
               Exercise today {water.exerciseMin} min → +{fmtMl((water.exerciseMin / 60) * ML_PER_EXERCISE_HOUR)} ml ({ML_PER_EXERCISE_HOUR} ml per hour)
             </AppText>
@@ -178,7 +188,7 @@ export default function WaterSheet() {
             </AppText>
             <Pressable onPress={() => router.push('/settings')} accessibilityRole="link" style={{ minHeight: 44, justifyContent: 'center' }}>
               <AppText variant="label" color={colors.accent}>
-                {water.weightKg ? 'Change body weight' : 'Set body weight'}
+                {water.weightKg ? 'Change weight or height' : 'Set weight and height'}
               </AppText>
             </Pressable>
           </GlassTile>

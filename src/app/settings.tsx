@@ -12,7 +12,7 @@ import { Segmented } from '@/components/segmented';
 import { getSetting, setSetting } from '@/db/settings';
 import { refreshWater } from '@/db/water';
 import { ACTIVE_GOAL_KEY, DEFAULT_ACTIVE_GOAL_MIN } from '@/logic/activity';
-import { BODY_WEIGHT_KEY } from '@/logic/hydration';
+import { BODY_WEIGHT_KEY, HEIGHT_KEY } from '@/logic/hydration';
 import { useTheme, type ThemePreference } from '@/theme/theme-context';
 import { radius, spacing, typography } from '@/theme/typography';
 
@@ -22,10 +22,12 @@ export default function SettingsScreen() {
   const [name, setName] = useState('');
   const [goal, setGoal] = useState(DEFAULT_ACTIVE_GOAL_MIN);
   const [weight, setWeight] = useState('');
+  const [height, setHeight] = useState('');
 
   useEffect(() => {
     getSetting(db, 'user_name').then((v) => setName(v ?? ''));
     getSetting(db, BODY_WEIGHT_KEY).then((v) => setWeight(v ?? ''));
+    getSetting(db, HEIGHT_KEY).then((v) => setHeight(v ?? ''));
     getSetting(db, ACTIVE_GOAL_KEY).then((v) => setGoal(Number(v) > 0 ? Number(v) : DEFAULT_ACTIVE_GOAL_MIN));
   }, [db]);
 
@@ -34,6 +36,13 @@ export default function SettingsScreen() {
     const ok = kg >= 25 && kg <= 300;
     if (!ok) setWeight('');
     setSetting(db, BODY_WEIGHT_KEY, ok ? String(Math.round(kg * 10) / 10) : null).then(refreshWater);
+  }
+
+  function saveHeight() {
+    const cm = Number(height.replace(',', '.'));
+    const ok = cm >= 100 && cm <= 250;
+    if (!ok) setHeight('');
+    setSetting(db, HEIGHT_KEY, ok ? String(Math.round(cm)) : null).then(refreshWater);
   }
 
   function changeGoal(delta: number) {
@@ -82,9 +91,9 @@ export default function SettingsScreen() {
       </Card>
 
       <Card>
-        <AppText variant="label">Body weight</AppText>
+        <AppText variant="label">Body weight and height</AppText>
         <AppText variant="small" muted>
-          Sets your daily water goal (33 ml per kg, plus extra on days you exercise). Leave empty to use 2,000 ml.
+          Set your daily water goal: 33 ml per kg, plus extra on days you exercise. Height lets the goal allow for build. Leave empty to use 2,000 ml.
         </AppText>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
           <TextInput
@@ -105,8 +114,31 @@ export default function SettingsScreen() {
               padding: spacing.md,
             }}
           />
-          <AppText variant="label" muted>
+          <AppText variant="label" muted style={{ width: 28 }}>
             kg
+          </AppText>
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+          <TextInput
+            value={height}
+            onChangeText={setHeight}
+            onEndEditing={saveHeight}
+            placeholder="e.g. 175"
+            placeholderTextColor={colors.textMuted}
+            keyboardType="number-pad"
+            returnKeyType="done"
+            accessibilityLabel="Height in centimetres"
+            style={{
+              ...typography.body,
+              flex: 1,
+              color: colors.text,
+              backgroundColor: colors.cardAlt,
+              borderRadius: radius.sm,
+              padding: spacing.md,
+            }}
+          />
+          <AppText variant="label" muted style={{ width: 28 }}>
+            cm
           </AppText>
         </View>
       </Card>

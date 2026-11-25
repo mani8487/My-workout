@@ -6,6 +6,11 @@
  * rounded to the nearest 50 ml and kept between 1,500 and 5,000 ml.
  * Without a body weight we start from 2,000 ml.
  *
+ * With a height too, we use a "lean-adjusted" weight: lean tissue holds most
+ * of the body's water, fat much less. Above a BMI of 25, only 40% of the
+ * extra weight counts (the same adjustment clinicians use for adjusted body
+ * weight). At or below BMI 25 the weight is used as is.
+ *
  * This is a general estimate, not medical advice (see HYDRATION_NOTE).
  */
 
@@ -23,6 +28,10 @@ export const PACE_END_HOUR = 21;
 export const PACE_SLACK_ML = 150;
 
 export const BODY_WEIGHT_KEY = 'body_weight_kg';
+export const HEIGHT_KEY = 'height_cm';
+/** BMI above which extra weight only partly counts, and how much of it. */
+export const LEAN_BMI = 25;
+export const EXTRA_WEIGHT_SHARE = 0.4;
 export const LAST_WATER_KEY = 'water_last_ml';
 
 export const HYDRATION_NOTE =
@@ -30,9 +39,17 @@ export const HYDRATION_NOTE =
 
 export const roundTo50 = (ml: number) => Math.round(ml / 50) * 50;
 
-/** Daily goal in ml. `weightKg` null or ≤ 0 means "not set". */
-export function waterGoalMl(weightKg: number | null | undefined, exerciseMinutes = 0): number {
-  const base = weightKg != null && weightKg > 0 ? weightKg * ML_PER_KG : DEFAULT_BASE_ML;
+/** The weight the goal uses: the real weight, or lean-adjusted when height is known and BMI > 25. */
+export function effectiveWeightKg(weightKg: number, heightCm?: number | null): number {
+  if (heightCm == null || heightCm <= 0) return weightKg;
+  const m = heightCm / 100;
+  const leanTop = LEAN_BMI * m * m; // the weight at BMI 25 for this height
+  return weightKg <= leanTop ? weightKg : leanTop + EXTRA_WEIGHT_SHARE * (weightKg - leanTop);
+}
+
+/** Daily goal in ml. `weightKg` null or ≤ 0 means "not set"; height is optional. */
+export function waterGoalMl(weightKg: number | null | undefined, exerciseMinutes = 0, heightCm?: number | null): number {
+  const base = weightKg != null && weightKg > 0 ? effectiveWeightKg(weightKg, heightCm) * ML_PER_KG : DEFAULT_BASE_ML;
   const exercise = (Math.max(0, exerciseMinutes) / 60) * ML_PER_EXERCISE_HOUR;
   return Math.min(MAX_GOAL_ML, Math.max(MIN_GOAL_ML, roundTo50(base + exercise)));
 }
