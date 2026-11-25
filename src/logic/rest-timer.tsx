@@ -23,13 +23,18 @@ Notifications.setNotificationHandler({
   }),
 });
 
-type TimerState = { endsAt: number; totalMs: number; notificationId: string | null } | null;
+/** `pausedMs` is the time left while paused (the clock stops; no alert is scheduled). */
+type TimerState = { endsAt: number; totalMs: number; notificationId: string | null; pausedMs?: number | null } | null;
 
 type RestTimerValue = {
   /** Milliseconds left, or null when no timer is running. */
   remainingMs: number | null;
   totalMs: number;
   start: (seconds: number) => void;
+  /** True while the countdown is paused. */
+  paused: boolean;
+  pause: () => void;
+  resume: () => void;
   addSeconds: (seconds: number) => void;
   skip: () => void;
 };
@@ -71,7 +76,7 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
       } catch {
         // A damaged saved timer is simply forgotten.
       }
-      if (t && typeof t.endsAt === 'number' && t.endsAt > Date.now()) setTimer(t);
+      if (t && typeof t.endsAt === 'number' && (t.pausedMs != null || t.endsAt > Date.now())) setTimer(t);
       else await setSetting(db, 'rest_timer', null);
     })();
   }, [db]);
@@ -86,7 +91,7 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
 
   // Redraw a few times a second while running; stop when time is up.
   useEffect(() => {
-    if (!timer) return;
+    if (!timer || timer.pausedMs != null) return;
     const id = setInterval(() => {
       const t = Date.now();
       setNow(t);
@@ -111,6 +116,10 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
   const addSeconds = useCallback(
     async (seconds: number) => {
       if (!timer) return;
+      if (timer.pausedMs != null) {
+        persist({ ...timer, pausedMs: timer.pausedMs + seconds * 1000, totalMs: timer.totalMs + seconds * 1000 });
+        return;
+      }
       await cancelAlert(timer.notificationId);
       const endsAt = timer.endsAt + seconds * 1000;
       const next = { endsAt, totalMs: timer.totalMs + seconds * 1000, notificationId: null };
@@ -125,15 +134,33 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
     persist(null);
   }, [timer, persist]);
 
+  const pause = useCallback(async () => {
+    if (!timer || timer.pausedMs != null) return;
+    await cancelAlert(timer.notificationId);
+    persist({ ...timer, notificationId: null, pausedMs: Math.max(0, timer.endsAt - Date.now()) });
+  }, [timer, persist]);
+
+  const resume = useCallback(async () => {
+    if (!timer || timer.pausedMs == null) return;
+    const endsAt = Date.now() + timer.pausedMs;
+    const next = { endsAt, totalMs: timer.totalMs, notificationId: null, pausedMs: null };
+    persist(next);
+    setNow(Date.now());
+    persist({ ...next, notificationId: await scheduleEndAlert(endsAt) });
+  }, [timer, persist]);
+
   const value = useMemo(
     () => ({
-      remainingMs: timer ? Math.max(0, timer.endsAt - now) : null,
+      remainingMs: timer ? (timer.pausedMs ?? Math.max(0, timer.endsAt - now)) : null,
       totalMs: timer?.totalMs ?? 0,
       start,
+      paused: timer?.pausedMs != null,
+      pause,
+      resume,
       addSeconds,
       skip,
     }),
-    [timer, now, start, addSeconds, skip],
+    [timer, now, start, pause, resume, addSeconds, skip],
   );
 
   return <RestTimerContext.Provider value={value}>{children}</RestTimerContext.Provider>;

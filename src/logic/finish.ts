@@ -12,7 +12,13 @@ export function workingSetsLeft(detail: SessionDetail) {
     .filter((s) => !s.isWarmup && s.completedAt == null).length;
 }
 
-export function confirmFinishWorkout(db: SQLiteDatabase, detail: SessionDetail, stopRestTimer: () => void) {
+/** `always`: ask even when every set is ticked (Mist's small top-right Finish button). */
+export function confirmFinishWorkout(
+  db: SQLiteDatabase,
+  detail: SessionDetail,
+  stopRestTimer: () => void,
+  always = false,
+) {
   async function finish() {
     stopRestTimer();
     await finishSession(db, detail.id);
@@ -24,7 +30,14 @@ export function confirmFinishWorkout(db: SQLiteDatabase, detail: SessionDetail, 
 
   const left = workingSetsLeft(detail);
   if (left <= 0) {
-    finish();
+    if (!always) {
+      finish();
+      return;
+    }
+    Alert.alert('Finish workout?', 'Every set is done.', [
+      { text: 'Finish', onPress: finish },
+      { text: 'Keep Going', style: 'cancel' },
+    ]);
     return;
   }
   // "Keep Going" uses the cancel style, which iOS shows as the bold, highlighted choice.

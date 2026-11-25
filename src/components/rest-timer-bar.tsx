@@ -18,11 +18,8 @@ function mmss(ms: number) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
-export function RestTimerBar() {
-  const { colors } = useTheme();
-  const { remainingMs, totalMs, addSeconds, skip } = useRestTimer();
-
-  // Buzz once when a running timer reaches zero while the app is open.
+/** Buzz once when a running timer reaches zero while the app is open. */
+export function useRestEndBuzz(remainingMs: number | null) {
   const wasRunning = useRef(false);
   useEffect(() => {
     // Only counts as "ended" if it ran down to the last second (not when you tap Skip early).
@@ -32,6 +29,12 @@ export function RestTimerBar() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     }
   }, [remainingMs]);
+}
+
+export function RestTimerBar() {
+  const { colors } = useTheme();
+  const { remainingMs, totalMs, addSeconds, skip } = useRestTimer();
+  useRestEndBuzz(remainingMs);
 
   if (remainingMs == null) return null;
   const fraction = totalMs > 0 ? remainingMs / totalMs : 0;

@@ -16,10 +16,15 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { GlassTile } from '@/components/glass-tile';
+import { GlassToast } from '@/components/glass-toast';
+import { Milo, useMiloState } from '@/components/mascot';
+import { MistWorkoutBar } from '@/components/mist-workout-bar';
 import { PressableScale } from '@/components/pressable-scale';
 import { SkeletonScreen } from '@/components/skeleton';
 import { AppText } from '@/components/app-text';
@@ -27,7 +32,7 @@ import { Button } from '@/components/button';
 import { LastTimeCards } from '@/components/last-time-cards';
 import { ProgressRing } from '@/components/progress-ring';
 import { RestTimerBar } from '@/components/rest-timer-bar';
-import { closePad, NumberPad, usePadSpacer } from '@/components/number-pad';
+import { closePad, NumberPad, useActivePadId, usePadSpacer } from '@/components/number-pad';
 import { COLS, SetRow } from '@/components/set-row';
 import { confirmFinishWorkout } from '@/logic/finish';
 import { confirmSplitSwap } from '@/logic/swap';
@@ -46,7 +51,7 @@ import {
 } from '@/db/sessions';
 import { getSetting, setSetting } from '@/db/settings';
 import { useTheme } from '@/theme/theme-context';
-import { radius, spacing, TIGHT_FONT_SCALE } from '@/theme/typography';
+import { isMistTheme, radius, spacing, TIGHT_FONT_SCALE } from '@/theme/typography';
 
 const TIP_KEY = 'tip.setMenuSeen';
 
@@ -61,6 +66,21 @@ export default function ActiveWorkoutScreen() {
   const { colors, name: themeName } = useTheme();
   // Ember gets the compact bottom bar and the orange current-set dot.
   const compact = themeName === 'ember';
+  // Mist & Mint: glass table, Milo, "Set saved" pill and the glass bottom bar.
+  const mist = isMistTheme(themeName);
+  const milo = useMiloState('sitting');
+  const [savedSignal, setSavedSignal] = useState(0);
+  const { height: screenH } = useWindowDimensions();
+  const padOpen = useActivePadId() != null;
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+  useEffect(() => {
+    const a = Keyboard.addListener('keyboardWillShow', () => setKeyboardOpen(true));
+    const b = Keyboard.addListener('keyboardWillHide', () => setKeyboardOpen(false));
+    return () => {
+      a.remove();
+      b.remove();
+    };
+  }, []);
   // `at` changes on every jump, so jumping to the same index twice still works.
   const params = useLocalSearchParams<{ index?: string; at?: string }>();
 
@@ -220,6 +240,12 @@ export default function ActiveWorkoutScreen() {
   const currentSetId = exercise.sets.find((s) => s.completedAt == null)?.id;
   const prevExercise = detail.exercises[safeIndex - 1];
   const nextExercise = detail.exercises[safeIndex + 1];
+  const SetTable = mist ? GlassTile : View;
+  async function addOneSet() {
+    if (!exercise) return;
+    await addSet(db, exercise.id);
+    await refresh();
+  }
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: colors.background }}>
@@ -234,6 +260,17 @@ export default function ActiveWorkoutScreen() {
         <Pressable onPress={openMenu} hitSlop={10} accessibilityLabel="Workout menu" style={{ width: 44, alignItems: 'center' }}>
           <SymbolView name="ellipsis.circle" size={22} tintColor={colors.accent} />
         </Pressable>
+        {mist && (
+          <Pressable
+            onPress={() => confirmFinishWorkout(db, detail, restTimer.skip, true)}
+            accessibilityRole="button"
+            accessibilityLabel="Finish workout"
+            style={{ minHeight: 44, paddingHorizontal: spacing.sm, justifyContent: 'center' }}>
+            <AppText variant="label" color={colors.accent}>
+              Finish
+            </AppText>
+          </Pressable>
+        )}
       </View>
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
@@ -271,13 +308,11 @@ export default function ActiveWorkoutScreen() {
           <LastTimeCards exercise={exercise} />
 
           {/* Set table */}
-          <View
+          <SetTable
             style={{
-              backgroundColor: colors.card,
               borderRadius: radius.lg,
-              borderWidth: 1,
-              borderColor: colors.border,
               overflow: 'hidden',
+              ...(mist ? null : { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }),
             }}>
             <View
               style={{
@@ -311,6 +346,10 @@ export default function ActiveWorkoutScreen() {
                   onSave={(patch) => save(set.id, patch)}
                   onCompleted={() => {
                     setRirForSetId(set.id);
+                    if (mist) {
+                      setSavedSignal((n) => n + 1);
+                      milo.react();
+                    }
                     // Rest starts by itself. Warm-ups get a shorter 60 s rest.
                     restTimer.start(set.isWarmup ? 60 : exercise.restSeconds);
                   }}
@@ -328,19 +367,32 @@ export default function ActiveWorkoutScreen() {
 
             {rows.length === 0 && (
               <AppText muted style={{ padding: spacing.lg, textAlign: 'center' }}>
-                No sets. Tap Add Set.
+                No sets. Tap {mist ? '+ Set' : 'Add Set'}.
               </AppText>
             )}
-          </View>
+          </SetTable>
 
-          <Button
-            title="+ Add Set"
-            kind="secondary"
-            onPress={async () => {
-              await addSet(db, exercise.id);
-              await refresh();
-            }}
-          />
+          {mist ? (
+            <>
+              <MistExerciseNav
+                prevName={prevExercise?.name}
+                nextName={nextExercise?.name}
+                done={exerciseDone}
+                onPrev={() => goTo(safeIndex - 1)}
+                onNext={() => (nextExercise ? goTo(safeIndex + 1) : openOverview())}
+              />
+              {/* Milo keeps you company below the table; out of the way while typing or with a long table. */}
+              {!padOpen && !keyboardOpen && (
+                <Milo
+                  {...milo.props}
+                  size={Math.round(screenH * 0.15 * (rows.length > 5 ? 0.6 : 1))}
+                  style={{ alignSelf: 'center' }}
+                />
+              )}
+            </>
+          ) : (
+            <Button title="+ Add Set" kind="secondary" onPress={addOneSet} />
+          )}
 
           {showTip && (
             <View
@@ -362,17 +414,25 @@ export default function ActiveWorkoutScreen() {
             </View>
           )}
 
-          <Button
-            title="Finish Workout"
-            kind="secondary"
-            onPress={() => confirmFinishWorkout(db, detail, restTimer.skip)}
-          />        </ScrollView>
+          {!mist && (
+            <Button
+              title="Finish Workout"
+              kind="secondary"
+              onPress={() => confirmFinishWorkout(db, detail, restTimer.skip)}
+            />
+          )}
+        </ScrollView>
+        {mist && <GlassToast signal={savedSignal} message="Set saved" />}
       </KeyboardAvoidingView>
 
-      <RestTimerBar />
+      {mist ? (
+        <MistWorkoutBar restSeconds={exercise.restSeconds} onAddSet={addOneSet} />
+      ) : (
+        <RestTimerBar />
+      )}
 
       {/* Previous / Next exercise */}
-      {compact ? (
+      {mist ? null : compact ? (
         <View
           style={{
             flexDirection: 'row',
@@ -460,6 +520,58 @@ export default function ActiveWorkoutScreen() {
 
       <NumberPad scrollRef={scrollRef} scrollY={scrollY} />
     </SafeAreaView>
+  );
+}
+
+/** Mist: previous / next exercise under the table. Next turns solid once this exercise is done. */
+function MistExerciseNav({
+  prevName,
+  nextName,
+  done,
+  onPrev,
+  onNext,
+}: {
+  prevName?: string;
+  nextName?: string;
+  done: boolean;
+  onPrev: () => void;
+  onNext: () => void;
+}) {
+  const { colors } = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+      <PressableScale
+        onPress={onPrev}
+        disabled={!prevName}
+        accessibilityRole="button"
+        accessibilityLabel={prevName ? `Previous exercise, ${prevName}` : 'No previous exercise'}
+        style={{ opacity: prevName ? 1 : 0.35 }}>
+        <GlassTile style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' }}>
+          <SymbolView name="chevron.left" size={16} tintColor={colors.text} />
+        </GlassTile>
+      </PressableScale>
+      <PressableScale
+        onPress={onNext}
+        accessibilityRole="button"
+        accessibilityLabel={nextName ? `Next exercise, ${nextName}` : 'Workout overview'}
+        style={{ flex: 1 }}>
+        {done ? (
+          <View style={{ minHeight: 44, borderRadius: 22, backgroundColor: colors.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, paddingHorizontal: spacing.lg }}>
+            <AppText variant="label" color={colors.onAccent} numberOfLines={1} style={{ flexShrink: 1 }}>
+              {nextName ? `Next: ${nextName}` : 'Workout overview'}
+            </AppText>
+            <SymbolView name="chevron.right" size={14} tintColor={colors.onAccent} />
+          </View>
+        ) : (
+          <GlassTile style={{ minHeight: 44, borderRadius: 22, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, paddingHorizontal: spacing.lg }}>
+            <AppText variant="label" numberOfLines={1} style={{ flexShrink: 1 }}>
+              {nextName ? `Next: ${nextName}` : 'Workout overview'}
+            </AppText>
+            <SymbolView name="chevron.right" size={14} tintColor={colors.text} />
+          </GlassTile>
+        )}
+      </PressableScale>
+    </View>
   );
 }
 
