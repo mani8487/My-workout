@@ -18,7 +18,7 @@ import { AppText } from '@/components/app-text';
 import type { ScheduleDay } from '@/logic/schedule';
 import { EASE_OUT, SPRING_RELEASE } from '@/theme/motion';
 import { useTheme } from '@/theme/theme-context';
-import { spacing, TIGHT_FONT_SCALE } from '@/theme/typography';
+import { isMistTheme, spacing, TIGHT_FONT_SCALE } from '@/theme/typography';
 
 type Props = {
   weekStart: Date;
@@ -35,7 +35,9 @@ type Props = {
 };
 
 export function WeekStrip({ weekStart, days, loggedKeys, selectedKey, isCurrentWeek, direction, onSelect, onWeek, onToday }: Props) {
-  const { colors } = useTheme();
+  const { colors, name } = useTheme();
+  // Mist & Mint: plain dates (no circles); the selected day is a rounded block.
+  const plain = isMistTheme(name);
 
   const width = useSharedValue(360);
   const x = useSharedValue(0);
@@ -122,7 +124,7 @@ export function WeekStrip({ weekStart, days, loggedKeys, selectedKey, isCurrentW
                 gap: spacing.xs,
                 paddingVertical: spacing.sm,
                 paddingHorizontal: 4,
-                borderRadius: 999,
+                borderRadius: plain ? 14 : 999,
                 backgroundColor: selected ? colors.accent : 'transparent',
                 minWidth: 44,
               }}>
@@ -134,13 +136,15 @@ export function WeekStrip({ weekStart, days, loggedKeys, selectedKey, isCurrentW
                   width: 38,
                   height: 38,
                   borderRadius: 19,
-                  backgroundColor: selected ? colors.cardAlt : colors.card,
-                  borderWidth: d.isToday ? 2 : 1,
+                  backgroundColor: plain ? 'transparent' : selected ? colors.cardAlt : colors.card,
+                  borderWidth: plain ? (d.isToday && !selected ? 2 : 0) : d.isToday ? 2 : 1,
                   borderColor: d.isToday ? (selected ? colors.onAccent : colors.accent) : colors.border,
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}>
-                <AppText variant="label" maxFontSizeMultiplier={TIGHT_FONT_SCALE}>{format(d.date, 'd')}</AppText>
+                <AppText variant="label" maxFontSizeMultiplier={TIGHT_FONT_SCALE} color={plain && selected ? colors.onAccent : undefined}>
+                  {format(d.date, 'd')}
+                </AppText>
               </View>
               <View style={{ flexDirection: 'row', gap: 3, alignItems: 'center' }}>
                 <Marker status={d.status} onPill={selected} />

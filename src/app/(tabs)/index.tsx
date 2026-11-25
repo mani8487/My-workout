@@ -8,6 +8,9 @@
  *  - A past day: what you logged (tap to open it), or "No workout logged" / "Rest day".
  *  - A future day: the planned workout (Start only works on the day itself),
  *    or "Rest day". Change Workout lets you reschedule that day.
+ *
+ * Mist & Mint has its own calmer layout: greeting with the calendar / water /
+ * settings row, the week strip, Milo asleep on his couch, then the day card.
  */
 import { addDays, addWeeks, format, isSameDay } from 'date-fns';
 import * as Haptics from 'expo-haptics';
@@ -25,6 +28,9 @@ import { Card } from '@/components/card';
 import { CompletedCard, EmptyDayCard } from '@/components/day-cards';
 import { ActiveTodayCard, DayLogList } from '@/components/active-today';
 import { CompactDayCard } from '@/components/compact-day-card';
+import { Milo } from '@/components/mascot';
+import { MistDayCard } from '@/components/mist-day-card';
+import { TopActions } from '@/components/top-actions';
 import { deleteQuickLog, getActiveMinutesBetween, getQuickLogsBetween, type QuickLog } from '@/db/quick-log';
 import { ACTIVE_GOAL_KEY, DEFAULT_ACTIVE_GOAL_MIN } from '@/logic/activity';
 import { Hero, HeroButton, HeroChip, HeroOutlineButton, HeroTitle } from '@/components/hero';
@@ -40,7 +46,7 @@ import type { Rotation } from '@/logic/rotation';
 import { dateKey, getWeekSchedule, parseDateKey, weekStartOf, type ScheduleDay } from '@/logic/schedule';
 import { getRoutineCards, getToday, getWorkoutPreview, greeting, shortDate } from '@/logic/today';
 import { useTheme } from '@/theme/theme-context';
-import { radius, SERIF_ITALIC, spacing } from '@/theme/typography';
+import { isMistTheme, radius, SERIF_ITALIC, spacing } from '@/theme/typography';
 
 type HomeData = {
   name: string | null;
@@ -64,6 +70,7 @@ export default function HomeScreen() {
   const { colors, name: themeName } = useTheme();
   // Ember uses the quiet Apple-style row card and a small serif date.
   const compact = themeName === 'ember';
+  const mist = isMistTheme(themeName);
   const [data, setData] = useState<HomeData | null>(null);
   const [weeksAway, setWeeksAway] = useState<number | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -166,6 +173,53 @@ export default function HomeScreen() {
 
   /** The card for the selected day. */
   function DayCard() {
+    // ---- Mist & Mint: one calm card style (finished and rest days use the shared cards below) ----
+    if (mist) {
+      const detailFor = (w: Workout) => {
+        const p = previews[w.id];
+        if (!p) return w.muscleLabel;
+        return [p.minutes ? `${p.minutes} min` : null, `${p.exercises} ${p.exercises === 1 ? 'exercise' : 'exercises'}`]
+          .filter(Boolean)
+          .join(' · ');
+      };
+      if (selected.isToday && active) {
+        const resume = () => router.push('/workout/active');
+        return (
+          <MistDayCard
+            eyebrow="In progress"
+            title={active.name}
+            detail={`${active.setsDone} ${active.setsDone === 1 ? 'set' : 'sets'} logged so far`}
+            onPress={resume}
+            button={{ title: 'Resume Workout', onPress: resume }}
+          />
+        );
+      }
+      if (selected.isToday && selected.sessions.length === 0) {
+        if (!workout) return <EmptyPlanCard />;
+        return (
+          <View style={{ gap: spacing.xs }}>
+            <MistDayCard
+              eyebrow="Today's Workout"
+              title={workout.name}
+              detail={detailFor(workout)}
+              onPress={openPreview}
+              button={{ title: 'Start Workout', onPress: openPreview }}
+            />
+            <TextLink title="Change workout" onPress={() => changeFor(selected)} />
+          </View>
+        );
+      }
+      if (selected.isFuture && selected.planned && selected.sessions.length === 0) {
+        const w = selected.planned;
+        return (
+          <View style={{ gap: spacing.xs }}>
+            <MistDayCard eyebrow={`Planned for ${format(selected.date, 'EEEE')}`} title={w.name} detail={detailFor(w)} />
+            <TextLink title="Change workout" onPress={() => changeFor(selected)} />
+          </View>
+        );
+      }
+    }
+
     // ---- Today ----
     if (selected.isToday) {
       if (active) {
@@ -308,7 +362,20 @@ export default function HomeScreen() {
 
   return (
     <Screen>
-      {/* Greeting (light lead-in, name in semibold) + settings */}
+      {mist ? (
+        // Mist & Mint: greeting on the left, calendar / water / settings on the right.
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm }}>
+          <View style={{ flex: 1, paddingTop: spacing.xs }} accessible accessibilityRole="header">
+            <AppText variant="title">
+              {greeting()}
+              {data.name ? ',' : ''}
+            </AppText>
+            {data.name ? <AppText variant="title">{data.name}</AppText> : null}
+          </View>
+          <TopActions onCalendar={() => router.push({ pathname: '/week', params: { start: dateKey(weekStart) } })} />
+        </View>
+      ) : (
+      /* Greeting (light lead-in, name in semibold) + settings */
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
         {compact ? (
           <View style={{ flex: 1, paddingTop: spacing.sm }}>
@@ -345,7 +412,10 @@ export default function HomeScreen() {
           <RoundButton icon="slider.horizontal.3" label="Settings" onPress={() => router.push('/settings')} />
         </View>
       </View>
+      )}
 
+      {/* zIndex keeps the strip's dates tappable above Milo's empty upper stage. */}
+      <View style={{ zIndex: 1 }}>
       <WeekStrip
         loggedKeys={new Set(data.logs.map((l) => dateKey(new Date(l.loggedAt))))}
         weekStart={weekStart}
@@ -357,6 +427,11 @@ export default function HomeScreen() {
         onWeek={(delta) => goToWeek(addWeeks(weekStart, delta), delta)}
         onToday={() => goToWeek(thisWeek, weekStart > thisWeek ? -1 : 1)}
       />
+      </View>
+
+      {/* Milo asleep on his couch: no card or border around him. The top of his
+          stage is empty (that's where his "Zz" float), so it tucks under the strip. */}
+      {mist && <Milo state="sleeping" size={250} style={{ alignSelf: 'center', marginTop: -64, marginBottom: -28 }} />}
 
       {weeksAway != null && (
         <Card>
@@ -402,8 +477,8 @@ export default function HomeScreen() {
 
       {compact && <WeekSummary days={data.days} onSelect={(d) => setSelectedKey(d.key)} />}
 
-      {/* Your plans */}
-      <View style={{ gap: spacing.md, marginTop: compact ? spacing.md : 0 }}>
+      {/* Your plans (Mist keeps Home calm; plans live under More → Plan Editor) */}
+      {!mist && <View style={{ gap: spacing.md, marginTop: compact ? spacing.md : 0 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           {compact ? (
             <View style={{ flex: 1 }}>
@@ -451,9 +526,9 @@ export default function HomeScreen() {
           ))}
           <View style={{ width: spacing.xs }} />
         </ScrollView>
-      </View>
+      </View>}
 
-      {highlight && (
+      {!mist && highlight && (
         <AppText variant="small" muted style={{ textAlign: 'center', marginTop: spacing.sm }}>
           {highlight}
         </AppText>
