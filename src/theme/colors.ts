@@ -303,7 +303,8 @@ export const mistColors: ColorRoles = {
   danger: '#B84A4A',
   dangerSoft: 'rgba(184,74,74,0.12)',
 
-  backgroundGradient: null,
+  // A whisper of mint toward the bottom, so the glass tiles have something to show through.
+  backgroundGradient: ['#EDF0F4', '#E0EBE8'],
   heroStart: '#FFFFFF',
   heroEnd: '#FFFFFF',
   onHero: '#28384A',
@@ -349,7 +350,7 @@ export const mistDarkColors: ColorRoles = {
   danger: '#E07070',
   dangerSoft: 'rgba(224,112,112,0.16)',
 
-  backgroundGradient: null,
+  backgroundGradient: ['#151C26', '#16242A'],
   heroStart: '#222D3B',
   heroEnd: '#222D3B',
   onHero: '#F1F4F8',

@@ -2,9 +2,8 @@
  * Mist & Mint "Today's Workout" card on Home: a small label, the workout name,
  * one line of detail and a full-width pill button.
  */
-import { View } from 'react-native';
-
 import { AppText } from '@/components/app-text';
+import { GlassTile } from '@/components/glass-tile';
 import { PressableScale } from '@/components/pressable-scale';
 import { useTheme } from '@/theme/theme-context';
 import { radius, spacing } from '@/theme/typography';
@@ -22,7 +21,7 @@ type Props = {
 export function MistDayCard({ eyebrow, title, detail, button, onPress }: Props) {
   const { colors } = useTheme();
   return (
-    <View style={{ borderRadius: radius.lg, backgroundColor: colors.card, padding: spacing.lg, gap: spacing.md }}>
+    <GlassTile style={{ borderRadius: radius.lg, padding: spacing.lg, gap: spacing.md }}>
       <PressableScale
         onPress={onPress}
         disabled={!onPress}
@@ -61,6 +60,6 @@ export function MistDayCard({ eyebrow, title, detail, button, onPress }: Props) 
           </AppText>
         </PressableScale>
       )}
-    </View>
+    </GlassTile>
   );
 }

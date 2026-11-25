@@ -9,28 +9,30 @@ import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { Alert, Pressable, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
+import { GlassTile } from '@/components/glass-tile';
 import { PressableScale } from '@/components/pressable-scale';
 import { ProgressRing } from '@/components/progress-ring';
 import type { QuickLog } from '@/db/quick-log';
 import { ACTIVITY_PRESETS, describeLog } from '@/logic/activity';
 import { useTheme } from '@/theme/theme-context';
-import { radius, spacing } from '@/theme/typography';
+import { isMistTheme, radius, spacing } from '@/theme/typography';
 
 export function ActiveTodayCard({ minutes, goal, onLog }: { minutes: number; goal: number; onLog: () => void }) {
-  const { colors } = useTheme();
+  const { colors, name } = useTheme();
   const shown = Math.round(minutes);
   const reached = shown >= goal;
+  // Mist & Mint: a Liquid Glass tile instead of a solid card.
+  const mist = isMistTheme(name);
+  const Box = mist ? GlassTile : View;
   return (
-    <View
+    <Box
       style={{
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.md,
         padding: spacing.lg,
         borderRadius: radius.lg,
-        backgroundColor: colors.card,
-        borderWidth: 1,
-        borderColor: colors.border,
+        ...(mist ? null : { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }),
       }}>
       <View accessible accessibilityLabel={`Active today: ${shown} of ${goal} minutes`}>
         <ProgressRing size={60} stroke={5} fraction={goal > 0 ? minutes / goal : 0}>
@@ -63,15 +65,22 @@ export function ActiveTodayCard({ minutes, goal, onLog }: { minutes: number; goa
           Quick log
         </AppText>
       </PressableScale>
-    </View>
+    </Box>
   );
 }
 
 export function DayLogList({ logs, onDelete }: { logs: QuickLog[]; onDelete: (log: QuickLog) => void }) {
-  const { colors } = useTheme();
+  const { colors, name } = useTheme();
   if (logs.length === 0) return null;
+  const mist = isMistTheme(name);
+  const Box = mist ? GlassTile : View;
   return (
-    <View style={{ borderRadius: radius.lg, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' }}>
+    <Box
+      style={{
+        borderRadius: radius.lg,
+        overflow: 'hidden',
+        ...(mist ? null : { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }),
+      }}>
       {logs.map((l, i) => {
         const icon = ACTIVITY_PRESETS.find((p) => p.id === l.activity)?.icon ?? 'figure.mixed.cardio';
         const what = describeLog(l.name, l.amount, l.unit);
@@ -107,6 +116,6 @@ export function DayLogList({ logs, onDelete }: { logs: QuickLog[]; onDelete: (lo
           </Pressable>
         );
       })}
-    </View>
+    </Box>
   );
 }
