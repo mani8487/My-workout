@@ -12,6 +12,7 @@ import { ScrollView, TextInput, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
+import { MistQuickLog } from '@/components/mist-quick-log';
 import { PressableScale } from '@/components/pressable-scale';
 import { addQuickLog } from '@/db/quick-log';
 import { getSetting, setSetting } from '@/db/settings';
@@ -23,12 +24,18 @@ import {
   GROUP_LABELS,
 } from '@/logic/activity';
 import { useTheme } from '@/theme/theme-context';
-import { MAX_FONT_SCALE, radius, spacing, typography } from '@/theme/typography';
+import { isMistTheme, MAX_FONT_SCALE, radius, spacing, typography } from '@/theme/typography';
 
 const LAST_KEY = 'quick_log_last';
 const CUSTOM = 'custom';
 
 export default function QuickLogSheet() {
+  const { name } = useTheme();
+  // Mist & Mint has its own "Log movement" sheet (same data, same quick_logs table).
+  return isMistTheme(name) ? <MistQuickLog /> : <ClassicQuickLog />;
+}
+
+function ClassicQuickLog() {
   const db = useSQLiteContext();
   const { colors } = useTheme();
   const [activity, setActivity] = useState<string>('walk');
