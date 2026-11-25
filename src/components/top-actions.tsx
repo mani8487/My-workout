@@ -5,10 +5,13 @@
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
-import { Alert, View } from 'react-native';
+import { useSQLiteContext } from 'expo-sqlite';
+import { AccessibilityInfo, View } from 'react-native';
 
 import { PressableScale } from '@/components/pressable-scale';
 import { WaterGauge } from '@/components/water-gauge';
+import { addWater, useWaterToday } from '@/db/water';
+import { fmtMl } from '@/logic/hydration';
 import { useTheme } from '@/theme/theme-context';
 
 type Props = {
@@ -17,6 +20,8 @@ type Props = {
 };
 
 export function TopActions({ onCalendar }: Props) {
+  const db = useSQLiteContext();
+  const water = useWaterToday();
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
       <IconButton
@@ -28,11 +33,17 @@ export function TopActions({ onCalendar }: Props) {
           else router.push('/week');
         }}
       />
-      {/* Water tracking arrives in step 6 (hydration pop-up); the gauge is live already. */}
+      {/* Tap: the hydration pop-up. Long-press: log your last amount straight away. */}
       <WaterGauge
-        ml={0}
-        goal={2000}
-        onPress={() => Alert.alert('Water', 'Water tracking is coming in the next update.')}
+        ml={water?.ml ?? 0}
+        goal={water?.goal ?? 2000}
+        onPress={() => router.push('/water')}
+        onLongPress={async () => {
+          const amount = water?.lastMl ?? 250;
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+          await addWater(db, amount);
+          AccessibilityInfo.announceForAccessibility('Added ' + fmtMl(amount) + ' millilitres');
+        }}
       />
       <IconButton icon="gearshape" label="Settings" onPress={() => router.push('/settings')} />
     </View>

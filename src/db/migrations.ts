@@ -120,6 +120,16 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX quick_logs_logged_at ON quick_logs (logged_at);
   `,
+
+  // ---- Upgrade 4: water (each glass you log from the droplet) ----
+  `
+  CREATE TABLE water_logs (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    ml         INTEGER NOT NULL,
+    logged_at  INTEGER NOT NULL          -- ms since 1970
+  );
+  CREATE INDEX water_logs_logged_at ON water_logs (logged_at);
+  `,
 ];
 
 export async function runMigrations(db: SQLiteDatabase) {

@@ -10,7 +10,9 @@ import { Page } from '@/components/page';
 import { PressableScale } from '@/components/pressable-scale';
 import { Segmented } from '@/components/segmented';
 import { getSetting, setSetting } from '@/db/settings';
+import { refreshWater } from '@/db/water';
 import { ACTIVE_GOAL_KEY, DEFAULT_ACTIVE_GOAL_MIN } from '@/logic/activity';
+import { BODY_WEIGHT_KEY } from '@/logic/hydration';
 import { useTheme, type ThemePreference } from '@/theme/theme-context';
 import { radius, spacing, typography } from '@/theme/typography';
 
@@ -19,11 +21,20 @@ export default function SettingsScreen() {
   const { colors, preference, setPreference } = useTheme();
   const [name, setName] = useState('');
   const [goal, setGoal] = useState(DEFAULT_ACTIVE_GOAL_MIN);
+  const [weight, setWeight] = useState('');
 
   useEffect(() => {
     getSetting(db, 'user_name').then((v) => setName(v ?? ''));
+    getSetting(db, BODY_WEIGHT_KEY).then((v) => setWeight(v ?? ''));
     getSetting(db, ACTIVE_GOAL_KEY).then((v) => setGoal(Number(v) > 0 ? Number(v) : DEFAULT_ACTIVE_GOAL_MIN));
   }, [db]);
+
+  function saveWeight() {
+    const kg = Number(weight.replace(',', '.'));
+    const ok = kg >= 25 && kg <= 300;
+    if (!ok) setWeight('');
+    setSetting(db, BODY_WEIGHT_KEY, ok ? String(Math.round(kg * 10) / 10) : null).then(refreshWater);
+  }
 
   function changeGoal(delta: number) {
     const next = Math.min(240, Math.max(5, goal + delta));
@@ -67,6 +78,36 @@ export default function SettingsScreen() {
             {goal} min
           </AppText>
           <StepButton icon="plus" label="Raise goal by 5 minutes" onPress={() => changeGoal(5)} />
+        </View>
+      </Card>
+
+      <Card>
+        <AppText variant="label">Body weight</AppText>
+        <AppText variant="small" muted>
+          Sets your daily water goal (33 ml per kg, plus extra on days you exercise). Leave empty to use 2,000 ml.
+        </AppText>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+          <TextInput
+            value={weight}
+            onChangeText={setWeight}
+            onEndEditing={saveWeight}
+            placeholder="e.g. 72"
+            placeholderTextColor={colors.textMuted}
+            keyboardType="decimal-pad"
+            returnKeyType="done"
+            accessibilityLabel="Body weight in kilos"
+            style={{
+              ...typography.body,
+              flex: 1,
+              color: colors.text,
+              backgroundColor: colors.cardAlt,
+              borderRadius: radius.sm,
+              padding: spacing.md,
+            }}
+          />
+          <AppText variant="label" muted>
+            kg
+          </AppText>
         </View>
       </Card>
 

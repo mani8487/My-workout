@@ -73,6 +73,10 @@ function Navigation() {
           name="quick-log"
           options={{ presentation: 'formSheet', sheetAllowedDetents: [0.75, 1], sheetGrabberVisible: true, sheetCornerRadius: 28 }}
         />
+        <Stack.Screen
+          name="water"
+          options={{ presentation: 'formSheet', sheetAllowedDetents: [0.7, 1], sheetGrabberVisible: true, sheetCornerRadius: 28 }}
+        />
         <Stack.Screen name="pick-exercise" options={{ presentation: 'modal' }} />
         <Stack.Screen name="settings" />
         <Stack.Screen name="plates" />
