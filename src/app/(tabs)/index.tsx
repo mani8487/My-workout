@@ -18,11 +18,11 @@
  */
 import { addDays, addWeeks, format, isSameDay } from 'date-fns';
 import * as Haptics from 'expo-haptics';
-import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useIsFocused, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
+import { Alert, AppState, Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
 
 import { PressableScale } from '@/components/pressable-scale';
 import { SkeletonScreen } from '@/components/skeleton';
@@ -101,6 +101,7 @@ export default function HomeScreen() {
   // Water logged while a sheet covers Home lands in the room once Home is back in view:
   // the room holds its changes until it's on screen again (see LivingScene).
   const water = useWaterToday();
+  const focused = useIsFocused();
 
   // A new day (midnight, or the app waking on a new day): move "today" along with it.
   const prevToday = useRef(todayKey);
@@ -200,11 +201,12 @@ export default function HomeScreen() {
   const target = data && water ? sceneTarget({ activeMinutes: data.activeToday, goalMinutes: data.goal, waterMl: water.ml, waterGoalMl: water.goal }) : null;
   const fresh = data?.day === todayKey && water?.day === todayKey;
   useEffect(() => {
-    if (!mist || !target || !fresh) return;
+    // Only while Home is in view: changes made elsewhere count as "seen" once the room has shown them.
+    if (!mist || !target || !fresh || !focused) return;
     setSetting(db, LAST_SEEN_KEY, encodeLastSeen({ day: todayKey, stage: target.stage, water: target.water })).catch(() => {});
     // Saved whenever what the room shows changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [db, mist, fresh, todayKey, target?.stage, target?.water]);
+  }, [db, mist, fresh, focused, todayKey, target?.stage, target?.water]);
 
   // A real line from your last session of this workout (instead of a stock quote).
   const highlightFor = data?.workout?.id ?? null;
@@ -302,11 +304,11 @@ export default function HomeScreen() {
         const more = selected.sessions.length - 1;
         return (
           <MistDayCard
-            eyebrow={selected.isToday ? 'Done today' : `Done · ${format(selected.date, 'EEEE d MMM')}`}
+            eyebrow={selected.isToday ? 'Done today' : `Done Â· ${format(selected.date, 'EEEE d MMM')}`}
             title={s.workoutName}
             detail={[s.durationMin != null ? formatDuration(s.durationMin) : null, `${s.workingSets} sets`, `${s.volumeKg.toLocaleString()} kg`, more > 0 ? `+${more} more` : null]
               .filter(Boolean)
-              .join(' · ')}
+              .join(' Â· ')}
             onPress={open}
             hint="Opens every set and note"
             button={{ title: 'View session', onPress: open }}
@@ -537,10 +539,19 @@ export default function HomeScreen() {
           Back after {weeksAway} weeks. Ease in?
         </AppText>
         <Pressable
-          onPress={acceptFresh}
+          onPress={() =>
+            Alert.alert(
+              'Ease back in?',
+              `It's been ${weeksAway} weeks. A fresh start restarts the cycle, with weights about 10% lighter for your first session back on each exercise.`,
+              [
+                { text: 'Not now', style: 'cancel' },
+                { text: 'Fresh start', onPress: acceptFresh },
+              ],
+            )
+          }
           accessibilityRole="button"
           accessibilityLabel="Fresh start"
-          accessibilityHint="Restarts the cycle with weights about 10% lighter for your first session back"
+          accessibilityHint="Explains it and asks before restarting the cycle"
           style={{ minHeight: MIN_TAP, justifyContent: 'center', paddingHorizontal: spacing.md }}>
           <AppText variant="label" color={colors.accent}>
             Fresh start

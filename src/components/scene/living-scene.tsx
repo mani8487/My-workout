@@ -72,7 +72,8 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
     const before = lastK.current;
     lastK.current = k;
     if (before === k || reduced) return;
-    fit.set(before / k);
+    // Start from what's on screen now (a second resize mid-spring continues smoothly).
+    fit.set(fit.get() * (before / k));
     fit.set(withSpring(1, SPRING.gentle));
   }, [k, fit, reduced]);
 
