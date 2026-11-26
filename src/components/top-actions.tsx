@@ -22,8 +22,6 @@ type Props = {
 };
 
 export function TopActions({ onCalendar, showWater = true }: Props) {
-  const db = useSQLiteContext();
-  const water = useWaterToday();
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
       <IconButton
@@ -35,22 +33,28 @@ export function TopActions({ onCalendar, showWater = true }: Props) {
           else router.push('/week');
         }}
       />
-      {/* Tap: the hydration pop-up. Long-press: log your last amount straight away. */}
-      {showWater && (
-        <WaterGauge
-          ml={water?.ml ?? 0}
-          goal={water?.goal ?? 2000}
-          onPress={() => router.push('/water')}
-          onLongPress={async () => {
-            const amount = water?.lastMl ?? 250;
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-            await addWater(db, amount);
-            AccessibilityInfo.announceForAccessibility('Added ' + fmtMl(amount) + ' millilitres');
-          }}
-        />
-      )}
+      {showWater && <WaterButton />}
       <IconButton icon="gearshape" label="Settings" onPress={() => router.push('/settings')} />
     </View>
+  );
+}
+
+/** The droplet gauge. Tap: the hydration pop-up. Long-press: log your last amount straight away. */
+function WaterButton() {
+  const db = useSQLiteContext();
+  const water = useWaterToday();
+  return (
+    <WaterGauge
+      ml={water?.ml ?? 0}
+      goal={water?.goal ?? 2000}
+      onPress={() => router.push('/water')}
+      onLongPress={async () => {
+        const amount = water?.lastMl ?? 250;
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+        await addWater(db, amount);
+        AccessibilityInfo.announceForAccessibility('Added ' + fmtMl(amount) + ' millilitres');
+      }}
+    />
   );
 }
 

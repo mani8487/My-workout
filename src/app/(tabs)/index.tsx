@@ -17,10 +17,10 @@
  */
 import { addDays, addWeeks, format, isSameDay } from 'date-fns';
 import * as Haptics from 'expo-haptics';
-import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useIsFocused, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Pressable, ScrollView, View } from 'react-native';
 
 import { PressableScale } from '@/components/pressable-scale';
@@ -35,8 +35,8 @@ import { MistDayCard } from '@/components/mist-day-card';
 import { LivingScene } from '@/components/scene/living-scene';
 import { TopActions } from '@/components/top-actions';
 import { WaterChip } from '@/components/water-chip';
-import { useWaterToday } from '@/db/water';
-import { catchUpFrom, encodeLastSeen, LAST_SEEN_KEY } from '@/logic/day';
+import { useWaterToday, type WaterToday } from '@/db/water';
+import { catchUpFrom, dayKeyOf, encodeLastSeen, LAST_SEEN_KEY } from '@/logic/day';
 import { minutesText, moodSentence, sceneTarget } from '@/logic/scene-state';
 import { useTodayKey } from '@/logic/use-today';
 import { deleteQuickLog, getActiveMinutesBetween, getQuickLogsBetween, type QuickLog } from '@/db/quick-log';
@@ -74,6 +74,8 @@ type HomeData = {
   /** Living Home: what the room showed last time (for the catch-up), and the hour it loaded. */
   lastSeen: string | null;
   hour: number;
+  /** The local day this data was loaded for. */
+  day: string;
 };
 
 export default function HomeScreen() {
@@ -89,7 +91,20 @@ export default function HomeScreen() {
   const [direction, setDirection] = useState<-1 | 0 | 1>(0);
   const [selectedKey, setSelectedKey] = useState(() => dateKey(new Date()));
   const todayKey = useTodayKey();
-  const water = useWaterToday();
+  const liveWater = useWaterToday();
+  const focused = useIsFocused();
+
+  // Living Home: water logged while a sheet covers Home lands in the room when
+  // Home is back in view (with a light buzz), so you see the glass fill.
+  const [water, setWater] = useState<WaterToday | null>(null);
+  const shownWater = useRef<WaterToday | null>(null);
+  useEffect(() => {
+    if (!focused || !liveWater) return;
+    const shown = shownWater.current;
+    if (shown && shown.day === liveWater.day && liveWater.ml > shown.ml) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    shownWater.current = liveWater;
+    setWater(liveWater);
+  }, [focused, liveWater]);
 
   // A new day (midnight, or the app waking on a new day): move "today" along with it.
   const prevToday = useRef(todayKey);
@@ -101,11 +116,24 @@ export default function HomeScreen() {
     setWeekStart((w) => (isSameDay(w, weekStartOf(parseDateKey(old))) ? weekStartOf(new Date()) : w));
   }, [todayKey]);
 
-  // Coming back from the background: reload, so the room catches up with anything new.
+  // Coming back from the background (not just Control Center): reload, so the room catches up.
   useEffect(() => {
-    const sub = AppState.addEventListener('change', (s) => s === 'active' && setReloadKey((k) => k + 1));
+    let last = AppState.currentState;
+    const sub = AppState.addEventListener('change', (s) => {
+      if (last === 'background' && s === 'active') setReloadKey((k) => k + 1);
+      last = s;
+    });
     return () => sub.remove();
   }, []);
+
+  // Living Home: a light buzz when a movement you just logged lands in the room.
+  // Set when "+ Log movement" opens the sheet; checked (and cleared) on the very next reload.
+  const logPending = useRef(false);
+  const prevMinutes = useRef<number | null>(null);
+  const logMovement = () => {
+    logPending.current = true;
+    router.push('/quick-log');
+  };
 
   // The Week Schedule screen can send us back with a day to select (?date=2026-11-24).
   const params = useLocalSearchParams<{ date?: string }>();
@@ -136,6 +164,7 @@ export default function HomeScreen() {
         ]);
         const now = new Date();
         const hour = now.getHours() + now.getMinutes() / 60;
+        const day = dayKeyOf(todayStart);
         const goal = Number(goalSetting) > 0 ? Number(goalSetting) : DEFAULT_ACTIVE_GOAL_MIN;
         const previews: HomeData['previews'] = {};
         for (const w of [workout, ...days.map((d) => d.planned)]) {
@@ -152,7 +181,11 @@ export default function HomeScreen() {
             active = { name: d.workoutName, setsDone };
           }
         }
-        setData({ name, rotation, workout, active, plans, days, previews, logs, activeToday, goal, lastSeen, hour });
+        setData({ name, rotation, workout, active, plans, days, previews, logs, activeToday, goal, lastSeen, hour, day });
+        const before = prevMinutes.current;
+        prevMinutes.current = activeToday;
+        if (logPending.current && before != null && activeToday > before) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+        logPending.current = false;
         setWeeksAway(activeId == null ? await freshStartOffer(db) : null);
       })();
     // reloadKey is listed on purpose: bumping it forces a reload (e.g. after Fresh Start).
@@ -160,30 +193,19 @@ export default function HomeScreen() {
     }, [db, reloadKey, weekStart, todayKey]),
   );
 
-  // Living Home: a light buzz when a movement you just logged lands in the room.
-  const logPending = useRef(false);
-  const prevMinutes = useRef<number | null>(null);
-  const minutesNow = data?.activeToday ?? null;
-  useEffect(() => {
-    if (minutesNow == null) return;
-    const before = prevMinutes.current;
-    prevMinutes.current = minutesNow;
-    if (logPending.current && before != null && minutesNow > before) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    logPending.current = false;
-  }, [minutesNow]);
-  const logMovement = () => {
-    logPending.current = true;
-    router.push('/quick-log');
-  };
-
-  // Remember what the room shows, so a cold start can catch up from it.
+  // Remember what the room shows, so a cold start can catch up from it. Only
+  // when both numbers are for today, so yesterday's room is never saved as today's.
   const target = data && water ? sceneTarget({ activeMinutes: data.activeToday, goalMinutes: data.goal, waterMl: water.ml, waterGoalMl: water.goal }) : null;
+  const fresh = data?.day === todayKey && water?.day === todayKey;
   useEffect(() => {
-    if (!mist || !target) return;
+    if (!mist || !target || !fresh) return;
     setSetting(db, LAST_SEEN_KEY, encodeLastSeen({ day: todayKey, stage: target.stage, water: target.water })).catch(() => {});
     // Saved whenever what the room shows changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [db, mist, todayKey, target?.stage, target?.water]);
+  }, [db, mist, fresh, todayKey, target?.stage, target?.water]);
+  // Read by the room only when it first appears; kept stable so the room doesn't re-render for it.
+  const lastSeen = data?.lastSeen ?? null;
+  const sceneFrom = useMemo(() => catchUpFrom(lastSeen, todayKey), [lastSeen, todayKey]);
 
   // A real line from your last session of this workout (instead of a stock quote).
   const highlightFor = data?.workout?.id ?? null;
@@ -495,12 +517,13 @@ export default function HomeScreen() {
             waterMl={water.ml}
             waterGoalMl={water.goal}
             hour={data.hour}
-            from={catchUpFrom(data.lastSeen, todayKey)}
+            from={sceneFrom}
           />
         </View>
       )}
       {mist && (
-        <View style={{ alignItems: 'center', gap: 2, marginTop: -spacing.sm }}>
+        // VoiceOver already reads this from the room's label, so it's hidden here to avoid saying it twice.
+        <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ alignItems: 'center', gap: 2, marginTop: -spacing.sm }}>
           <AppText variant="label" style={{ textAlign: 'center' }}>
             {moodSentence(data.activeToday, data.goal)}
           </AppText>
@@ -546,7 +569,7 @@ export default function HomeScreen() {
       {mist ? (
         <>
           <Button title="+ Log movement" kind="secondary" onPress={logMovement} accessibilityLabel="Log movement" />
-          <WaterChip />
+          {water && <WaterChip water={water} />}
         </>
       ) : (
         <ActiveTodayCard minutes={data.activeToday} goal={data.goal} onLog={() => router.push('/quick-log')} />

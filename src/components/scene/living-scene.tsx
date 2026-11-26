@@ -9,9 +9,10 @@
  * the room passes "awake", and lies back down if it goes the other way.
  * With Reduce Motion on, the room cross-fades between still states.
  */
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { useWindowDimensions, View } from 'react-native';
 import Animated, {
+  cancelAnimation,
   ReduceMotion,
   useAnimatedStyle,
   useDerivedValue,
@@ -53,7 +54,7 @@ type Props = {
   miloCue?: number;
 };
 
-export function LivingScene({ activeMinutes, goalMinutes, waterMl, waterGoalMl, hour, from, miloOverride, miloCue = 0 }: Props) {
+export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinutes, waterMl, waterGoalMl, hour, from, miloOverride, miloCue = 0 }: Props) {
   const { width, height } = useWindowDimensions();
   const k = Math.min(width / ROOM.w, (height * MAX_HEIGHT_SHARE) / ROOM.h);
   const { isDark, colors } = useTheme();
@@ -70,6 +71,7 @@ export function LivingScene({ activeMinutes, goalMinutes, waterMl, waterGoalMl, 
   const fade = useSharedValue(1); // Reduce Motion: the room dips to swap states unseen
   const cool = useDerivedValue(() => dimness(stage.get()));
   const warm = useDerivedValue(() => warmth(stage.get()));
+  useEffect(() => () => [stage, level, day, fade].forEach((v) => cancelAnimation(v)), [stage, level, day, fade]);
 
   // ----- the room follows today's numbers -----
   const first = useRef(true);
@@ -112,13 +114,15 @@ export function LivingScene({ activeMinutes, goalMinutes, waterMl, waterGoalMl, 
   const firstMood = useRef(true);
   useEffect(() => {
     moodRef.current = target.mood;
-    const go = () => setMilo((cur) => (upright(target.mood) && (lyingDown(cur) || cur === 'waking') ? 'waking' : target.mood));
+    // While the Lab overrides Milo, track the mood directly (no waking move would play to finish it).
+    const go = () =>
+      setMilo((cur) => (!miloOverride && upright(target.mood) && (lyingDown(cur) || cur === 'waking') ? 'waking' : target.mood));
     // During the first catch-up, Milo moves when the room starts to.
     const wait = firstMood.current ? DURATION.micro.slow : 0;
     firstMood.current = false;
     const t = setTimeout(go, wait);
     return () => clearTimeout(t);
-  }, [target.mood]);
+  }, [target.mood, miloOverride]);
   const onSettled = (s: MiloState) => {
     if (s === 'waking') setMilo(moodRef.current);
   };
@@ -155,8 +159,8 @@ export function LivingScene({ activeMinutes, goalMinutes, waterMl, waterGoalMl, 
       <Veil opacity={warm} color={palette.warmVeil} />
       <View pointerEvents="none" style={stageStyle}>
         <Rays k={k} stage={stage} day={day} palette={palette} />
-        <Dust k={k} live={live} stage={stage} palette={palette} />
+        <Dust k={k} live={live} reduced={reduced} stage={stage} palette={palette} />
       </View>
     </Animated.View>
   );
-}
+});

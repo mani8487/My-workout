@@ -10,6 +10,7 @@ import { AppState } from 'react-native';
 
 import { getActiveMinutesBetween } from '@/db/quick-log';
 import { getSetting, setSetting } from '@/db/settings';
+import { dayKeyOf } from '@/logic/day';
 import { useTodayKey } from '@/logic/use-today';
 import { BODY_WEIGHT_KEY, effectiveWeightKg, HEIGHT_KEY, LAST_WATER_KEY, waterGoalMl } from '@/logic/hydration';
 
@@ -62,6 +63,8 @@ export async function getWaterToday(db: SQLiteDatabase) {
     goalWeightKg: weightKg ? Math.round(effectiveWeightKg(weightKg, heightCm) * 10) / 10 : null,
     exerciseMin: Math.round(exercise),
     lastMl: Number(last) > 0 ? Number(last) : 250,
+    /** The local day these numbers are for. */
+    day: dayKeyOf(new Date(from)),
   };
 }
 
@@ -81,8 +84,9 @@ export function useWaterToday() {
   // A new local day (midnight, or waking the app on a new day) reloads too.
   const today = useTodayKey();
   const load = useCallback(() => {
-    if (today) getWaterToday(db).then(setData).catch(() => {});
-  }, [db, today]);
+    getWaterToday(db).then(setData).catch(() => {});
+  }, [db]);
+  useEffect(load, [load, today]);
   useEffect(() => {
     load();
     listeners.add(load);

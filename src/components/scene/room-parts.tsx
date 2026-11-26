@@ -16,7 +16,7 @@ import Svg, { Defs, Ellipse, Path, Polygon, RadialGradient, Rect, Stop, LinearGr
 import { AMBIENT, DURATION, EASE, SPRING, floatLoop, loopWithGaps, pick } from '@/motion';
 import { curtainsOpen, DUST_MAX, lampOn, moteOpacity } from '@/logic/scene-state';
 
-import type { RoomPalette } from './palette';
+import { clearOf, type RoomPalette } from './palette';
 
 export const ROOM = { w: 360, h: 240, floorY: 226 } as const;
 const WIN = { x: 34, y: 14, w: 100, h: 104 } as const;
@@ -26,6 +26,7 @@ const LAMP = { x: 304, w: 44 } as const;
 const PLANT = { x: 4, w: 56, h: 80 } as const;
 
 type Live = { k: number; live: boolean };
+const REST = { duration: DURATION.micro.base, easing: EASE.out };
 const box = (x: number, y: number, w: number, h: number, k: number): ViewStyle => ({
   position: 'absolute',
   left: x * k,
@@ -82,7 +83,7 @@ export const Rays = memo(function Rays({ k, stage, day, palette }: { k: number; 
 
 // ---------- curtains ----------
 
-function CurtainPanel({ k, side, stage, live, palette }: Live & { side: 'left' | 'right'; stage: SharedValue<number>; palette: RoomPalette }) {
+const CurtainPanel = memo(function CurtainPanel({ k, side, stage, live, palette }: Live & { side: 'left' | 'right'; stage: SharedValue<number>; palette: RoomPalette }) {
   const w = WIN.w / 2 + 8;
   const h = WIN.h + 16;
   const x = side === 'left' ? WIN.x - 8 : WIN.x + WIN.w / 2;
@@ -91,15 +92,15 @@ function CurtainPanel({ k, side, stage, live, palette }: Live & { side: 'left' |
 
   useEffect(() => {
     if (!live) {
-      cancelAnimation(sway);
+      sway.set(withTiming(0, REST)); // settle, so nothing stays tilted while paused or with Reduce Motion
       return;
     }
     loopWithGaps(sway, 0, AMBIENT.curtainGap, () => {
       'worklet';
       const a = dir * (0.6 + Math.random() * 0.8);
       return withSequence(
-        withTiming(a, { duration: DURATION.transition.long, easing: EASE.inOut }),
-        withTiming(-a * 0.4, { duration: DURATION.transition.long, easing: EASE.inOut }),
+        withTiming(a, { duration: pick(AMBIENT.swayTime, Math.random()), easing: EASE.inOut }),
+        withTiming(-a * 0.4, { duration: pick(AMBIENT.swayTime, Math.random()), easing: EASE.inOut }),
         withSpring(0, SPRING.gentle),
       );
     });
@@ -131,9 +132,9 @@ function CurtainPanel({ k, side, stage, live, palette }: Live & { side: 'left' |
       ))}
     </Animated.View>
   );
-}
+});
 
-export function Curtains(props: Live & { stage: SharedValue<number>; palette: RoomPalette }) {
+export const Curtains = memo(function Curtains(props: Live & { stage: SharedValue<number>; palette: RoomPalette }) {
   return (
     <>
       <CurtainPanel {...props} side="left" />
@@ -144,11 +145,11 @@ export function Curtains(props: Live & { stage: SharedValue<number>; palette: Ro
       />
     </>
   );
-}
+});
 
 // ---------- water glass on the sill ----------
 
-export function WaterGlass({ k, level, water, palette }: { k: number; level: SharedValue<number>; water: string; palette: RoomPalette }) {
+export const WaterGlass = memo(function WaterGlass({ k, level, water, palette }: { k: number; level: SharedValue<number>; water: string; palette: RoomPalette }) {
   const inner = GLASS.h - 3;
   const fill = useAnimatedStyle(() => ({ transform: [{ translateY: (1 - level.get()) * inner * k }] }));
   return (
@@ -171,15 +172,15 @@ export function WaterGlass({ k, level, water, palette }: { k: number; level: Sha
       </Animated.View>
     </View>
   );
-}
+});
 
 // ---------- floor lamp with its warm glow ----------
 
-export function Lamp({ k, stage, day, live, palette }: Live & { stage: SharedValue<number>; day: SharedValue<number>; palette: RoomPalette }) {
+export const Lamp = memo(function Lamp({ k, stage, day, live, palette }: Live & { stage: SharedValue<number>; day: SharedValue<number>; palette: RoomPalette }) {
   const swell = useSharedValue(0);
   useEffect(() => {
     if (!live) {
-      cancelAnimation(swell);
+      swell.set(withTiming(0, REST));
       return;
     }
     loopWithGaps(swell, 0, AMBIENT.glowGap, () => {
@@ -224,23 +225,23 @@ export function Lamp({ k, stage, day, live, palette }: Live & { stage: SharedVal
       </Animated.View>
     </>
   );
-}
+});
 
 // ---------- potted plant ----------
 
-export function Plant({ k, live, palette }: Live & { palette: RoomPalette }) {
+export const Plant = memo(function Plant({ k, live, palette }: Live & { palette: RoomPalette }) {
   const sway = useSharedValue(0);
   useEffect(() => {
     if (!live) {
-      cancelAnimation(sway);
+      sway.set(withTiming(0, REST)); // settle, so nothing stays tilted while paused or with Reduce Motion
       return;
     }
     loopWithGaps(sway, 0, AMBIENT.plantGap, () => {
       'worklet';
       const a = 0.8 + Math.random() * 0.9;
       return withSequence(
-        withTiming(a, { duration: DURATION.transition.long, easing: EASE.inOut }),
-        withTiming(-a * 0.5, { duration: DURATION.transition.long, easing: EASE.inOut }),
+        withTiming(a, { duration: pick(AMBIENT.swayTime, Math.random()), easing: EASE.inOut }),
+        withTiming(-a * 0.5, { duration: pick(AMBIENT.swayTime, Math.random()), easing: EASE.inOut }),
         withSpring(0, SPRING.gentle),
       );
     });
@@ -270,7 +271,7 @@ export function Plant({ k, live, palette }: Live & { palette: RoomPalette }) {
       </View>
     </>
   );
-}
+});
 
 // ---------- dust motes drifting in the light ----------
 
@@ -280,19 +281,20 @@ const MOTES = Array.from({ length: DUST_MAX }, (_, i) => {
   return { x: 70 + r(1) * 170, y: 40 + r(2) * 150, dx: 10 + r(3) * 16, dy: -(12 + r(4) * 20), size: 2.2 + r(5) * 1.8 };
 });
 
-function Mote({ i, k, stage, live, color }: Live & { i: number; stage: SharedValue<number>; color: string }) {
+const Mote = memo(function Mote({ i, k, stage, live, reduced, color }: Live & { i: number; stage: SharedValue<number>; reduced: boolean; color: string }) {
   const m = MOTES[i];
-  const t = useSharedValue(0.5);
+  const t = useSharedValue(0);
   useEffect(() => {
     if (!live) {
-      cancelAnimation(t);
+      cancelAnimation(t); // paused: each mote just holds where it is
       return;
     }
-    floatLoop(t, i * 350, AMBIENT.dustGap, AMBIENT.dustDrift);
+    // Staggered across one drift, so the motes never move in step.
+    floatLoop(t, (i * AMBIENT.dustDrift.min) / DUST_MAX, AMBIENT.dustGap, AMBIENT.dustDrift);
     return () => cancelAnimation(t);
   }, [live, t, i]);
   const style = useAnimatedStyle(() => {
-    const p = live ? t.get() : 0.5; // Reduce Motion: motes rest mid-path, fully visible
+    const p = reduced ? 0.5 : t.get(); // Reduce Motion: motes rest mid-path, fully visible
     return {
       opacity: Math.sin(Math.PI * p) * moteOpacity(i, stage.get()) * 0.9,
       transform: [{ translateX: (m.dx * p + Math.sin(p * Math.PI * 2) * 2) * k }, { translateY: m.dy * p * k }],
@@ -304,34 +306,34 @@ function Mote({ i, k, stage, live, color }: Live & { i: number; stage: SharedVal
       style={[box(m.x, m.y, m.size, m.size, k), { borderRadius: (m.size * k) / 2, backgroundColor: color }, style]}
     />
   );
-}
+});
 
-export function Dust({ k, stage, live, palette }: Live & { stage: SharedValue<number>; palette: RoomPalette }) {
+export const Dust = memo(function Dust({ k, stage, live, reduced, palette }: Live & { stage: SharedValue<number>; reduced: boolean; palette: RoomPalette }) {
   return (
     <>
       {MOTES.map((_, i) => (
-        <Mote key={i} i={i} k={k} stage={stage} live={live} color={palette.dust} />
+        <Mote key={i} i={i} k={k} stage={stage} live={live} reduced={reduced} color={palette.dust} />
       ))}
     </>
   );
-}
+});
 
 // ---------- light: the cool morning veil and the golden glow ----------
 
 /** Full width (edge to edge), fading out at the top and bottom so it blends into the page. */
-export function Veil({ opacity, color }: { opacity: SharedValue<number>; color: string }) {
+export const Veil = memo(function Veil({ opacity, color }: { opacity: SharedValue<number>; color: string }) {
   const style = useAnimatedStyle(() => ({ opacity: opacity.get() }));
   return (
     <Animated.View pointerEvents="none" style={[{ position: 'absolute', inset: 0 }, style]}>
-      <LinearGradient colors={['transparent', color, color, 'transparent']} locations={[0, 0.22, 0.78, 1]} style={{ flex: 1 }} />
+      <LinearGradient colors={[clearOf(color), color, color, clearOf(color)]} locations={[0, 0.22, 0.78, 1]} style={{ flex: 1 }} />
     </Animated.View>
   );
-}
+});
 
 export const Floor = memo(function Floor({ k, palette }: { k: number; palette: RoomPalette }) {
   return (
     <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, top: (ROOM.floorY - 40) * k, height: (ROOM.h - ROOM.floorY + 54) * k }}>
-      <LinearGradient colors={['transparent', palette.floor, palette.floor, 'transparent']} locations={[0, 0.55, 0.75, 1]} style={{ flex: 1 }} />
+      <LinearGradient colors={[clearOf(palette.floor), palette.floor, palette.floor, clearOf(palette.floor)]} locations={[0, 0.55, 0.75, 1]} style={{ flex: 1 }} />
     </View>
   );
 });

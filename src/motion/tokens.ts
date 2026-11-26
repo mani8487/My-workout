@@ -90,6 +90,8 @@ export const AMBIENT = {
   lapGap: { min: 450, max: 1000 },
   /** Living Home: curtain hems sway in a draught now and then. */
   curtainGap: { min: 3000, max: 7000 },
+  /** Living Home: one swing of a curtain hem or the plant's leaves. */
+  swayTime: { min: 550, max: 700 },
   /** Living Home: the plant's leaves stir. */
   plantGap: { min: 3500, max: 8000 },
   /** Living Home: the lamp glow swells and eases (one half-cycle), then rests. */

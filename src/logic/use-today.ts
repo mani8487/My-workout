@@ -10,9 +10,14 @@ import { dayKeyOf, msUntilNextMidnight } from './day';
 
 export function useTodayKey(): string {
   const [key, setKey] = useState(() => dayKeyOf(new Date()));
+  // Bumped by every timer fire, so the timer re-arms even if it fired a little
+  // early (clock correction, time-zone change) and the day hasn't changed yet.
+  const [tick, setTick] = useState(0);
   useEffect(() => {
-    // Re-armed every time the key changes, so it always points at the coming midnight.
-    const timer = setTimeout(() => setKey(dayKeyOf(new Date())), msUntilNextMidnight(new Date()) + 50);
+    const timer = setTimeout(() => {
+      setKey(dayKeyOf(new Date()));
+      setTick((t) => t + 1);
+    }, msUntilNextMidnight(new Date()) + 50);
     const sub = AppState.addEventListener('change', (s) => {
       if (s === 'active') setKey(dayKeyOf(new Date()));
     });
@@ -20,6 +25,6 @@ export function useTodayKey(): string {
       clearTimeout(timer);
       sub.remove();
     };
-  }, [key]);
+  }, [key, tick]);
   return key;
 }

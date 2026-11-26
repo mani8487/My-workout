@@ -12,6 +12,7 @@ import {
   dustCount,
   lampOn,
   minutesText,
+  moodSentence,
   moodOf,
   moteOpacity,
   ratio,
@@ -43,6 +44,7 @@ describe('stage and mood', () => {
     assert.equal(awakeAt(60), 10 / 60);
     assert.equal(awakeAt(15), 1 / 3);
     assert.equal(awakeAt(0), 1 / 3);
+    assert.equal(awakeAt(6), 1 / 3); // a tiny goal: a third of it comes before 10 minutes
   });
   it('maps progress onto 0–2 with 1 at awake', () => {
     assert.equal(stageOf(0, 30), 0);
@@ -124,5 +126,7 @@ describe('words', () => {
     assert.equal(describeScene(10, 30), 'Milo is awake. 10 of 30 active minutes.');
     assert.equal(describeScene(0, 30), 'Milo is asleep. 0 of 30 active minutes.');
     assert.equal(describeScene(1, 0), 'Milo is content. 1 active minute.');
+    assert.equal(moodSentence(5, 30), 'Milo is stirring.');
+    assert.equal(moodSentence(30, 30), 'Milo is content.');
   });
 });

@@ -14,7 +14,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-na
 import { AppText } from '@/components/app-text';
 import { GlassTile } from '@/components/glass-tile';
 import { PressableScale } from '@/components/pressable-scale';
-import { addWater, useWaterToday } from '@/db/water';
+import { addWater, type WaterToday } from '@/db/water';
 import { fmtMl } from '@/logic/hydration';
 import { ratio } from '@/logic/scene-state';
 import { SPRING } from '@/motion';
@@ -23,12 +23,11 @@ import { MIN_TAP, radius, spacing } from '@/theme/typography';
 
 const litres = (ml: number) => (ml / 1000).toFixed(1).replace(/\.0$/, '');
 
-export function WaterChip() {
+/** `water` is passed in by Home, which holds it steady while a sheet covers the screen. */
+export function WaterChip({ water }: { water: WaterToday }) {
   const db = useSQLiteContext();
-  const water = useWaterToday();
   const { colors } = useTheme();
-  const ml = water?.ml ?? 0;
-  const goal = water?.goal ?? 0;
+  const { ml, goal } = water;
   const level = useSharedValue(ratio(ml, goal));
   useEffect(() => {
     level.set(withSpring(ratio(ml, goal), SPRING.gentle));
@@ -39,7 +38,7 @@ export function WaterChip() {
     <PressableScale
       onPress={() => router.push('/water')}
       onLongPress={async () => {
-        const amount = water?.lastMl ?? 250;
+        const amount = water.lastMl;
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
         await addWater(db, amount);
         AccessibilityInfo.announceForAccessibility(`Added ${fmtMl(amount)} millilitres`);
