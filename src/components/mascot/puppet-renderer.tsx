@@ -198,6 +198,7 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
   const allRef = useRef([pose, headLift, headTurn, dip, lap, breath, breathDepth, sx, sy, jumpY, followY, tailSway, earL, earR, earTapL, earTapR, stageOpacity, eyes, paw, bowl, z1, z2, z3, zzOn, confetti, sparks]);
   const unmounted = useRef(false);
   useEffect(() => {
+    unmounted.current = false;
     const all = allRef.current;
     return () => {
       unmounted.current = true;
@@ -292,8 +293,8 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
           reducedTimer = setTimeout(() => settle('waking'), micro.fast + micro.base);
           break;
         }
-        // 1. The head lifts and the eyes open.
-        headLift.set(withSequence(withSpring(1, SPRING.gentle), withDelay(WAKE.land - SPRING.gentle.duration, withSpring(0, SPRING.soft))));
+        // 1. The head lifts and the eyes open; it lowers again as he lands (springs settle in about 1.5x their duration).
+        headLift.set(withSequence(withSpring(1, SPRING.gentle), withDelay(WAKE.land - SPRING.gentle.duration * 1.5, withSpring(0, SPRING.soft))));
         eyes.set(withDelay(WAKE.eyesOpen, withTiming(0, { duration: micro.base, easing: EASE.out })));
         // 2. A long, low stretch, a crouch (anticipation), up into the hop, down, a squash on landing, settle.
         const body = (axis: 'x' | 'y') =>
@@ -385,7 +386,10 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
     // cleanup already stopped its loops. Reduce Motion also clears idle offsets
     // (but leaves paw, eyes and confetti to the still pose the transition set).
     if (reducedMotion) {
-      [breath, tailSway, earL, earR, lap, z1, z2, z3].forEach((v) => v.set(0));
+      // Zeroed behind the Reduce Motion fade, like the pose swap.
+      [breath, tailSway, earL, earR, lap, z1, z2, z3].forEach((v) =>
+        v.set(withDelay(micro.fast, withTiming(0, { duration: 0, reduceMotion: NEVER }), NEVER)),
+      );
       return;
     }
     if (paused) return;

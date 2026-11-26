@@ -7,6 +7,7 @@
  *   the result (springs and timings use ReduceMotion.System).
  * - <ReducedMotionOverride> asks the root to force it on or off while that
  *   screen is mounted (the Scene Lab), and clears the request on unmount.
+ *   It applies app-wide and supports one override at a time.
  * - useReducedMotion() returns the result. Always use this one, not
  *   Reanimated's (which only reads the setting once, at app launch).
  */
