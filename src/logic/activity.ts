@@ -64,3 +64,23 @@ export function describeLog(name: string, amount: number, unit: ActivityUnit): s
   const n = Number.isInteger(amount) ? String(amount) : amount.toFixed(1);
   return unit === 'reps' ? `${n} ${name.toLowerCase()}` : `${n} min ${name.toLowerCase()}`;
 }
+
+type LogLike = { id: number; activity: string; name: string; amount: number; unit: ActivityUnit; loggedAt: number };
+
+/**
+ * Logs of the same activity (and unit) combined into one entry, so two walks
+ * show as "40 min walk" instead of "20 min walk · 20 min walk". Ordered by
+ * each activity's first log of the day; `logs` keeps the originals (to delete one).
+ */
+export function groupLogs<T extends LogLike>(logs: readonly T[]): { key: string; name: string; activity: string; unit: ActivityUnit; amount: number; logs: T[] }[] {
+  const groups = new Map<string, { key: string; name: string; activity: string; unit: ActivityUnit; amount: number; logs: T[] }>();
+  for (const l of [...logs].sort((a, b) => a.loggedAt - b.loggedAt || a.id - b.id)) {
+    const key = `${l.activity}|${l.unit}`;
+    const g = groups.get(key);
+    if (g) {
+      g.amount += l.amount;
+      g.logs.push(l);
+    } else groups.set(key, { key, name: l.name, activity: l.activity, unit: l.unit, amount: l.amount, logs: [l] });
+  }
+  return [...groups.values()];
+}

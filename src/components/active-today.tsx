@@ -14,7 +14,7 @@ import { GlassTile } from '@/components/glass-tile';
 import { PressableScale } from '@/components/pressable-scale';
 import { ProgressRing } from '@/components/progress-ring';
 import type { QuickLog } from '@/db/quick-log';
-import { ACTIVITY_PRESETS, describeLog } from '@/logic/activity';
+import { ACTIVITY_PRESETS, describeLog, groupLogs } from '@/logic/activity';
 import { DURATION, EASE } from '@/motion';
 import { useTheme } from '@/theme/theme-context';
 import { isMistTheme, MIN_TAP, radius, spacing } from '@/theme/typography';
@@ -124,7 +124,8 @@ export function DayLogList({ logs, onDelete }: { logs: QuickLog[]; onDelete: (lo
 
 /**
  * Living Home: today's minutes and the selected day's activities as one light
- * line ("20 / 30 active min · 20 min walk · 10 min yoga"), so they read as progress
+ * line ("20 / 30 active min · 40 min walk · 10 min yoga"; the same activity twice is
+ * one combined entry), so they read as progress
  * rather than as more buttons. Scrolls sideways if there are many; new ones fade
  * in. Tap one to delete it (it asks first).
  */
@@ -148,12 +149,24 @@ export function LogLine({ lead, logs, onDelete, emptyText }: { lead: string | nu
           {lead ? `  ·  ${emptyText}` : emptyText}
         </AppText>
       ) : (
-        logs.map((l, i) => {
-          const icon = ACTIVITY_PRESETS.find((p) => p.id === l.activity)?.icon ?? 'figure.mixed.cardio';
-          const what = describeLog(l.name, l.amount, l.unit);
+        groupLogs(logs).map((g, i) => {
+          const icon = ACTIVITY_PRESETS.find((p) => p.id === g.activity)?.icon ?? 'figure.mixed.cardio';
+          const what = describeLog(g.name, g.amount, g.unit);
+          const one = (l: QuickLog) => `${describeLog(l.name, l.amount, l.unit)} at ${format(l.loggedAt, 'H:mm')}`;
+          const ask = () =>
+            g.logs.length === 1
+              ? Alert.alert('Delete this log?', one(g.logs[0]), [
+                  { text: 'Keep', style: 'cancel' },
+                  { text: 'Delete', style: 'destructive', onPress: () => onDelete(g.logs[0]) },
+                ])
+              : Alert.alert(`${what} today`, 'Which log do you want to delete?', [
+                  ...g.logs.map((l) => ({ text: `Delete ${one(l)}`, style: 'destructive' as const, onPress: () => onDelete(l) })),
+                  { text: 'Keep all', style: 'cancel' as const },
+                ]);
           return (
             <Animated.View
-              key={l.id}
+              // A new total fades in gently (e.g. "20 min walk" becoming "40 min walk").
+              key={`${g.key}-${g.amount}`}
               entering={FadeIn.duration(DURATION.transition.base).easing(EASE.out)}
               layout={LinearTransition.duration(DURATION.transition.short).easing(EASE.inOut)}
               style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -163,15 +176,10 @@ export function LogLine({ lead, logs, onDelete, emptyText }: { lead: string | nu
                 </AppText>
               )}
               <PressableScale
-                onPress={() =>
-                  Alert.alert('Delete this log?', what, [
-                    { text: 'Keep', style: 'cancel' },
-                    { text: 'Delete', style: 'destructive', onPress: () => onDelete(l) },
-                  ])
-                }
+                onPress={ask}
                 accessibilityRole="button"
-                accessibilityLabel={`${what} at ${format(l.loggedAt, 'H:mm')}`}
-                accessibilityHint="Asks before deleting this log"
+                accessibilityLabel={g.logs.length === 1 ? one(g.logs[0]) : `${what}, ${g.logs.length} logs`}
+                accessibilityHint={g.logs.length === 1 ? 'Asks before deleting this log' : 'Lets you pick a log to delete'}
                 style={{ minHeight: MIN_TAP, flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
                 <SymbolView name={icon as SFSymbol} size={14} tintColor={colors.accent} />
                 <AppText variant="small" color={colors.textMuted}>
