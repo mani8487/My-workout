@@ -60,6 +60,9 @@ type Props = {
   /** Called when it's time to open the workout screen. Not called if the room leaves the screen first
    *  (a tab switch, the app going to the background): the trip is then abandoned. */
   onDeparted?: () => void;
+  /** The start move was cut short (the app went to the background, or a tab switch) and the room is
+   *  back on screen: Home should bring the room back (bump arriveCue) and unlock. */
+  onAbandoned?: () => void;
   /** Bump when back on Home after leaving: the room eases back and Milo hops into his spot. */
   arriveCue?: number;
   /** Milo wears his towel (a workout is done today). */
@@ -67,7 +70,7 @@ type Props = {
   miloCue?: number;
 };
 
-export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinutes, waterMl, waterGoalMl, hour, maxHeight, from, miloOverride, miloCue = 0, departCue = 0, onDeparted, arriveCue = 0, towel = false }: Props) {
+export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinutes, waterMl, waterGoalMl, hour, maxHeight, from, miloOverride, miloCue = 0, departCue = 0, onDeparted, onAbandoned, arriveCue = 0, towel = false }: Props) {
   const { width, height } = useWindowDimensions();
   const { isDark, colors } = useTheme();
   const palette = roomPalette(isDark);
@@ -112,9 +115,11 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
     else if (seen.arriveCue !== arriveCue && arriveCue) setTravel('arriving');
   }
   const departedRef = useRef(onDeparted);
+  const abandonedRef = useRef(onAbandoned);
   useEffect(() => {
     departedRef.current = onDeparted;
-  }, [onDeparted]);
+    abandonedRef.current = onAbandoned;
+  }, [onDeparted, onAbandoned]);
   useEffect(() => {
     if (!departCue || departCue === initialCues.departCue) return;
     // Milo goes first (perk, crouch, hop); the room follows him out as he lands. With Reduce Motion, a plain fade.
@@ -130,10 +135,17 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
   // Open the workout screen on time, unless the room left the screen first (then the trip is abandoned
   // and the return plays when Home is back).
   const opened = useRef(initialCues.departCue);
+  const abandoned = useRef(0);
   useEffect(() => {
+    // Back on screen after an abandoned trip: hand it back to Home, which brings the room back.
+    if (onScreen && abandoned.current) {
+      abandoned.current = 0;
+      abandonedRef.current?.();
+    }
     if (!departCue || opened.current === departCue) return;
     if (!onScreen) {
       opened.current = departCue;
+      abandoned.current = departCue;
       return;
     }
     const t = setTimeout(
@@ -221,8 +233,8 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
 
   return (
     <Animated.View
-      accessible
       // While the room is away (off to a workout) it isn't read out.
+      accessible={travel !== 'departing'}
       accessibilityElementsHidden={travel === 'departing'}
       accessibilityRole="image"
       accessibilityLabel={describeScene(activeMinutes, goalMinutes)}

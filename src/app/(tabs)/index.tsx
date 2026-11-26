@@ -149,18 +149,25 @@ export default function HomeScreen() {
   const leaving = useRef(false);
   /** While the start move plays, Home ignores taps (so nothing else opens on top of it). */
   const [locked, setLocked] = useState(false);
+  const comeBack = useCallback(() => {
+    if (!away.current) return; // already back (never twice)
+    away.current = false;
+    leaving.current = false;
+    setLocked(false);
+    setArriveCue((c) => c + 1);
+  }, []);
   useFocusEffect(
     useCallback(() => {
-      leaving.current = false;
-      setLocked(false);
-      if (!away.current) return;
+      if (!away.current) {
+        leaving.current = false;
+        setLocked(false);
+        return;
+      }
       // A beat after Home is back in view (the workout screen has faded away), Milo hops back in.
-      const t = setTimeout(() => {
-        away.current = false;
-        setArriveCue((c) => c + 1);
-      }, TRIP.arrive);
+      // Home stays locked until then, so a quick tap on Start can't race the return.
+      const t = setTimeout(comeBack, TRIP.arrive);
       return () => clearTimeout(t);
-    }, []),
+    }, [comeBack]),
   );
   // Stable, so the (memoised) room doesn't re-render for it.
   const todaysWorkoutId = data?.workout?.id;
@@ -698,6 +705,7 @@ export default function HomeScreen() {
                 maxHeight={roomHeight}
                 departCue={departCue}
                 onDeparted={openTodaysPreview}
+                onAbandoned={comeBack}
                 arriveCue={arriveCue}
                 towel={data.workoutDone}
               />

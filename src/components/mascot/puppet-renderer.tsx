@@ -381,9 +381,9 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
         // Ears perk, a crouch (anticipation), one arc off the couch toward you, and a soft landing
         // on the floor in front (squash, then a small settle). He ends up a little bigger: closer.
         if (R) {
+          // Still pose; the room's own fade carries the change.
           place(pose, 1);
           place(eyes, 0);
-          place(near, ARC.leap.near);
           break;
         }
         pose.set(withTiming(1, { duration: LEAVE.takeoff, easing: EASE.inOut })); // off the couch if he was lying on it
@@ -420,7 +420,7 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
       }
 
       case 'arriving': {
-        // The way back: he starts close to you (bigger, faded out), hops back to his spot and lands softly.
+        // The way back: he starts close to you (bigger, faded out), crouches, hops back to his spot and lands softly.
         if (R) {
           place(pose, 1);
           place(jumpY, 0);
@@ -437,15 +437,20 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
         near.set(ARC.leap.near);
         present.set(0);
         present.set(withTiming(1, { duration: micro.base, easing: EASE.out }));
+        const crouch = LEAVE.takeoff - LEAVE.crouch; // the same anticipation as leaving
         jumpY.set(
-          withSequence(
-            withTiming(-ARC.leap.height, { duration: ARC.leap.rise, easing: EASE.rise }),
-            withTiming(0, { duration: ARC.leap.fall, easing: EASE.fall }),
+          withDelay(
+            crouch,
+            withSequence(
+              withTiming(-ARC.leap.height, { duration: ARC.leap.rise, easing: EASE.rise }),
+              withTiming(0, { duration: ARC.leap.fall, easing: EASE.fall }),
+            ),
           ),
         );
-        near.set(withTiming(1, { duration: ARC.leap.rise + ARC.leap.fall, easing: EASE.inOut }));
+        near.set(withDelay(crouch, withTiming(1, { duration: ARC.leap.rise + ARC.leap.fall, easing: EASE.inOut })));
         const land = (axis: 'x' | 'y') =>
           withSequence(
+            withTiming(SHAPE.crouch[axis], { duration: crouch, easing: EASE.out }),
             withTiming(SHAPE.takeoff[axis], { duration: ARC.leap.rise, easing: EASE.rise }),
             withTiming(1, { duration: ARC.leap.fall, easing: EASE.fall }),
             withTiming(SHAPE.land[axis], { duration: micro.fast, easing: EASE.out }),
@@ -660,7 +665,7 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
   // The towel sits on his shoulders, so it squashes, stretches and breathes with the body.
   const towelStyle = useAnimatedStyle(() => ({
     opacity: towelOn.get() * pose.get(),
-    transform: [{ scaleX: sx.get() }, { scaleY: sy.get() * (1 + breath.get() * amp(1)) }],
+    transform: [{ scaleX: sx.get() }, { scaleY: sy.get() * (1 + breath.get() * amp(1)) * (1 - dip.get() * 0.08) }],
   }));
   const couchStyle = useAnimatedStyle(() => ({ opacity: keepCouch ? 1 : 1 - pose.get() }));
   const bowlStyle = useAnimatedStyle(() => ({ opacity: bowl.get() }));
