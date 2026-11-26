@@ -1,30 +1,39 @@
 /**
  * Scene Lab: a tester's bench for judging motion on the phone. Reached from
- * More → Scene Lab. Forces Mist light or dark and Reduce Motion on or off for
- * everything on this screen, and plays each Milo state on demand.
+ * More → Scene Lab. Drives the Living Home room with sliders (active minutes,
+ * goal, water, time of day), forces Mist light or dark and Reduce Motion on or
+ * off for everything on this screen, and plays each Milo state on demand.
  *
  * Kept in release builds on purpose: it is used through published updates.
- * Phase 0 covers Milo; later phases add the room, progress and cameos here.
  */
+import Slider from '@react-native-community/slider';
+import * as Haptics from 'expo-haptics';
 import { useEffect, useState, type ReactNode } from 'react';
 import { AccessibilityInfo, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
-import { Milo, useMiloState, type MiloState } from '@/components/mascot';
+import { type MiloState } from '@/components/mascot';
 import { Page } from '@/components/page';
 import { PressableScale } from '@/components/pressable-scale';
+import { LivingScene } from '@/components/scene/living-scene';
+import { minutesText, moodSentence } from '@/logic/scene-state';
 import { ReducedMotionOverride, useReducedMotion } from '@/motion';
 import { MistPreview, useTheme } from '@/theme/theme-context';
 import { MIN_TAP, radius, spacing } from '@/theme/typography';
 
-const STATES: { state: MiloState; label: string }[] = [
+const STATES: { state: MiloState | null; label: string }[] = [
+  { state: null, label: 'Auto' },
   { state: 'sleeping', label: 'Sleeping' },
+  { state: 'stirring', label: 'Stirring' },
   { state: 'waking', label: 'Waking' },
   { state: 'sitting', label: 'Sitting' },
+  { state: 'content', label: 'Content' },
   { state: 'reacting', label: 'Paw lift' },
   { state: 'celebrating', label: 'Celebrate' },
   { state: 'drinking', label: 'Drinking' },
 ];
+const GOALS = [0, 30, 60];
+const WATER_GOAL = 2000;
 
 type Motion = 'system' | 'on' | 'off';
 
@@ -64,41 +73,106 @@ function Row({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
+function LabSlider({ label, value, min, max, step, onChange }: { label: string; value: number; min: number; max: number; step: number; onChange: (v: number) => void }) {
+  const { colors } = useTheme();
+  return (
+    <View style={{ gap: spacing.xs }}>
+      <AppText variant="small" muted>
+        {label}
+      </AppText>
+      <Slider
+        accessibilityLabel={label}
+        style={{ height: MIN_TAP }}
+        value={value}
+        minimumValue={min}
+        maximumValue={max}
+        step={step}
+        onValueChange={onChange}
+        minimumTrackTintColor={colors.accent}
+        maximumTrackTintColor={colors.border}
+      />
+    </View>
+  );
+}
+
+const clock = (h: number) => `${String(Math.floor(h) % 24).padStart(2, '0')}:${h % 1 ? '30' : '00'}`;
+
 function LabBody({ dark, setDark, motion, setMotion }: { dark: boolean; setDark: (d: boolean) => void; motion: Motion; setMotion: (m: Motion) => void }) {
-  const milo = useMiloState('sleeping');
   const reduced = useReducedMotion();
-  const label = STATES.find((x) => x.state === milo.state)?.label ?? milo.state;
+  const [minutes, setMinutes] = useState(0);
+  const [goal, setGoal] = useState(30);
+  const [waterMl, setWaterMl] = useState(500);
+  const [hour, setHour] = useState(() => Math.round(new Date().getHours() * 2) / 2);
+  const [override, setOverride] = useState<MiloState | null>(null);
+  const [cue, setCue] = useState(0);
+  const [replay, setReplay] = useState(0);
+
+  const label = STATES.find((x) => x.state === override)?.label ?? 'Auto';
   useEffect(() => {
     AccessibilityInfo.announceForAccessibility(`Milo: ${label}`);
   }, [label]);
 
-  const choose = (state: MiloState) => {
-    // Waking only happens from sleep; the button replays it from lying down.
-    if (state === 'waking') {
-      if (milo.state === 'sleeping') milo.wake();
-      else milo.sleep();
-    } else milo.set(state);
+  const choose = (state: MiloState | null) => {
+    // Waking only happens from lying down: the first tap lays Milo down, the next one wakes him.
+    if (state === 'waking' && override !== 'sleeping' && override !== 'stirring') setOverride('sleeping');
+    else setOverride(state);
+    setCue((c) => c + 1);
   };
 
   return (
     <Page title="Scene Lab">
       <View style={{ gap: spacing.md }}>
-        <View style={{ alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.md }}>
-          <AppText variant="label" muted>
-            Now: {label}
+        <View style={{ marginHorizontal: -spacing.lg }}>
+          <LivingScene
+            key={replay}
+            activeMinutes={minutes}
+            goalMinutes={goal}
+            waterMl={waterMl}
+            waterGoalMl={WATER_GOAL}
+            hour={hour}
+            from={replay > 0 ? { stage: 0, water: 0 } : undefined}
+            miloOverride={override}
+            miloCue={cue}
+          />
+        </View>
+        <View style={{ alignItems: 'center', gap: 2 }}>
+          <AppText variant="label">{override ? `Milo: ${label}` : moodSentence(minutes, goal)}</AppText>
+          <AppText variant="small" muted>
+            {minutesText(minutes, goal)} · {(waterMl / 1000).toFixed(1)} / 2 L · {clock(hour)}
             {reduced ? ' · Reduce Motion' : ''}
           </AppText>
-          <Milo {...milo.props} size={260} />
         </View>
 
-        <Row title="Milo">
-          {STATES.map(({ state, label }) => (
+        <LabSlider label={`Active minutes: ${minutes}`} value={minutes} min={0} max={60} step={1} onChange={setMinutes} />
+        <Row title="Daily goal (minutes)">
+          {GOALS.map((g) => (
+            <Chip key={g} label={String(g)} on={goal === g} onPress={() => setGoal(g)} />
+          ))}
+          <Chip
+            label="Log 10 min"
+            on={false}
+            hint="Adds 10 minutes the way a real log does, with a light buzz"
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+              setMinutes((m) => Math.min(60, m + 10));
+            }}
+          />
+        </Row>
+        <LabSlider label={`Water: ${waterMl} ml of ${WATER_GOAL}`} value={waterMl} min={0} max={3000} step={50} onChange={setWaterMl} />
+        <LabSlider label={`Time of day: ${clock(hour)}`} value={hour} min={0} max={23.5} step={0.5} onChange={setHour} />
+
+        <Row title="Catch-up">
+          <Chip label="Replay from 0" on={false} hint="Rebuilds the room and plays the catch-up from an empty morning" onPress={() => setReplay((r) => r + 1)} />
+        </Row>
+
+        <Row title="Milo (Auto follows the minutes)">
+          {STATES.map(({ state, label: l }) => (
             <Chip
-              key={state}
-              label={label}
-              on={milo.state === state}
+              key={l}
+              label={l}
+              on={override === state}
               onPress={() => choose(state)}
-              hint={state === 'waking' && milo.state !== 'sleeping' ? 'Puts Milo to sleep first; tap again to wake him' : undefined}
+              hint={state === 'waking' && override !== 'sleeping' && override !== 'stirring' ? 'Lays Milo down first; tap again to wake him' : undefined}
             />
           ))}
         </Row>
@@ -114,15 +188,8 @@ function LabBody({ dark, setDark, motion, setMotion }: { dark: boolean; setDark:
           <Chip label="On" on={motion === 'on'} onPress={() => setMotion('on')} />
         </Row>
 
-        <View style={{ alignItems: 'center', gap: spacing.xs }}>
-          <AppText variant="small" muted>
-            Small size
-          </AppText>
-          <Milo {...milo.props} size={100} />
-        </View>
-
         <AppText variant="small" muted>
-          Tap Milo to pet him. Waking: tap Waking once to lay him down, then again to watch him wake.
+          Tap Milo to pet him. The room is the same one Home shows in the Mist theme.
         </AppText>
       </View>
     </Page>
