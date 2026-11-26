@@ -10,11 +10,10 @@
  * with a head turn or ear twitch plus a light haptic.
  */
 import * as Haptics from 'expo-haptics';
-import { useIsFocused } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { AppState, Pressable, type StyleProp, type ViewStyle } from 'react-native';
-import { useReducedMotion } from 'react-native-reanimated';
+import { useState } from 'react';
+import { Pressable, type StyleProp, type ViewStyle } from 'react-native';
 
+import { useMotionActive, useReducedMotion } from '@/motion';
 import { useTheme } from '@/theme/theme-context';
 
 import { ActiveMiloRenderer } from './renderer';
@@ -40,21 +39,10 @@ type Props = {
   style?: StyleProp<ViewStyle>;
 };
 
-/** True while this screen is focused and the app is in the foreground. */
-function useOnScreen() {
-  const focused = useIsFocused();
-  const [active, setActive] = useState(AppState.currentState === 'active');
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', (s) => setActive(s === 'active'));
-    return () => sub.remove();
-  }, []);
-  return focused && active;
-}
-
 export function Milo({ state, size = 160, cue = 0, onSettled, onPress, style }: Props) {
   const reducedMotion = useReducedMotion();
   const { isDark } = useTheme();
-  const onScreen = useOnScreen();
+  const onScreen = useMotionActive();
   const [tapSignal, setTapSignal] = useState(0);
   const Renderer = ActiveMiloRenderer;
 

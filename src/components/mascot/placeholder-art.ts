@@ -7,18 +7,10 @@
  * layer (same viewBox). See assets/mascot/README.md.
  */
 import type { LayerName } from './layers';
+import { MILO_ART } from './palette';
 
-const LINE = '#4A5563'; // soft outline, readable on light and dark backgrounds
-const FUR = '#A9B2BE';
-const STRIPE = '#7F8996';
-const WHITE = '#F7F8FA';
-const PINK = '#E8B4B8';
-const EYE = '#28384A';
-const MINT = '#A8DCC6';
-const MINT_LIGHT = '#BFE6D5';
-const MINT_DEEP = '#8FCDB3';
-const WOOD = '#B08D6E';
-const AQUA = '#55CBE3';
+const { line: LINE, fur: FUR, stripe: STRIPE, white: WHITE, pink: PINK, eye: EYE, mint: MINT, mintLight: MINT_LIGHT, mintDeep: MINT_DEEP, wood: WOOD, aqua: AQUA } =
+  MILO_ART;
 
 const svg = (w: number, h: number, body: string) =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" fill="none" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
