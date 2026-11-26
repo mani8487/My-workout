@@ -156,16 +156,22 @@ const MOOD_WORDS: Record<Mood, string> = {
   content: 'Milo is content',
 };
 
+/** Whole minutes for display: anything above zero shows as at least 1 (matches Milo's lines). */
+function shownMinutes(x: number): number {
+  const v = Math.max(0, finite(x));
+  return v > 0 ? Math.max(1, Math.round(v)) : 0;
+}
+
 /** "10 / 30 active min" (the small text under the scene). */
 export function minutesText(activeMinutes: number, goalMinutes: number): string {
-  const m = Math.round(Math.max(0, finite(activeMinutes)));
+  const m = shownMinutes(activeMinutes);
   const g = Math.round(Math.max(0, finite(goalMinutes)));
   return g > 0 ? `${m} / ${g} active min` : `${m} active min`;
 }
 
 /** VoiceOver: "Milo is awake. 10 of 30 active minutes." */
 export function describeScene(activeMinutes: number, goalMinutes: number): string {
-  const m = Math.round(Math.max(0, finite(activeMinutes)));
+  const m = shownMinutes(activeMinutes);
   const g = Math.round(Math.max(0, finite(goalMinutes)));
   const amount = g > 0 ? `${m} of ${g} active minutes` : `${m} active ${m === 1 ? 'minute' : 'minutes'}`;
   return `${MOOD_WORDS[moodOf(activeMinutes, goalMinutes)]}. ${amount}.`;

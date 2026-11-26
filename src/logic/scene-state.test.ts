@@ -122,6 +122,8 @@ describe('words', () => {
   it('short text and VoiceOver label', () => {
     assert.equal(minutesText(10.4, 30), '10 / 30 active min');
     assert.equal(minutesText(4, 0), '4 active min');
+    assert.equal(minutesText(0.4, 30), '1 / 30 active min'); // a short session still shows
+    assert.equal(describeScene(0.4, 30), 'Milo is stirring. 1 of 30 active minutes.');
     assert.equal(describeScene(10, 30), 'Milo is awake. 10 of 30 active minutes.');
     assert.equal(describeScene(0, 30), 'Milo is asleep. 0 of 30 active minutes.');
     assert.equal(describeScene(1, 0), 'Milo is content. 1 active minute.');

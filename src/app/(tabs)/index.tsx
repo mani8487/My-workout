@@ -137,8 +137,8 @@ export default function HomeScreen() {
   // Living Home: a light buzz when a movement you just logged lands in the room.
   // Set when "+ Log movement" opens the sheet; checked (and cleared) on the very next reload.
   const logPending = useRef(false);
-  /** Set on coming back from the background; the next load gives Milo a new line. */
-  const freshLine = useRef(false);
+  /** Set on opening the app and on coming back from the background; the next load gives Milo a new line. */
+  const freshLine = useRef(true);
   const prevMinutes = useRef<{ day: string; minutes: number } | null>(null);
   // Where the room's first catch-up starts; captured once, on the first load.
   const [sceneFrom, setSceneFrom] = useState<{ stage: number; water: number } | null>(null);
