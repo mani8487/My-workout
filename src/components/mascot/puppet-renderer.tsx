@@ -42,7 +42,16 @@ const fill: ViewStyle = { position: 'absolute', left: 0, top: 0 };
 const { micro, transition } = DURATION;
 
 /** Reduce Motion: states that look different swap behind a quick fade. */
-const LOOK: Record<MiloState, string> = { sleeping: 'lie', waking: 'sit', sitting: 'sit', reacting: 'paw', celebrating: 'party', drinking: 'drink' };
+const LOOK: Record<MiloState, string> = {
+  sleeping: 'lie',
+  stirring: 'lie',
+  waking: 'sit',
+  sitting: 'sit',
+  content: 'content',
+  reacting: 'paw',
+  celebrating: 'party',
+  drinking: 'drink',
+};
 const NEVER = ReduceMotion.Never;
 
 /** How far the ears and tail trail the body (degrees per stage point of lag). */
@@ -162,9 +171,9 @@ function Z({ progress, on, k, color }: { progress: SharedValue<number>; on: Shar
 
 // ---------- the renderer ----------
 
-export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, tapSignal, paused, reducedMotion, isDark, onSettled }: MiloRendererProps) {
+export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, tapSignal, paused, reducedMotion, isDark, keepCouch = false, onSettled }: MiloRendererProps) {
   const k = size / STAGE;
-  const lying = state === 'sleeping' || state === 'waking';
+  const lying = state === 'sleeping' || state === 'stirring' || state === 'waking';
 
   // Pose: 0 = lying on the couch, 1 = sitting. Waking blends between them.
   const pose = useSharedValue(lying ? 0 : 1);
@@ -184,7 +193,7 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
   const earTapL = useSharedValue(0); // tap twitches add on top, so they never stop the idle ear loop
   const earTapR = useSharedValue(0);
   const stageOpacity = useSharedValue(1); // Reduce Motion: dips to swap poses unseen
-  const eyes = useSharedValue(state === 'sleeping' || state === 'drinking' ? 1 : 0); // 1 = closed
+  const eyes = useSharedValue(state === 'sleeping' || state === 'stirring' || state === 'drinking' || state === 'content' ? 1 : 0); // 1 = closed
   const paw = useSharedValue(0);
   const bowl = useSharedValue(state === 'drinking' ? 1 : 0);
   const z1 = useSharedValue(0);
@@ -263,6 +272,7 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
 
     switch (state) {
       case 'sleeping':
+      case 'stirring':
         to(pose, 0, SPRING.gentle);
         to(headLift, 0, SPRING.gentle);
         // Eyelids close slowly, like dozing off.
@@ -274,6 +284,14 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
         to(pose, 1, SPRING.gentle);
         to(headLift, 0);
         fade(eyes, 0, micro.base);
+        break;
+
+      case 'content':
+        to(pose, 1, SPRING.gentle);
+        to(headLift, 0);
+        // Eyes settle closed, happily.
+        if (R) place(eyes, 1);
+        else eyes.set(withTiming(1, { duration: transition.short, easing: EASE.inOut }));
         break;
 
       case 'drinking':
@@ -370,7 +388,7 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
   const celebrateCue = state === 'celebrating' ? cue : 0;
   useEffect(() => {
     const loops = [breath, z1, z2, z3, tailSway, earL, earR, lap];
-    if (state === 'sitting' || state === 'reacting') loops.push(eyes);
+    if (state === 'sitting' || state === 'reacting' || state === 'content') loops.push(eyes);
     if (state === 'celebrating') loops.push(sx, sy, paw, eyes, confetti, jumpY);
     const stopAll = () => {
       loops.forEach((v) => cancelAnimation(v));
@@ -394,8 +412,12 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
     }
     if (paused) return;
     const sleeping = state === 'sleeping';
+    const lyingDown = sleeping || state === 'stirring';
+    const content = state === 'content';
 
-    breathe(breath, breathDepth, sleeping ? AMBIENT.breathSleeping : AMBIENT.breathAwake, AMBIENT.breathDepth);
+    const breathRange =
+      state === 'sleeping' ? AMBIENT.breathSleeping : state === 'stirring' ? AMBIENT.breathStirring : content ? AMBIENT.breathContent : AMBIENT.breathAwake;
+    breathe(breath, breathDepth, breathRange, AMBIENT.breathDepth);
 
     if (sleeping) {
       // Three "z"s, each on its own randomised clock, started a beat apart.
@@ -404,8 +426,9 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
       floatLoop(z3, AMBIENT.zGap.max * 2, AMBIENT.zGap, AMBIENT.zRise);
     }
 
-    const sway = sleeping ? 5 : 10;
-    loopWithGaps(tailSway, 0, sleeping ? AMBIENT.tailGapSleeping : AMBIENT.tailGapAwake, () => {
+    const sway = lyingDown ? 5 : content ? 6 : 10;
+    const tailGap = lyingDown ? AMBIENT.tailGapSleeping : content ? AMBIENT.tailGapContent : AMBIENT.tailGapAwake;
+    loopWithGaps(tailSway, 0, tailGap, () => {
       'worklet';
       const a = sway * pick(AMBIENT.tailSize, Math.random());
       return withSequence(
@@ -419,8 +442,20 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
       'worklet';
       return withSequence(withTiming(dir * (10 + Math.random() * 5), { duration: micro.fast, easing: EASE.out }), withSpring(0, SPRING.snappy));
     };
-    loopWithGaps(earL, 0, AMBIENT.earGap, flick(-1));
-    loopWithGaps(earR, 0, AMBIENT.earGap, flick(1));
+    const earGap = state === 'stirring' ? AMBIENT.earGapStirring : AMBIENT.earGap;
+    loopWithGaps(earL, 0, earGap, flick(-1));
+    loopWithGaps(earR, 0, earGap, flick(1));
+
+    if (content) {
+      // A slow "cat blink": the eyes open a little, linger, and close again.
+      loopWithGaps(eyes, 1, AMBIENT.contentBlinkGap, () => {
+        'worklet';
+        return withSequence(
+          withTiming(0.35, { duration: transition.short, easing: EASE.inOut }),
+          withDelay(transition.base, withTiming(1, { duration: transition.base, easing: EASE.inOut })),
+        );
+      });
+    }
 
     if (state === 'sitting' || state === 'reacting') {
       loopWithGaps(eyes, 0, AMBIENT.blinkGap, () => {
@@ -501,7 +536,7 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
   useEffect(() => {
     if (tapSignal === 0 || reducedMotion) return;
     const flick = (deg: number) => withSequence(withTiming(deg, { duration: micro.fast, easing: EASE.out }), withSpring(0, SPRING.snappy));
-    if (stateRef.current === 'sleeping' || tapSignal % 2 === 0) {
+    if (stateRef.current === 'sleeping' || stateRef.current === 'stirring' || tapSignal % 2 === 0) {
       earTapL.set(flick(-14));
       earTapR.set(withDelay(micro.fast / 2, flick(14))); // the second ear a beat later
     } else {
@@ -524,7 +559,7 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
 
   const stageStyle = useAnimatedStyle(() => ({ opacity: stageOpacity.get() }));
   const rigStyle = useAnimatedStyle(() => ({ transform: [{ translateY: jumpY.get() * k }] }));
-  const couchStyle = useAnimatedStyle(() => ({ opacity: 1 - pose.get() }));
+  const couchStyle = useAnimatedStyle(() => ({ opacity: keepCouch ? 1 : 1 - pose.get() }));
   const bowlStyle = useAnimatedStyle(() => ({ opacity: bowl.get() }));
 
   const shadowStyle = useAnimatedStyle(() => {

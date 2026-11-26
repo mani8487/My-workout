@@ -11,7 +11,9 @@ import type { ComponentType } from 'react';
 export type MiloState =
   | 'sleeping'
   | 'waking' // head lifts, stretch, hop, then settles into sitting
+  | 'stirring' // still lying down, breathing a little quicker (first activity of the day)
   | 'sitting'
+  | 'content' // sitting with happy, mostly closed eyes (goal reached)
   | 'reacting' // paw lift, e.g. when a set is saved
   | 'celebrating' // jump with confetti
   | 'drinking'; // laps from a water bowl
@@ -30,6 +32,8 @@ export type MiloRendererProps = {
   reducedMotion: boolean;
   /** Dark backgrounds get a darker contact shadow and lighter "Zz". */
   isDark: boolean;
+  /** The couch is part of the room: keep it when Milo gets up (otherwise it fades away). */
+  keepCouch?: boolean;
   /** Called when a one-shot state (waking, reacting) has finished. */
   onSettled: (state: MiloState) => void;
 };

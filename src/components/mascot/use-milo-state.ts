@@ -26,7 +26,7 @@ export function useMiloState(initial: MiloState = 'sitting') {
       props: { state, cue, onSettled },
       set: go,
       sleep: () => go('sleeping'),
-      wake: () => setState((s) => (s === 'sleeping' ? 'waking' : s)),
+      wake: () => setState((s) => (s === 'sleeping' || s === 'stirring' ? 'waking' : s)),
       sit: () => go('sitting'),
       react: () => go('reacting'),
       celebrate: () => go('celebrating'),

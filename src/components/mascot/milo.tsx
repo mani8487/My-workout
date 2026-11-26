@@ -22,7 +22,9 @@ import type { MiloState } from './types';
 const DESCRIPTION: Record<MiloState, string> = {
   sleeping: 'Milo the cat is asleep on his couch',
   waking: 'Milo the cat is waking up',
+  stirring: 'Milo the cat is stirring on his couch',
   sitting: 'Milo the cat is sitting',
+  content: 'Milo the cat sits contentedly',
   reacting: 'Milo the cat raises a paw',
   celebrating: 'Milo the cat jumps for joy',
   drinking: 'Milo the cat is drinking water',
@@ -36,10 +38,12 @@ type Props = {
   cue?: number;
   onSettled?: (state: MiloState) => void;
   onPress?: () => void;
+  /** Keep the couch when Milo gets up (the Living Home room). */
+  keepCouch?: boolean;
   style?: StyleProp<ViewStyle>;
 };
 
-export function Milo({ state, size = 160, cue = 0, onSettled, onPress, style }: Props) {
+export function Milo({ state, size = 160, cue = 0, onSettled, onPress, keepCouch = false, style }: Props) {
   const reducedMotion = useReducedMotion();
   const { isDark } = useTheme();
   const onScreen = useMotionActive();
@@ -71,6 +75,7 @@ export function Milo({ state, size = 160, cue = 0, onSettled, onPress, style }: 
         paused={!onScreen}
         reducedMotion={reducedMotion}
         isDark={isDark}
+        keepCouch={keepCouch}
         onSettled={handleSettled}
       />
     </Pressable>

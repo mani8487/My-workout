@@ -62,6 +62,10 @@ export const AMBIENT = {
   /** One breath in (or out). Sleeping is slower and deeper. */
   breathSleeping: { min: 2200, max: 2700 },
   breathAwake: { min: 1500, max: 1900 },
+  /** Still lying down, but the first activity of the day has him stirring: a little quicker. */
+  breathStirring: { min: 1800, max: 2200 },
+  /** Content at the goal: slow, easy breaths. */
+  breathContent: { min: 2000, max: 2500 },
   /** Breath depth multiplier, applied per breath. */
   breathDepth: { min: 0.82, max: 1.12 },
   /** Pause between tail swishes. */
@@ -71,6 +75,11 @@ export const AMBIENT = {
   tailSize: { min: 0.7, max: 1.15 },
   /** Pause between ear flicks. */
   earGap: { min: 5000, max: 12000 },
+  /** Stirring: the ears flick more often. */
+  earGapStirring: { min: 2500, max: 6000 },
+  /** Content: a slow "cat blink" (eyes open a little, then close again). */
+  contentBlinkGap: { min: 3500, max: 7000 },
+  tailGapContent: { min: 5000, max: 9000 },
   /** Pause between blinks; a fifth of blinks are doubled. */
   blinkGap: { min: 2500, max: 6500 },
   /** Pause between floating "z"s while asleep. */
@@ -79,6 +88,16 @@ export const AMBIENT = {
   zRise: { min: 3000, max: 3600 },
   /** Pause between bursts of three laps while drinking. */
   lapGap: { min: 450, max: 1000 },
+  /** Living Home: curtain hems sway in a draught now and then. */
+  curtainGap: { min: 3000, max: 7000 },
+  /** Living Home: the plant's leaves stir. */
+  plantGap: { min: 3500, max: 8000 },
+  /** Living Home: the lamp glow swells and eases (one half-cycle), then rests. */
+  glowSwell: { min: 2500, max: 4000 },
+  glowGap: { min: 300, max: 1500 },
+  /** Living Home: one dust mote drifting through the light, then a pause. */
+  dustDrift: { min: 5000, max: 8000 },
+  dustGap: { min: 200, max: 1800 },
   /** Pause between celebration jumps. */
   celebrateGap: { min: 1300, max: 2000 },
 } as const satisfies Record<string, Range>;
