@@ -27,7 +27,7 @@ export function MiloPeek({ size }: { size: number }) {
     reduced ? { opacity: rise.get() } : { transform: [{ translateY: (1 - rise.get()) * shown }] },
   );
   return (
-    <View pointerEvents="none" accessible={false} importantForAccessibility="no-hide-descendants" style={{ width: size, height: shown, overflow: 'hidden' }}>
+    <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ width: size, height: shown, overflow: 'hidden' }}>
       <Animated.View style={style}>
         <Milo state="sitting" size={size} />
       </Animated.View>

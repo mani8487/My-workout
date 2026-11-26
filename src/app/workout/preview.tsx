@@ -5,6 +5,7 @@ import { SymbolView, type SFSymbol } from 'expo-symbols';
 import * as Haptics from 'expo-haptics';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MiloPeek, PEEK_VISIBLE } from '@/components/scene/milo-peek';
@@ -21,6 +22,7 @@ import { getActiveSessionId, startSession } from '@/db/sessions';
 import type { Workout, WorkoutId } from '@/db/types';
 import { titleCase } from '@/logic/format';
 import { estimateMinutes, getWorkoutPreview } from '@/logic/today';
+import { DURATION, EASE } from '@/motion';
 import { useTheme } from '@/theme/theme-context';
 import { isMistTheme, radius, spacing } from '@/theme/typography';
 
@@ -31,7 +33,8 @@ export default function PreviewScreen() {
   const db = useSQLiteContext();
   const { colors, name: themeName } = useTheme();
   const mist = isMistTheme(themeName);
-  const { id } = useLocalSearchParams<{ id: WorkoutId }>();
+  // from=room: opened by the Living Home start move, so Milo followed and peeks up from the bottom.
+  const { id, from } = useLocalSearchParams<{ id: WorkoutId; from?: string }>();
   const [data, setData] = useState<{ workout: Workout; plan: PlannedExercise[]; minutes: number } | null>(null);
   const [starting, setStarting] = useState(false);
   const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
@@ -72,15 +75,18 @@ export default function PreviewScreen() {
     }
   }
 
-  if (!data) return <SkeletonScreen />;
+  // Mist: a plain background while loading (no skeleton flashing through the fade-in), then the content fades in.
+  if (!data) return mist ? <View style={{ flex: 1, backgroundColor: colors.background }} /> : <SkeletonScreen />;
   const plan = override ?? data.plan;
   const minutes = override ? estimateMinutes(override) : data.minutes;
   const totalSets = plan.reduce((n, p) => n + p.targetSets, 0);
+  const peek = mist && from === 'room';
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: colors.background }}>
+      <Animated.View entering={mist ? FadeIn.duration(DURATION.micro.slow).easing(EASE.out) : undefined} style={{ flex: 1 }}>
       <ScreenHeader title="Workout Preview" onBack={() => router.back()} />
-      <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg, paddingBottom: mist ? Math.round(PEEK_SIZE * PEEK_VISIBLE) + spacing.lg : spacing.lg }}>
+      <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg, paddingBottom: peek ? Math.round(PEEK_SIZE * PEEK_VISIBLE) + spacing.lg : spacing.lg }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
           <SymbolView name={data.workout.icon as SFSymbol} size={40} tintColor={colors.accent} />
           <View style={{ flex: 1 }}>
@@ -130,7 +136,7 @@ export default function PreviewScreen() {
       </ScrollView>
       <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.md }}>
         {/* Living Home: Milo followed you here and peeks up over the bottom bar. */}
-        {mist && (
+        {peek && (
           <View pointerEvents="none" style={{ position: 'absolute', right: spacing.lg, top: -Math.round(PEEK_SIZE * PEEK_VISIBLE) }}>
             <MiloPeek size={PEEK_SIZE} />
           </View>
@@ -152,6 +158,7 @@ export default function PreviewScreen() {
         )}
         <Button title="Start Workout" size="large" onPress={start} />
       </View>
+      </Animated.View>
     </SafeAreaView>
   );
 }

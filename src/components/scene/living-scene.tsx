@@ -57,7 +57,8 @@ type Props = {
   miloOverride?: MiloState | null;
   /** Bump to leave for a workout: Milo hops off toward you and the room eases up and out. */
   departCue?: number;
-  /** Called when it's time to open the workout screen (the room is half gone). */
+  /** Called when it's time to open the workout screen. Not called if the room leaves the screen first
+   *  (a tab switch, the app going to the background): the trip is then abandoned. */
   onDeparted?: () => void;
   /** Bump when back on Home after leaving: the room eases back and Milo hops into his spot. */
   arriveCue?: number;
@@ -103,6 +104,8 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
   type Travel = 'none' | 'departing' | 'arriving';
   const [travel, setTravel] = useState<Travel>('none');
   const [seen, setSeen] = useState({ departCue, arriveCue });
+  // Cues already given when the room appeared (it was rebuilt, e.g. after a theme change) never replay.
+  const [initialCues] = useState({ departCue, arriveCue });
   if (seen.departCue !== departCue || seen.arriveCue !== arriveCue) {
     setSeen({ departCue, arriveCue });
     if (seen.departCue !== departCue && departCue) setTravel('departing');
@@ -113,8 +116,8 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
     departedRef.current = onDeparted;
   }, [onDeparted]);
   useEffect(() => {
-    if (!departCue) return;
-    // Milo goes first (perk, crouch, hop); the room follows him out a beat later. With Reduce Motion, a plain fade.
+    if (!departCue || departCue === initialCues.departCue) return;
+    // Milo goes first (perk, crouch, hop); the room follows him out as he lands. With Reduce Motion, a plain fade.
     trip.set(
       withDelay(
         reduced ? 0 : TRIP.roomOut,
@@ -122,13 +125,29 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
         NEVER,
       ),
     );
-    const t = setTimeout(() => departedRef.current?.(), reduced ? DURATION.micro.base : TRIP.navigate);
-    return () => clearTimeout(t);
-    // Only a new cue starts the trip.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [departCue]);
+  // Open the workout screen on time, unless the room left the screen first (then the trip is abandoned
+  // and the return plays when Home is back).
+  const opened = useRef(initialCues.departCue);
   useEffect(() => {
-    if (!arriveCue) return;
+    if (!departCue || opened.current === departCue) return;
+    if (!onScreen) {
+      opened.current = departCue;
+      return;
+    }
+    const t = setTimeout(
+      () => {
+        opened.current = departCue;
+        departedRef.current?.();
+      },
+      reduced ? DURATION.micro.base : TRIP.navigate,
+    );
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [departCue, onScreen]);
+  useEffect(() => {
+    if (!arriveCue || arriveCue === initialCues.arriveCue) return;
     trip.set(withTiming(0, { duration: reduced ? DURATION.micro.base : DURATION.transition.base, easing: EASE.out, reduceMotion: NEVER }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [arriveCue]);
@@ -203,6 +222,8 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
   return (
     <Animated.View
       accessible
+      // While the room is away (off to a workout) it isn't read out.
+      accessibilityElementsHidden={travel === 'departing'}
       accessibilityRole="image"
       accessibilityLabel={describeScene(activeMinutes, goalMinutes)}
       style={[{ width, height: ROOM.h * k, transformOrigin: 'bottom' }, roomStyle]}>

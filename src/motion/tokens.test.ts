@@ -48,9 +48,13 @@ test('squash and stretch roughly keep volume (area within 5%)', () => {
 
 test('the start transition fits the 600-800 ms window', () => {
   assert.ok(LEAVE.perk < LEAVE.crouch && LEAVE.crouch < LEAVE.takeoff);
-  const miloGone = LEAVE.takeoff + ARC.leap.rise + ARC.leap.fall;
+  const landed = LEAVE.takeoff + ARC.leap.rise + ARC.leap.fall;
+  const settled = landed + DURATION.micro.fast; // the landing squash
   const screenIn = TRIP.navigate + TRIP.screenFade;
-  assert.ok(miloGone >= 600 && miloGone <= 800, `milo ${miloGone}`);
+  assert.ok(settled <= 800, `milo settles at ${settled}`);
   assert.ok(screenIn >= 600 && screenIn <= 800, `screen ${screenIn}`);
-  assert.ok(TRIP.roomOut < TRIP.navigate);
+  // In order: perk, hop, the room leaves as he comes down, then the workout screen.
+  assert.ok(TRIP.roomOut > LEAVE.takeoff && TRIP.roomOut < landed);
+  assert.ok(TRIP.navigate >= TRIP.roomOut && TRIP.navigate < landed + DURATION.micro.fast);
+  assert.ok(TRIP.roomOut + DURATION.transition.short <= 800);
 });

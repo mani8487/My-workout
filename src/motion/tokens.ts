@@ -23,8 +23,9 @@ export const DURATION = {
 export const ARC = {
   hop: { rise: 240, fall: 220, height: 28 },
   jump: { rise: 300, fall: 280, height: 58 },
-  /** Hopping off the couch toward you (Start): up a little, then down past the floor ("drop"). */
-  leap: { rise: 220, fall: 200, height: 30, drop: 70 },
+  /** Hopping off the couch toward you (Start), landing on the floor in front. `near` is how much
+   *  bigger he ends up, standing closer to you (he scales from his feet). */
+  leap: { rise: 180, fall: 160, height: 34, near: 1.12 },
 } as const;
 
 /** Squash and stretch shapes (scaleX, scaleY), volume roughly kept. */
@@ -55,12 +56,12 @@ export const LEAVE = {
 
 /** The room (and Milo) on the way out to a workout and back, in ms. */
 export const TRIP = {
-  /** The room starts easing up and out this long after the tap... */
-  roomOut: 300,
-  /** ...and the workout screen is opened at this point, while the room is halfway gone. */
-  navigate: 450,
-  /** The workout screen's fade in (it finishes the whole start at about 800 ms). */
-  screenFade: 350,
+  /** The room starts easing up and out as Milo comes down to land... */
+  roomOut: 450,
+  /** ...the workout screen is opened just before he lands (his squash shows through its fade)... */
+  navigate: 500,
+  /** ...and fades in, finishing the whole start at about 800 ms. */
+  screenFade: 300,
   /** Coming back: a beat after Home is in view, Milo hops back in. */
   arrive: 250,
 } as const;

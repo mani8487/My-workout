@@ -43,6 +43,7 @@ import { catchUpFrom, dayKeyOf, encodeLastSeen, LAST_SEEN_KEY, streakDays } from
 import { decodeShown, encodeShown, nextLine } from '@/logic/milo-voice';
 import { minutesText, moodOf, sceneTarget } from '@/logic/scene-state';
 import { useTodayKey } from '@/logic/use-today';
+import { TRIP } from '@/motion';
 import { countWorkoutsBetween, deleteQuickLog, getActiveMinutesBetween, getActivityTimesSince, getQuickLogsBetween, type QuickLog } from '@/db/quick-log';
 import { ACTIVE_GOAL_KEY, DEFAULT_ACTIVE_GOAL_MIN } from '@/logic/activity';
 import { Hero, HeroButton, HeroChip, HeroOutlineButton, HeroTitle } from '@/components/hero';
@@ -146,18 +147,25 @@ export default function HomeScreen() {
   const [arriveCue, setArriveCue] = useState(0);
   const away = useRef(false);
   const leaving = useRef(false);
+  /** While the start move plays, Home ignores taps (so nothing else opens on top of it). */
+  const [locked, setLocked] = useState(false);
   useFocusEffect(
     useCallback(() => {
       leaving.current = false;
+      setLocked(false);
       if (!away.current) return;
-      away.current = false;
-      setArriveCue((c) => c + 1);
+      // A beat after Home is back in view (the workout screen has faded away), Milo hops back in.
+      const t = setTimeout(() => {
+        away.current = false;
+        setArriveCue((c) => c + 1);
+      }, TRIP.arrive);
+      return () => clearTimeout(t);
     }, []),
   );
   // Stable, so the (memoised) room doesn't re-render for it.
   const todaysWorkoutId = data?.workout?.id;
   const openTodaysPreview = useCallback(() => {
-    if (todaysWorkoutId) router.push({ pathname: '/workout/preview', params: { id: todaysWorkoutId } });
+    if (todaysWorkoutId) router.push({ pathname: '/workout/preview', params: { id: todaysWorkoutId, from: 'room' } });
   }, [todaysWorkoutId]);
   /** Set on opening the app and on coming back from the background; the next load gives Milo a new line. */
   const freshLine = useRef(true);
@@ -331,6 +339,7 @@ export default function HomeScreen() {
     if (!mist || !sceneFrom || roomHeight === 0) return openPreview();
     if (leaving.current) return; // one exit per tap
     leaving.current = true;
+    setLocked(true);
     away.current = true;
     Haptics.selectionAsync().catch(() => {});
     setDepartCue((c) => c + 1);
@@ -661,6 +670,7 @@ export default function HomeScreen() {
         {/* Backdrop must stay the first child: the tab screen switches the first ScrollView it finds
             to automatic insets, which would add the tab bar's height twice inside this SafeAreaView. */}
         <ScrollView
+          pointerEvents={locked ? 'none' : 'auto'}
           contentInsetAdjustmentBehavior="never"
           alwaysBounceVertical={false}
           showsVerticalScrollIndicator={false}

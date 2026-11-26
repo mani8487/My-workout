@@ -29,7 +29,7 @@ Listed back to front.
 | `front-paw` | 124 | 150 | 26 × 58 | 13, 8 (shoulder) | Milo's RIGHT front leg; rotates up to −130° for the paw lift |
 | `ear-left` | 72 | 22 | 34 × 36 | 17, 32 (ear base) | twitch ±14° |
 | `ear-right` | 134 | 22 | 34 × 36 | 17, 32 (ear base) | twitch ±14° |
-| `towel` | 82 | 104 | 76 × 44 | 38, 10 | white towel over the shoulders with aqua stripes; shown after a workout (fades in) |
+| `towel` | 82 | 104 | 76 × 44 | 38, 104 (the body's pivot, below the layer) | white towel over the shoulders with aqua stripes; shown after a workout (fades in), squashes and breathes with the body |
 | `collar` | 92 | 110 | 56 × 22 | 28, 8 | mint collar with tag; moves with the head |
 | `head` | 66 | 38 | 108 × 82 | 54, 74 (neck) | turns, lifts, dips to drink |
 | `eyes-open` | 88 | 66 | 64 × 22 | 32, 11 | blink crossfade |

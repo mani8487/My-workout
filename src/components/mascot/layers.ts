@@ -36,7 +36,8 @@ export const LAYERS: Record<LayerName, LayerBox> = {
   'front-paw': { x: 124, y: 150, w: 26, h: 58, pivot: { x: 13, y: 8 } },
   'ear-left': { x: 72, y: 22, w: 34, h: 36, pivot: { x: 17, y: 32 } },
   'ear-right': { x: 134, y: 22, w: 34, h: 36, pivot: { x: 17, y: 32 } },
-  towel: { x: 82, y: 104, w: 76, h: 44, pivot: { x: 38, y: 10 } },
+  // Pivot = the body's (bottom centre at stage 120, 208), so the towel squashes and breathes with it.
+  towel: { x: 82, y: 104, w: 76, h: 44, pivot: { x: 38, y: 104 } },
   collar: { x: 92, y: 110, w: 56, h: 22, pivot: { x: 28, y: 8 } },
   head: { x: 66, y: 38, w: 108, h: 82, pivot: { x: 54, y: 74 } },
   'eyes-open': { x: 88, y: 66, w: 64, h: 22, pivot: { x: 32, y: 11 } },
