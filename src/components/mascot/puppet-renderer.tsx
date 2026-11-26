@@ -14,7 +14,7 @@
  * is cancelled on unmount. With Reduce Motion on, every state is a still pose.
  */
 import { memo, useEffect, useRef } from 'react';
-import { View, type ViewStyle } from 'react-native';
+import { type ViewStyle } from 'react-native';
 import Animated, {
   cancelAnimation,
   useAnimatedReaction,
@@ -24,13 +24,14 @@ import Animated, {
   withSequence,
   withSpring,
   withTiming,
+  ReduceMotion,
   type SharedValue,
   type WithSpringConfig,
 } from 'react-native-reanimated';
 import { SvgXml } from 'react-native-svg';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { AMBIENT, ARC, DURATION, EASE, SPRING, breathe, floatLoop, loopWithGaps, pick } from '@/motion';
+import { AMBIENT, ARC, CELEBRATE, DURATION, EASE, SHAPE, SPRING, WAKE, breathe, floatLoop, loopWithGaps, pick } from '@/motion';
 
 import { GROUND_Y, LAYERS, LIE_POSE, NECK, STAGE, TAIL_BASE, type LayerName } from './layers';
 import { MILO_FX } from './palette';
@@ -40,25 +41,9 @@ import type { MiloRendererProps, MiloState } from './types';
 const fill: ViewStyle = { position: 'absolute', left: 0, top: 0 };
 const { micro, transition } = DURATION;
 
-/** Squash and stretch shapes (scaleX, scaleY), volume roughly kept. */
-const SHAPE = {
-  stretchLong: { x: 1.1, y: 0.92 }, // waking stretch, long and low
-  crouch: { x: 1.06, y: 0.9 }, // anticipation before leaving the ground
-  takeoff: { x: 0.96, y: 1.06 }, // stretched upward in the air
-  land: { x: 1.08, y: 0.9 }, // squash on landing
-} as const;
-
-/** Waking choreography, in ms from the start, built from the motion tokens. */
-const WAKE = (() => {
-  const eyesOpen = micro.slow;
-  const stretch = micro.slow + micro.base;
-  const hop = stretch + transition.short + micro.base; // after the stretch and a crouch
-  const land = hop + ARC.hop.rise + ARC.hop.fall;
-  return { eyesOpen, stretch, hop, land };
-})();
-
-/** Celebration jump, in ms from the start of each jump. */
-const CELEBRATE = { crouch: micro.fast, takeoff: micro.base, land: micro.fast + ARC.jump.rise + ARC.jump.fall };
+/** Reduce Motion: states that look different swap behind a quick fade. */
+const LOOK: Record<MiloState, string> = { sleeping: 'lie', waking: 'sit', sitting: 'sit', reacting: 'paw', celebrating: 'party', drinking: 'drink' };
+const NEVER = ReduceMotion.Never;
 
 /** How far the ears and tail trail the body (degrees per stage point of lag). */
 const FOLLOW = { ear: 0.45, tail: 0.5 };
@@ -113,6 +98,8 @@ function makePieces(count: number, opts: { minDist: number; maxDist: number; siz
   });
 }
 
+const CONFETTI_ORIGIN = { x: 120, y: 120 };
+const SPARK_ORIGIN = { x: 176, y: 122 };
 const CONFETTI = makePieces(16, { minDist: 60, maxDist: 115, size: 9, gravity: 80 });
 const SPARKS = makePieces(5, { minDist: 22, maxDist: 38, size: 6, gravity: 0, round: true });
 
@@ -175,7 +162,7 @@ function Z({ progress, on, k, color }: { progress: SharedValue<number>; on: Shar
 
 // ---------- the renderer ----------
 
-export function PuppetRenderer({ state, size, cue, tapSignal, paused, reducedMotion, isDark, onSettled }: MiloRendererProps) {
+export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, tapSignal, paused, reducedMotion, isDark, onSettled }: MiloRendererProps) {
   const k = size / STAGE;
   const lying = state === 'sleeping' || state === 'waking';
 
@@ -194,6 +181,9 @@ export function PuppetRenderer({ state, size, cue, tapSignal, paused, reducedMot
   const tailSway = useSharedValue(0);
   const earL = useSharedValue(0);
   const earR = useSharedValue(0);
+  const earTapL = useSharedValue(0); // tap twitches add on top, so they never stop the idle ear loop
+  const earTapR = useSharedValue(0);
+  const stageOpacity = useSharedValue(1); // Reduce Motion: dips to swap poses unseen
   const eyes = useSharedValue(state === 'sleeping' || state === 'drinking' ? 1 : 0); // 1 = closed
   const paw = useSharedValue(0);
   const bowl = useSharedValue(state === 'drinking' ? 1 : 0);
@@ -205,7 +195,7 @@ export function PuppetRenderer({ state, size, cue, tapSignal, paused, reducedMot
   const sparks = useSharedValue(0);
 
   // Cancel every animation when Milo leaves the screen for good.
-  const allRef = useRef([pose, headLift, headTurn, dip, lap, breath, breathDepth, sx, sy, jumpY, followY, tailSway, earL, earR, eyes, paw, bowl, z1, z2, z3, zzOn, confetti, sparks]);
+  const allRef = useRef([pose, headLift, headTurn, dip, lap, breath, breathDepth, sx, sy, jumpY, followY, tailSway, earL, earR, earTapL, earTapR, stageOpacity, eyes, paw, bowl, z1, z2, z3, zzOn, confetti, sparks]);
   useEffect(() => {
     const all = allRef.current;
     return () => all.forEach((v) => cancelAnimation(v));
@@ -219,23 +209,43 @@ export function PuppetRenderer({ state, size, cue, tapSignal, paused, reducedMot
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
+  const lookRef = useRef<string | null>(null);
 
   // ----- transitions: run once per state change (or cue) -----
   useEffect(() => {
     const R = reducedMotion;
     let reducedTimer: ReturnType<typeof setTimeout> | undefined;
     const settle = (s: MiloState) => settledRef.current(s);
-    const to = (v: SharedValue<number>, target: number, cfg: WithSpringConfig = SPRING.soft) => v.set(R ? target : withSpring(target, cfg));
+
+    // Reduce Motion: no movement. When the look changes, Milo fades out, the
+    // pose swaps while he's invisible, and he fades back in (a simple cross-fade).
+    const look = LOOK[state];
+    const swap = R && lookRef.current !== null && lookRef.current !== look;
+    lookRef.current = look;
+    if (swap)
+      stageOpacity.set(
+        withSequence(
+          NEVER,
+          withTiming(0, { duration: micro.fast, easing: EASE.out, reduceMotion: NEVER }),
+          withTiming(1, { duration: micro.base, easing: EASE.inOut, reduceMotion: NEVER }),
+        ),
+      );
+    const place = (v: SharedValue<number>, target: number) =>
+      v.set(swap ? withDelay(micro.fast, withTiming(target, { duration: 0, reduceMotion: NEVER }), NEVER) : target);
+
+    const to = (v: SharedValue<number>, target: number, cfg: WithSpringConfig = SPRING.soft) => (R ? place(v, target) : v.set(withSpring(target, cfg)));
     const fade = (v: SharedValue<number>, target: number, ms: number = micro.slow) =>
-      v.set(R ? target : withTiming(target, { duration: ms, easing: EASE.out }));
+      R ? place(v, target) : v.set(withTiming(target, { duration: ms, easing: EASE.out }));
 
     fade(zzOn, state === 'sleeping' ? 1 : 0, transition.short);
     fade(bowl, state === 'drinking' ? 1 : 0);
     to(dip, state === 'drinking' ? 1 : 0);
     // Leaving a celebration: let confetti already in the air finish falling (it fades out at 1).
     const c = confetti.get();
-    if (state !== 'celebrating' && c > 0 && c < 1)
-      confetti.set(R ? 1 : withTiming(1, { duration: DURATION.particle * (1 - c), easing: EASE.out }));
+    if (state !== 'celebrating' && c > 0 && c < 1) {
+      if (R) place(confetti, 1);
+      else confetti.set(withTiming(1, { duration: DURATION.particle * (1 - c), easing: EASE.rise }));
+    }
     if (state !== 'reacting' && state !== 'celebrating') to(paw, 0);
     if (state !== 'waking') {
       to(jumpY, 0);
@@ -248,7 +258,8 @@ export function PuppetRenderer({ state, size, cue, tapSignal, paused, reducedMot
         to(pose, 0, SPRING.gentle);
         to(headLift, 0, SPRING.gentle);
         // Eyelids close slowly, like dozing off.
-        eyes.set(R ? 1 : withTiming(1, { duration: transition.short, easing: EASE.inOut }));
+        if (R) place(eyes, 1);
+        else eyes.set(withTiming(1, { duration: transition.short, easing: EASE.inOut }));
         break;
 
       case 'sitting':
@@ -267,10 +278,11 @@ export function PuppetRenderer({ state, size, cue, tapSignal, paused, reducedMot
           to(jumpY, 0);
           to(sx, 1);
           to(sy, 1);
-          pose.set(1);
-          headLift.set(0);
-          eyes.set(0);
-          settle('waking');
+          place(pose, 1);
+          place(headLift, 0);
+          place(eyes, 0);
+          // Report back once any fade has finished, so "sitting" doesn't cut into it.
+          reducedTimer = setTimeout(() => settle('waking'), micro.fast + micro.base);
           break;
         }
         // 1. The head lifts and the eyes open.
@@ -311,12 +323,13 @@ export function PuppetRenderer({ state, size, cue, tapSignal, paused, reducedMot
         to(pose, 1);
         fade(eyes, 0, micro.base);
         if (R) {
-          paw.set(1);
+          place(paw, 1);
           reducedTimer = setTimeout(() => settle('reacting'), transition.long * 2);
           break;
         }
         paw.set(
           withSequence(
+            withTiming(-0.06, { duration: micro.fast, easing: EASE.inOut }), // a small dip before lifting (anticipation)
             withSpring(1, SPRING.snappy),
             withDelay(
               transition.base,
@@ -334,9 +347,9 @@ export function PuppetRenderer({ state, size, cue, tapSignal, paused, reducedMot
         to(pose, 1);
         if (R) {
           // still pose: paw up, happy eyes, confetti frozen mid-air
-          paw.set(1);
-          eyes.set(1);
-          confetti.set(0.45);
+          place(paw, 1);
+          place(eyes, 1);
+          place(confetti, 0.45);
         }
         break;
     }
@@ -346,11 +359,20 @@ export function PuppetRenderer({ state, size, cue, tapSignal, paused, reducedMot
   }, [state, cue, reducedMotion]);
 
   // ----- idle loops: stopped while paused or with Reduce Motion -----
+  const celebrateCue = state === 'celebrating' ? cue : 0;
   useEffect(() => {
     const loops = [breath, z1, z2, z3, tailSway, earL, earR, lap];
     if (state === 'sitting' || state === 'reacting') loops.push(eyes);
     if (state === 'celebrating') loops.push(sx, sy, paw, eyes, confetti, jumpY);
-    const stopAll = () => loops.forEach((v) => cancelAnimation(v));
+    const stopAll = () => {
+      loops.forEach((v) => cancelAnimation(v));
+      if (state === 'celebrating') {
+        // Don't leave Milo frozen mid-air: land softly (state changes override this with their own pose).
+        [sx, sy].forEach((v) => v.set(withSpring(1, SPRING.soft)));
+        [jumpY, paw].forEach((v) => v.set(withSpring(0, SPRING.soft)));
+        eyes.set(withTiming(0, { duration: micro.base, easing: EASE.out }));
+      }
+    };
 
     if (paused || reducedMotion) {
       stopAll();
@@ -448,8 +470,9 @@ export function PuppetRenderer({ state, size, cue, tapSignal, paused, reducedMot
     }
 
     return stopAll;
+    // A cue replays one-shots; only the celebration loop needs restarting for it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, paused, reducedMotion, cue]);
+  }, [state, paused, reducedMotion, celebrateCue]);
 
   // ----- follow-through: ears and tail trail vertical body motion -----
   useAnimatedReaction(
@@ -462,8 +485,8 @@ export function PuppetRenderer({ state, size, cue, tapSignal, paused, reducedMot
     if (tapSignal === 0 || reducedMotion) return;
     const flick = (deg: number) => withSequence(withTiming(deg, { duration: micro.fast, easing: EASE.out }), withSpring(0, SPRING.snappy));
     if (stateRef.current === 'sleeping' || tapSignal % 2 === 0) {
-      earL.set(flick(-14));
-      earR.set(withDelay(micro.fast / 2, flick(14))); // the second ear a beat later
+      earTapL.set(flick(-14));
+      earTapR.set(withDelay(micro.fast / 2, flick(14))); // the second ear a beat later
     } else {
       headTurn.set(withSequence(withTiming(9, { duration: micro.slow, easing: EASE.out }), withDelay(micro.slow, withSpring(0, SPRING.snappy))));
     }
@@ -482,6 +505,7 @@ export function PuppetRenderer({ state, size, cue, tapSignal, paused, reducedMot
     return jumpY.get() - followY.get(); // negative while rising, positive while falling
   };
 
+  const stageStyle = useAnimatedStyle(() => ({ opacity: stageOpacity.get() }));
   const rigStyle = useAnimatedStyle(() => ({ transform: [{ translateY: jumpY.get() * k }] }));
   const couchStyle = useAnimatedStyle(() => ({ opacity: 1 - pose.get() }));
   const bowlStyle = useAnimatedStyle(() => ({ opacity: bowl.get() }));
@@ -536,8 +560,8 @@ export function PuppetRenderer({ state, size, cue, tapSignal, paused, reducedMot
   });
 
   // Ears fold outward while the body rises and swing back as it lands.
-  const earLStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${earL.get() + lag() * FOLLOW.ear}deg` }] }));
-  const earRStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${earR.get() - lag() * FOLLOW.ear}deg` }] }));
+  const earLStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${earL.get() + earTapL.get() + lag() * FOLLOW.ear}deg` }] }));
+  const earRStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${earR.get() + earTapR.get() - lag() * FOLLOW.ear}deg` }] }));
   const eyesOpenStyle = useAnimatedStyle(() => ({ opacity: 1 - eyes.get() }));
   const eyesClosedStyle = useAnimatedStyle(() => ({ opacity: eyes.get() }));
 
@@ -545,7 +569,7 @@ export function PuppetRenderer({ state, size, cue, tapSignal, paused, reducedMot
   const fx = isDark ? MILO_FX.dark : MILO_FX.light;
 
   return (
-    <View pointerEvents="none" style={{ width: size, height: size }}>
+    <Animated.View pointerEvents="none" style={[{ width: size, height: size }, stageStyle]}>
       {/* code-drawn contact shadow */}
       <Animated.View
         style={[
@@ -586,11 +610,11 @@ export function PuppetRenderer({ state, size, cue, tapSignal, paused, reducedMot
         <Z key={i} progress={z} on={zzOn} k={k} color={fx.z} />
       ))}
       {CONFETTI.map((p, i) => (
-        <Particle key={`c${i}`} piece={p} progress={confetti} k={k} origin={{ x: 120, y: 120 }} />
+        <Particle key={`c${i}`} piece={p} progress={confetti} k={k} origin={CONFETTI_ORIGIN} />
       ))}
       {SPARKS.map((p, i) => (
-        <Particle key={`s${i}`} piece={p} progress={sparks} k={k} origin={{ x: 176, y: 122 }} />
+        <Particle key={`s${i}`} piece={p} progress={sparks} k={k} origin={SPARK_ORIGIN} />
       ))}
-    </View>
+    </Animated.View>
   );
-}
+});

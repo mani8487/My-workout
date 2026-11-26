@@ -16,9 +16,6 @@ export type MiloState =
   | 'celebrating' // jump with confetti
   | 'drinking'; // laps from a water bowl
 
-/** States that play once and then report back through onSettled. */
-export const ONE_SHOT_STATES: readonly MiloState[] = ['waking', 'reacting'];
-
 export type MiloRendererProps = {
   state: MiloState;
   /** Width and height in points. Milo is drawn on a square stage. */

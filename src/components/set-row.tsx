@@ -18,14 +18,12 @@ import { type ComponentRef, useEffect, useRef, useState } from 'react';
 import { ActionSheetIOS, Alert, Platform, Pressable, TextInput, View } from 'react-native';
 import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Animated, {
-  Easing,
   FadeIn,
   FadeInDown,
   FadeOut,
   ReduceMotion,
   type SharedValue,
   useAnimatedStyle,
-  useReducedMotion,
   useSharedValue,
   withSequence,
   withSpring,
@@ -37,7 +35,7 @@ import { AppText } from '@/components/app-text';
 import { closePad, openPad, type PadField, updatePad, useActivePadId } from '@/components/number-pad';
 import type { PreviousSet, SessionSet, SetPatch } from '@/db/sessions';
 import { formatKg, formatSet, parseKg, parseReps } from '@/logic/format';
-import { SPRING } from '@/motion';
+import { DURATION, EASE, SPRING, useReducedMotion } from '@/motion';
 import { useTheme } from '@/theme/theme-context';
 import { isMistTheme, MAX_FONT_SCALE, MIN_TAP, radius, spacing, typography } from '@/theme/typography';
 
@@ -179,8 +177,8 @@ export function SetRow({ set, label, isCurrent = false, previous, hidePrevious, 
   useEffect(() => {
     // Reduce Motion: a gentle fade instead of the sweep.
     wipe.value = reduced
-      ? withTiming(showDone ? 1 : 0, { duration: 200, reduceMotion: ReduceMotion.Never })
-      : withSpring(showDone ? 1 : 0, { ...SPRING.soft, duration: showDone ? 400 : 250 });
+      ? withTiming(showDone ? 1 : 0, { duration: DURATION.micro.base, easing: EASE.out, reduceMotion: ReduceMotion.Never })
+      : withSpring(showDone ? 1 : 0, showDone ? SPRING.soft : { ...SPRING.soft, duration: DURATION.micro.slow });
   }, [showDone, wipe, reduced]);
   const wipeStyle = useAnimatedStyle(() =>
     reduced
@@ -194,7 +192,7 @@ export function SetRow({ set, label, isCurrent = false, previous, hidePrevious, 
     if (reduced) return; // the gentle tint fade is enough
     ripple.value = 0;
     ripple.value = withSequence(
-      withTiming(1, { duration: 650, easing: Easing.bezier(0.23, 1, 0.32, 1) }),
+      withTiming(1, { duration: DURATION.transition.long, easing: EASE.out }),
       withTiming(2, { duration: 0 }),
     );
   }
@@ -393,7 +391,7 @@ export function SetRow({ set, label, isCurrent = false, previous, hidePrevious, 
       </Swipeable>
 
       {noteOpen && (
-        <Animated.View entering={FadeIn.duration(150)} style={{ paddingHorizontal: spacing.sm, paddingBottom: spacing.sm }}>
+        <Animated.View entering={FadeIn.duration(DURATION.micro.fast)} style={{ paddingHorizontal: spacing.sm, paddingBottom: spacing.sm }}>
           <TextInput
             value={noteText}
             onChangeText={setNoteText}
@@ -420,8 +418,8 @@ export function SetRow({ set, label, isCurrent = false, previous, hidePrevious, 
 
       {showRir && (
         <Animated.View
-          entering={FadeInDown.duration(200)}
-          exiting={FadeOut.duration(150)}
+          entering={FadeInDown.duration(DURATION.micro.base)}
+          exiting={FadeOut.duration(DURATION.micro.fast)}
           style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.sm, paddingBottom: spacing.sm }}>
           <AppText variant="small" muted style={{ flex: 1 }}>
             Reps left in the tank?

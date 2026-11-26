@@ -9,6 +9,6 @@
  */
 export { breathe, floatLoop, loopWithGaps } from './ambient';
 export { EASE, SPRING } from './curves';
-export { ReducedMotionOverride, useReducedMotion } from './reduced-motion';
-export { AMBIENT, ARC, DURATION, pick, type Range } from './tokens';
+export { MotionRoot, ReducedMotionOverride, useReducedMotion } from './reduced-motion';
+export { AMBIENT, ARC, CELEBRATE, DURATION, SHAPE, WAKE, pick, type Range } from './tokens';
 export { useMotionActive } from './use-motion-active';

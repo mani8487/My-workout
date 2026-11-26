@@ -3,10 +3,11 @@
  * More → Scene Lab. Forces Mist light or dark and Reduce Motion on or off for
  * everything on this screen, and plays each Milo state on demand.
  *
+ * Kept in release builds on purpose: it is used through published updates.
  * Phase 0 covers Milo; later phases add the room, progress and cameos here.
  */
-import { useState, type ReactNode } from 'react';
-import { View } from 'react-native';
+import { useEffect, useState, type ReactNode } from 'react';
+import { AccessibilityInfo, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { Milo, useMiloState, type MiloState } from '@/components/mascot';
@@ -14,9 +15,7 @@ import { Page } from '@/components/page';
 import { PressableScale } from '@/components/pressable-scale';
 import { ReducedMotionOverride, useReducedMotion } from '@/motion';
 import { MistPreview, useTheme } from '@/theme/theme-context';
-import { radius, spacing } from '@/theme/typography';
-
-const MIN_TAP = 44;
+import { MIN_TAP, radius, spacing } from '@/theme/typography';
 
 const STATES: { state: MiloState; label: string }[] = [
   { state: 'sleeping', label: 'Sleeping' },
@@ -68,6 +67,10 @@ function Row({ title, children }: { title: string; children: ReactNode }) {
 function LabBody({ dark, setDark, motion, setMotion }: { dark: boolean; setDark: (d: boolean) => void; motion: Motion; setMotion: (m: Motion) => void }) {
   const milo = useMiloState('sleeping');
   const reduced = useReducedMotion();
+  const label = STATES.find((x) => x.state === milo.state)?.label ?? milo.state;
+  useEffect(() => {
+    AccessibilityInfo.announceForAccessibility(`Milo: ${label}`);
+  }, [label]);
 
   const choose = (state: MiloState) => {
     // Waking only happens from sleep; the button replays it from lying down.
@@ -81,8 +84,8 @@ function LabBody({ dark, setDark, motion, setMotion }: { dark: boolean; setDark:
     <Page title="Scene Lab">
       <View style={{ gap: spacing.md }}>
         <View style={{ alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.md }}>
-          <AppText variant="label" muted accessibilityLiveRegion="polite">
-            Now: {STATES.find((x) => x.state === milo.state)?.label ?? milo.state}
+          <AppText variant="label" muted>
+            Now: {label}
             {reduced ? ' · Reduce Motion' : ''}
           </AppText>
           <Milo {...milo.props} size={260} />

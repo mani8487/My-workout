@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import Animated, { useAnimatedProps, useSharedValue, withTiming } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 
-import { EASE } from '@/motion';
+import { DURATION, EASE } from '@/motion';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
@@ -14,7 +14,7 @@ export function AnimatedTick({ done, color, idleColor, size = 20 }: { done: bool
   const progress = useSharedValue(done ? 1 : 0);
 
   useEffect(() => {
-    progress.value = done ? withTiming(1, { duration: 260, easing: EASE.out }) : withTiming(0, { duration: 120, easing: EASE.out });
+    progress.value = done ? withTiming(1, { duration: DURATION.micro.slow, easing: EASE.out }) : withTiming(0, { duration: DURATION.micro.fast, easing: EASE.out });
   }, [done, progress]);
 
   const drawn = useAnimatedProps(() => ({ strokeDashoffset: LENGTH * (1 - progress.value) }));

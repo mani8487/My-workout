@@ -10,7 +10,7 @@
  * with a head turn or ear twitch plus a light haptic.
  */
 import * as Haptics from 'expo-haptics';
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, type StyleProp, type ViewStyle } from 'react-native';
 
 import { useMotionActive, useReducedMotion } from '@/motion';
@@ -45,6 +45,12 @@ export function Milo({ state, size = 160, cue = 0, onSettled, onPress, style }: 
   const onScreen = useMotionActive();
   const [tapSignal, setTapSignal] = useState(0);
   const Renderer = ActiveMiloRenderer;
+  // A stable callback, so the (memoised) renderer doesn't re-render each time Milo's parent does.
+  const settledRef = useRef(onSettled);
+  useEffect(() => {
+    settledRef.current = onSettled;
+  }, [onSettled]);
+  const handleSettled = useCallback((s: MiloState) => settledRef.current?.(s), []);
 
   return (
     <Pressable
@@ -65,7 +71,7 @@ export function Milo({ state, size = 160, cue = 0, onSettled, onPress, style }: 
         paused={!onScreen}
         reducedMotion={reducedMotion}
         isDark={isDark}
-        onSettled={(s) => onSettled?.(s)}
+        onSettled={handleSettled}
       />
     </Pressable>
   );

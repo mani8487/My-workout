@@ -25,6 +25,32 @@ export const ARC = {
   jump: { rise: 300, fall: 280, height: 58 },
 } as const;
 
+/** Squash and stretch shapes (scaleX, scaleY), volume roughly kept. */
+export const SHAPE = {
+  stretchLong: { x: 1.1, y: 0.92 }, // waking stretch, long and low
+  crouch: { x: 1.06, y: 0.9 }, // anticipation before leaving the ground
+  takeoff: { x: 0.96, y: 1.06 }, // stretched upward in the air
+  land: { x: 1.08, y: 0.9 }, // squash on landing
+} as const;
+
+const { micro, transition } = DURATION;
+
+/** Milo waking up, in ms from the start: eyes, stretch, crouch, hop, land. */
+export const WAKE = {
+  eyesOpen: micro.slow,
+  stretch: micro.slow + micro.base,
+  crouch: micro.slow + micro.base + transition.short,
+  hop: micro.slow + micro.base + transition.short + micro.base,
+  land: micro.slow + micro.base + transition.short + micro.base + ARC.hop.rise + ARC.hop.fall,
+} as const;
+
+/** One celebration jump, in ms from its start: crouch, take off, land. */
+export const CELEBRATE = {
+  crouch: micro.fast,
+  takeoff: micro.base,
+  land: micro.fast + ARC.jump.rise + ARC.jump.fall,
+} as const;
+
 /** A random range in ms. Ambient motion picks a new value every cycle. */
 export type Range = { readonly min: number; readonly max: number };
 

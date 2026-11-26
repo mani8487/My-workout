@@ -13,7 +13,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { type SharedValue, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { SPRING } from '@/motion';
+import { DURATION, EASE, SPRING } from '@/motion';
 import { useTheme } from '@/theme/theme-context';
 
 type Layout = { y: number; h: number };
@@ -120,7 +120,7 @@ function DragItem({
       dragging.set(index);
       dragY.set(0);
       lastTarget.value = index;
-      lifted.value = withTiming(1, { duration: 120 });
+      lifted.value = withTiming(1, { duration: DURATION.micro.fast, easing: EASE.out });
       scheduleOnRN(buzz);
     })
     .onUpdate((e) => {
@@ -137,10 +137,10 @@ function DragItem({
       // Slide into the gap it opened, then hand the new order to the list.
       const dest = to === index ? 0 : to > index ? ls[to].y + ls[to].h - (ls[index].y + ls[index].h) : ls[to].y - ls[index].y;
       // Spring carries the finger's speed into the drop, and never overshoots the slot.
-      dragY.set(withSpring(dest, { ...SPRING.snappy, duration: 300, velocity: e.velocityY, overshootClamping: true }, () => {
+      dragY.set(withSpring(dest, { ...SPRING.snappy, velocity: e.velocityY, overshootClamping: true }, () => {
         scheduleOnRN(onDrop, index, to);
       }));
-      lifted.value = withTiming(0, { duration: 160 });
+      lifted.value = withTiming(0, { duration: DURATION.micro.fast, easing: EASE.out });
     });
 
   const style = useAnimatedStyle(() => {

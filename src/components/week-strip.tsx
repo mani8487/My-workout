@@ -16,7 +16,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 
 import { AppText } from '@/components/app-text';
 import type { ScheduleDay } from '@/logic/schedule';
-import { EASE, SPRING } from '@/motion';
+import { DURATION, EASE, SPRING } from '@/motion';
 import { useTheme } from '@/theme/theme-context';
 import { isMistTheme, spacing, TIGHT_FONT_SCALE } from '@/theme/typography';
 
@@ -63,7 +63,7 @@ export function WeekStrip({ weekStart, days, loggedKeys, selectedKey, isCurrentW
         const delta = projected < 0 ? 1 : -1;
         // Finish the throw off-screen, then swap in the next week.
         x.set(
-          withTiming(-delta * w, { duration: 160, easing: EASE.out }, (done) => {
+          withTiming(-delta * w, { duration: DURATION.micro.fast, easing: EASE.out }, (done) => {
             if (done) scheduleOnRN(commit, delta);
           }),
         );
