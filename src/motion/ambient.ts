@@ -102,7 +102,7 @@ export function floatLoop(value: SharedValue<number>, firstDelay: number, gap: R
   const t = value.get();
   if (t > 0 && t < 1) {
     value.set(
-      withTiming(1, { duration: (1 - t) * rise.max, easing: EASE.out, reduceMotion: NEVER }, (finished) => {
+      withTiming(1, { duration: (1 - t) * rise.max, easing: EASE.rise, reduceMotion: NEVER }, (finished) => {
         if (finished) cycle(pick(gap, Math.random()));
       }),
     );

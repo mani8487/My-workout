@@ -178,7 +178,7 @@ export function SetRow({ set, label, isCurrent = false, previous, hidePrevious, 
     // Reduce Motion: a gentle fade instead of the sweep.
     wipe.value = reduced
       ? withTiming(showDone ? 1 : 0, { duration: DURATION.micro.base, easing: EASE.out, reduceMotion: ReduceMotion.Never })
-      : withSpring(showDone ? 1 : 0, showDone ? SPRING.soft : { ...SPRING.soft, duration: DURATION.micro.slow });
+      : withSpring(showDone ? 1 : 0, showDone ? SPRING.soft : SPRING.snappy);
   }, [showDone, wipe, reduced]);
   const wipeStyle = useAnimatedStyle(() =>
     reduced

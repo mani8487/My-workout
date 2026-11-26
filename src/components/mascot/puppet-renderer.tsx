@@ -196,9 +196,13 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
 
   // Cancel every animation when Milo leaves the screen for good.
   const allRef = useRef([pose, headLift, headTurn, dip, lap, breath, breathDepth, sx, sy, jumpY, followY, tailSway, earL, earR, earTapL, earTapR, stageOpacity, eyes, paw, bowl, z1, z2, z3, zzOn, confetti, sparks]);
+  const unmounted = useRef(false);
   useEffect(() => {
     const all = allRef.current;
-    return () => all.forEach((v) => cancelAnimation(v));
+    return () => {
+      unmounted.current = true;
+      all.forEach((v) => cancelAnimation(v));
+    };
   }, []);
 
   const settledRef = useRef(onSettled);
@@ -210,6 +214,7 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
     stateRef.current = state;
   }, [state]);
   const lookRef = useRef<string | null>(null);
+  const wasReducedRef = useRef(reducedMotion);
 
   // ----- transitions: run once per state change (or cue) -----
   useEffect(() => {
@@ -220,8 +225,10 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
     // Reduce Motion: no movement. When the look changes, Milo fades out, the
     // pose swaps while he's invisible, and he fades back in (a simple cross-fade).
     const look = LOOK[state];
-    const swap = R && lookRef.current !== null && lookRef.current !== look;
+    // Also when Reduce Motion has just been turned on, so a half-finished move doesn't snap.
+    const swap = R && ((lookRef.current !== null && lookRef.current !== look) || !wasReducedRef.current);
     lookRef.current = look;
+    wasReducedRef.current = R;
     if (swap)
       stageOpacity.set(
         withSequence(
@@ -286,7 +293,7 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
           break;
         }
         // 1. The head lifts and the eyes open.
-        headLift.set(withSequence(withSpring(1, SPRING.gentle), withDelay(WAKE.land - transition.long, withSpring(0, SPRING.soft))));
+        headLift.set(withSequence(withSpring(1, SPRING.gentle), withDelay(WAKE.land - SPRING.gentle.duration, withSpring(0, SPRING.soft))));
         eyes.set(withDelay(WAKE.eyesOpen, withTiming(0, { duration: micro.base, easing: EASE.out })));
         // 2. A long, low stretch, a crouch (anticipation), up into the hop, down, a squash on landing, settle.
         const body = (axis: 'x' | 'y') =>
@@ -366,7 +373,7 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
     if (state === 'celebrating') loops.push(sx, sy, paw, eyes, confetti, jumpY);
     const stopAll = () => {
       loops.forEach((v) => cancelAnimation(v));
-      if (state === 'celebrating') {
+      if (state === 'celebrating' && !unmounted.current) {
         // Don't leave Milo frozen mid-air: land softly (state changes override this with their own pose).
         [sx, sy].forEach((v) => v.set(withSpring(1, SPRING.soft)));
         [jumpY, paw].forEach((v) => v.set(withSpring(0, SPRING.soft)));
@@ -374,11 +381,14 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
       }
     };
 
-    if (paused || reducedMotion) {
-      stopAll();
-      if (reducedMotion) [breath, tailSway, earL, earR, lap].forEach((v) => v.set(0));
+    // Nothing runs here while paused or with Reduce Motion; the previous run's
+    // cleanup already stopped its loops. Reduce Motion also clears idle offsets
+    // (but leaves paw, eyes and confetti to the still pose the transition set).
+    if (reducedMotion) {
+      [breath, tailSway, earL, earR, lap, z1, z2, z3].forEach((v) => v.set(0));
       return;
     }
+    if (paused) return;
     const sleeping = state === 'sleeping';
 
     breathe(breath, breathDepth, sleeping ? AMBIENT.breathSleeping : AMBIENT.breathAwake, AMBIENT.breathDepth);
@@ -454,15 +464,18 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
         );
         // The confetti restarts from 0 only once this jump begins, so the last burst finishes falling first.
         confetti.set(withDelay(wait, withSequence(withTiming(0, { duration: 0 }), withDelay(CELEBRATE.crouch, withTiming(1, { duration: DURATION.particle, easing: EASE.rise })))));
+        // This step reschedules the next jump, so it never collapses to zero time (ReduceMotion.Never).
         jumpY.set(
           withDelay(
             wait + CELEBRATE.crouch,
             withSequence(
-              withTiming(-ARC.jump.height, { duration: ARC.jump.rise, easing: EASE.rise }),
-              withTiming(0, { duration: ARC.jump.fall, easing: EASE.fall }, (finished) => {
+              NEVER,
+              withTiming(-ARC.jump.height, { duration: ARC.jump.rise, easing: EASE.rise, reduceMotion: NEVER }),
+              withTiming(0, { duration: ARC.jump.fall, easing: EASE.fall, reduceMotion: NEVER }, (finished) => {
                 if (finished) jump(transition.long + pick(AMBIENT.celebrateGap, Math.random()));
               }),
             ),
+            NEVER,
           ),
         );
       }
