@@ -18,11 +18,11 @@
  */
 import { addDays, addWeeks, format, isSameDay } from 'date-fns';
 import * as Haptics from 'expo-haptics';
-import { router, useFocusEffect, useIsFocused, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Pressable, ScrollView, View } from 'react-native';
+import { AppState, Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
 
 import { PressableScale } from '@/components/pressable-scale';
 import { SkeletonScreen } from '@/components/skeleton';
@@ -32,11 +32,12 @@ import { Card } from '@/components/card';
 import { CompletedCard, EmptyDayCard } from '@/components/day-cards';
 import { ActiveTodayCard, DayLogList, LogChips } from '@/components/active-today';
 import { CompactDayCard } from '@/components/compact-day-card';
+import { GlassTile } from '@/components/glass-tile';
 import { MistDayCard } from '@/components/mist-day-card';
 import { LivingScene } from '@/components/scene/living-scene';
 import { TopActions } from '@/components/top-actions';
 import { WaterChip } from '@/components/water-chip';
-import { useWaterToday, type WaterToday } from '@/db/water';
+import { useWaterToday } from '@/db/water';
 import { catchUpFrom, dayKeyOf, encodeLastSeen, LAST_SEEN_KEY } from '@/logic/day';
 import { minutesText, moodSentence, sceneTarget } from '@/logic/scene-state';
 import { useTodayKey } from '@/logic/use-today';
@@ -47,7 +48,7 @@ import { Backdrop, Screen } from '@/components/screen';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WeekStrip } from '@/components/week-strip';
 import { getLastSessionHighlight } from '@/db/history';
-import { formatKg } from '@/logic/format';
+import { formatDuration, formatKg } from '@/logic/format';
 import { getActiveSessionId, getSessionDetail } from '@/db/sessions';
 import { getSetting, setSetting } from '@/db/settings';
 import type { Workout } from '@/db/types';
@@ -56,7 +57,7 @@ import type { Rotation } from '@/logic/rotation';
 import { dateKey, getWeekSchedule, parseDateKey, weekStartOf, type ScheduleDay } from '@/logic/schedule';
 import { getRoutineCards, getToday, getWorkoutPreview, greeting, shortDate } from '@/logic/today';
 import { useTheme } from '@/theme/theme-context';
-import { isMistTheme, radius, SERIF_ITALIC, spacing } from '@/theme/typography';
+import { isMistTheme, MIN_TAP, radius, SERIF_ITALIC, spacing } from '@/theme/typography';
 
 /** Living Home: the room never gets shorter than this; a very small phone scrolls instead. */
 const ROOM_MIN_HEIGHT = 170;
@@ -95,29 +96,11 @@ export default function HomeScreen() {
   const [direction, setDirection] = useState<-1 | 0 | 1>(0);
   const [selectedKey, setSelectedKey] = useState(() => dateKey(new Date()));
   const todayKey = useTodayKey();
+  const { fontScale } = useWindowDimensions();
   const [roomHeight, setRoomHeight] = useState(0);
-  const liveWater = useWaterToday();
-  const focused = useIsFocused();
-
-  // Living Home: water logged while a sheet covers Home lands in the room when
-  // Home is back in view (with a light buzz), so you see the glass fill.
-  const [water, setWater] = useState<WaterToday | null>(null);
-  const shownWater = useRef<WaterToday | null>(null);
-  const wasCovered = useRef(false);
-  useEffect(() => {
-    if (!focused) {
-      wasCovered.current = true;
-      return;
-    }
-    if (!liveWater) return;
-    const shown = shownWater.current;
-    // Only for water added while Home was covered (the chip's own long-press already buzzes).
-    if (mist && wasCovered.current && shown && shown.day === liveWater.day && liveWater.ml > shown.ml)
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    wasCovered.current = false;
-    shownWater.current = liveWater;
-    setWater(liveWater);
-  }, [focused, liveWater, mist]);
+  // Water logged while a sheet covers Home lands in the room once Home is back in view:
+  // the room holds its changes until it's on screen again (see LivingScene).
+  const water = useWaterToday();
 
   // A new day (midnight, or the app waking on a new day): move "today" along with it.
   const prevToday = useRef(todayKey);
@@ -151,14 +134,15 @@ export default function HomeScreen() {
   };
 
   // The Week Schedule screen can send us back with a day to select (?date=2026-11-24).
+  // Handled once per new value, while rendering (React's pattern for reacting to a changed prop).
   const params = useLocalSearchParams<{ date?: string }>();
-  useEffect(() => {
-    if (!params.date) return;
-    const day = parseDateKey(params.date);
-    setWeekStart(weekStartOf(day));
+  const [handledDate, setHandledDate] = useState<string | undefined>(undefined);
+  if (params.date && params.date !== handledDate) {
+    setHandledDate(params.date);
+    setWeekStart(weekStartOf(parseDateKey(params.date)));
     setDirection(0);
     setSelectedKey(params.date);
-  }, [params.date]);
+  }
 
   // Reload every time Home comes into view, and when the week changes.
   useFocusEffect(
@@ -266,7 +250,7 @@ export default function HomeScreen() {
     router.push(day.isToday ? '/workout/change' : { pathname: '/workout/change', params: { date: day.key } });
 
   /** The card for the selected day. */
-  function DayCard() {
+  function renderDayCard() {
     // ---- Mist & Mint: one calm card style (finished and rest days use the shared cards below) ----
     if (mist) {
       const detailFor = (w: Workout) => {
@@ -289,7 +273,7 @@ export default function HomeScreen() {
         );
       }
       if (selected.isToday && selected.sessions.length === 0) {
-        if (!workout) return <EmptyPlanCard />;
+        if (!workout) return renderEmptyPlanCard();
         return (
           <MistDayCard
             eyebrow="Today's Workout"
@@ -312,6 +296,38 @@ export default function HomeScreen() {
           />
         );
       }
+      if (selected.sessions.length > 0) {
+        const s = selected.sessions[selected.sessions.length - 1];
+        const open = () => router.push({ pathname: '/session/[id]', params: { id: String(s.sessionId) } });
+        const more = selected.sessions.length - 1;
+        return (
+          <MistDayCard
+            eyebrow={selected.isToday ? 'Done today' : `Done · ${format(selected.date, 'EEEE d MMM')}`}
+            title={s.workoutName}
+            detail={[s.durationMin != null ? formatDuration(s.durationMin) : null, `${s.workingSets} sets`, `${s.volumeKg.toLocaleString()} kg`, more > 0 ? `+${more} more` : null]
+              .filter(Boolean)
+              .join(' · ')}
+            onPress={open}
+            hint="Opens every set and note"
+            button={{ title: 'View session', onPress: open }}
+            secondary={selected.isToday && workout ? { title: 'Train again', label: `Train again: ${workout.name}`, onPress: openPreview } : undefined}
+          />
+        );
+      }
+      if (selected.isToday && !workout) return renderEmptyPlanCard();
+      const missed = selected.status === 'missed';
+      return (
+        <MistDayCard
+          eyebrow={format(selected.date, 'EEEE d MMM')}
+          title={selected.isPast && missed ? 'No workout logged' : 'Rest day'}
+          detail={selected.isPast ? (missed ? 'A planned day. Forgot to log it?' : 'Nothing planned, nothing logged.') : 'Recovery counts too.'}
+          secondary={
+            selected.isPast
+              ? { title: 'Log a workout', label: 'Log a workout for this day', onPress: () => router.push({ pathname: '/log-workout', params: { date: selected.key } }) }
+              : { title: 'Plan a workout', onPress: () => changeFor(selected) }
+          }
+        />
+      );
     }
 
     // ---- Today ----
@@ -357,7 +373,7 @@ export default function HomeScreen() {
           </View>
         );
       }
-      if (!workout) return <EmptyPlanCard />;
+      if (!workout) return renderEmptyPlanCard();
       const p = previews[workout.id];
       if (compact) {
         return (
@@ -441,14 +457,19 @@ export default function HomeScreen() {
     return <EmptyDayCard day={selected} onPlan={() => changeFor(selected)} />;
   }
 
-  function EmptyPlanCard() {
+  function renderEmptyPlanCard() {
+    const openPlan = () => router.push({ pathname: '/routine/[routineId]', params: { routineId: rotation.routine.id } });
+    if (mist)
+      return (
+        <MistDayCard eyebrow={rotation.routine.name} title="No workouts yet" detail="Add some in the Plan Editor." button={{ title: 'Open plan', onPress: openPlan }} />
+      );
     return (
       <Card>
         <AppText variant="heading">{rotation.routine.name}</AppText>
         <AppText muted>This plan has no workouts yet. Add some in the Plan Editor.</AppText>
         <Button
           title="Open Plan"
-          onPress={() => router.push({ pathname: '/routine/[routineId]', params: { routineId: rotation.routine.id } })}
+          onPress={openPlan}
         />
       </Card>
     );
@@ -456,7 +477,7 @@ export default function HomeScreen() {
 
   const weekStrip = (
     <>
-      {/* zIndex keeps the strip's dates tappable above Milo's empty upper stage. */}
+      {/* zIndex keeps the strip's dates tappable above the room (Mist) while it resizes. */}
       <View style={{ zIndex: 1 }}>
       <WeekStrip
         loggedKeys={new Set(data.logs.map((l) => dateKey(new Date(l.loggedAt))))}
@@ -472,6 +493,14 @@ export default function HomeScreen() {
       </View>
     </>
   );
+  const dismissFresh = async () => {
+    await dismissFreshStart(db);
+    setWeeksAway(null);
+  };
+  const acceptFresh = async () => {
+    await acceptFreshStart(db);
+    setReloadKey((k) => k + 1);
+  };
   const freshStartCard = weeksAway != null && (
         <Card>
           <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm }}>
@@ -479,10 +508,7 @@ export default function HomeScreen() {
               Welcome back. Want to ease in?
             </AppText>
             <Pressable
-              onPress={async () => {
-                await dismissFreshStart(db);
-                setWeeksAway(null);
-              }}
+              onPress={dismissFresh}
               hitSlop={12}
               accessibilityLabel="Dismiss">
               <SymbolView name="xmark" size={14} tintColor={colors.textMuted} />
@@ -492,14 +518,7 @@ export default function HomeScreen() {
             It&apos;s been {weeksAway} weeks. A fresh start restarts the cycle, with weights about 10% lighter for your
             first session back on each exercise.
           </AppText>
-          <Button
-            title="Fresh Start"
-            kind="secondary"
-            onPress={async () => {
-              await acceptFreshStart(db);
-              setReloadKey((k) => k + 1);
-            }}
-          />
+          <Button title="Fresh Start" kind="secondary" onPress={acceptFresh} />
         </Card>
       );
   const todaysLogs = data.logs.filter((l) => dateKey(new Date(l.loggedAt)) === selected.key);
@@ -509,13 +528,43 @@ export default function HomeScreen() {
   };
 
   if (mist) {
-    // Living Home: everything fits on one screen. The room takes whatever height is left
+    // Living Home: everything fits on one screen.
+    const bigText = fontScale > 1.2;
+    // One line, so it doesn't push the room off the screen.
+    const freshBanner = weeksAway != null && (
+      <GlassTile style={{ flexDirection: 'row', alignItems: 'center', minHeight: MIN_TAP, paddingLeft: spacing.lg, borderRadius: radius.md }}>
+        <AppText variant="small" numberOfLines={1} style={{ flex: 1 }}>
+          Back after {weeksAway} weeks. Ease in?
+        </AppText>
+        <Pressable
+          onPress={acceptFresh}
+          accessibilityRole="button"
+          accessibilityLabel="Fresh start"
+          accessibilityHint="Restarts the cycle with weights about 10% lighter for your first session back"
+          style={{ minHeight: MIN_TAP, justifyContent: 'center', paddingHorizontal: spacing.md }}>
+          <AppText variant="label" color={colors.accent}>
+            Fresh start
+          </AppText>
+        </Pressable>
+        <Pressable
+          onPress={dismissFresh}
+          accessibilityRole="button"
+          accessibilityLabel="Dismiss"
+          style={{ width: MIN_TAP, height: MIN_TAP, alignItems: 'center', justifyContent: 'center' }}>
+          <SymbolView name="xmark" size={14} tintColor={colors.textMuted} />
+        </Pressable>
+      </GlassTile>
+    );
+    // The room takes whatever height is left
     // (a very small phone scrolls a little rather than squeeze the room below its minimum).
     return (
       <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: colors.background }}>
         <Backdrop />
+        {/* Backdrop must stay the first child: the tab screen switches the first ScrollView it finds
+            to automatic insets, which would add the tab bar's height twice inside this SafeAreaView. */}
         <ScrollView
           contentInsetAdjustmentBehavior="never"
+          alwaysBounceVertical={false}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ flexGrow: 1, paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.md, gap: spacing.md }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
@@ -548,16 +597,17 @@ export default function HomeScreen() {
             muted
             accessibilityElementsHidden
             importantForAccessibility="no-hide-descendants"
-            numberOfLines={1}
+            numberOfLines={2}
             style={{ textAlign: 'center' }}>
             <AppText variant="small">{moodSentence(data.activeToday, data.goal)}</AppText> {minutesText(data.activeToday, data.goal)}
           </AppText>
-          {freshStartCard}
-          <DayCard />
-          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-            <Button title="+ Log movement" kind="secondary" onPress={logMovement} accessibilityLabel="Log movement" style={{ flex: 1 }} />
+          {freshBanner}
+          {renderDayCard()}
+          {/* Side by side; stacked with large text so neither gets squeezed. */}
+          <View style={{ flexDirection: bigText ? 'column' : 'row', gap: spacing.sm }}>
+            <Button title="+ Log movement" kind="secondary" onPress={logMovement} accessibilityLabel="Log movement" style={bigText ? undefined : { flex: 1 }} />
             {water && (
-              <View style={{ flex: 1 }}>
+              <View style={bigText ? undefined : { flex: 1 }}>
                 <WaterChip water={water} />
               </View>
             )}
@@ -612,7 +662,7 @@ export default function HomeScreen() {
 
       {freshStartCard}
 
-      <DayCard />
+      {renderDayCard()}
 
       <ActiveTodayCard minutes={data.activeToday} goal={data.goal} onLog={() => router.push('/quick-log')} />
       <DayLogList logs={todaysLogs} onDelete={deleteLog} />

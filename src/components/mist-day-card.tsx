@@ -20,9 +20,11 @@ type Props = {
   secondary?: { title: string; onPress: () => void; label?: string };
   /** Tapping the card body (e.g. open the preview). */
   onPress?: () => void;
+  /** VoiceOver hint for tapping the card body. */
+  hint?: string;
 };
 
-export function MistDayCard({ eyebrow, title, detail, button, secondary, onPress }: Props) {
+export function MistDayCard({ eyebrow, title, detail, button, secondary, onPress, hint = 'Shows the exercises' }: Props) {
   const { colors } = useTheme();
   return (
     <GlassTile style={{ borderRadius: radius.lg, padding: spacing.lg, gap: spacing.md }}>
@@ -32,12 +34,12 @@ export function MistDayCard({ eyebrow, title, detail, button, secondary, onPress
         pressedScale={0.98}
         accessibilityRole={onPress ? 'button' : undefined}
         accessibilityLabel={`${eyebrow}. ${title}${detail ? `. ${detail}` : ''}`}
-        accessibilityHint={onPress ? 'Shows the exercises' : undefined}
+        accessibilityHint={onPress ? hint : undefined}
         style={{ gap: 2 }}>
         <AppText variant="small" muted>
           {eyebrow}
         </AppText>
-        <AppText variant="heading" numberOfLines={2}>
+        <AppText variant="heading" numberOfLines={1}>
           {title}
         </AppText>
         {detail ? (

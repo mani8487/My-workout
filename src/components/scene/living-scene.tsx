@@ -9,7 +9,7 @@
  * the room passes "awake", and lies back down if it goes the other way.
  * With Reduce Motion on, the room cross-fades between still states.
  */
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useWindowDimensions, View } from 'react-native';
 import Animated, {
   cancelAnimation,
@@ -58,19 +58,23 @@ type Props = {
 
 export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinutes, waterMl, waterGoalMl, hour, maxHeight, from, miloOverride, miloCue = 0 }: Props) {
   const { width, height } = useWindowDimensions();
-  // The room is drawn at the size it first gets. If the space later shrinks (a taller card below),
-  // it scales down smoothly from the floor up instead of jumping to a new size.
-  const [firstMax] = useState(maxHeight);
-  const k = Math.min(width / ROOM.w, (firstMax ?? height * MAX_HEIGHT_SHARE) / ROOM.h);
-  const fitTarget = maxHeight ? Math.min(1, maxHeight / (ROOM.h * k)) : 1;
-  const fit = useSharedValue(fitTarget);
-  useEffect(() => {
-    fit.set(withSpring(fitTarget, SPRING.gentle));
-  }, [fit, fitTarget]);
   const { isDark, colors } = useTheme();
   const palette = roomPalette(isDark);
   const reduced = useReducedMotion();
-  const live = useMotionActive() && !reduced;
+  const onScreen = useMotionActive();
+  const live = onScreen && !reduced;
+  const k = Math.min(width / ROOM.w, (maxHeight ?? height * MAX_HEIGHT_SHARE) / ROOM.h);
+  // When the space changes size (a card below grows or shrinks), the room is laid out at the new
+  // size at once, then scaled from its old size to the new one with a spring, from the floor up.
+  const fit = useSharedValue(1);
+  const lastK = useRef(k);
+  useLayoutEffect(() => {
+    const before = lastK.current;
+    lastK.current = k;
+    if (before === k || reduced) return;
+    fit.set(before / k);
+    fit.set(withSpring(1, SPRING.gentle));
+  }, [k, fit, reduced]);
 
   const target = sceneTarget({ activeMinutes, goalMinutes, waterMl, waterGoalMl });
   const [start] = useState(() => from ?? { stage: target.stage, water: target.water });
@@ -86,6 +90,9 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
   // ----- the room follows today's numbers -----
   const first = useRef(true);
   useEffect(() => {
+    // While covered (a sheet, another screen, the background), hold the old room; the change
+    // plays when the room is back in view, so you see it happen.
+    if (!onScreen) return;
     const catchUp = first.current;
     first.current = false;
     if (reduced) {
@@ -112,7 +119,7 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
       stage.set(withSpring(target.stage, SPRING.gentle));
       level.set(withDelay(DURATION.micro.fast, withSpring(target.water, SPRING.gentle)));
     }
-  }, [target.stage, target.water, reduced, stage, level, fade]);
+  }, [target.stage, target.water, reduced, onScreen, stage, level, fade]);
 
   useEffect(() => {
     day.set(withTiming(daylight(hour), { duration: DURATION.transition.long, easing: EASE.inOut }));
@@ -125,6 +132,7 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
   useEffect(() => {
     moodRef.current = target.mood;
     // While the Lab overrides Milo, track the mood directly (no waking move would play to finish it).
+    if (!onScreen) return; // Milo too waits until the room is in view
     const go = () =>
       setMilo((cur) => (!miloOverride && upright(target.mood) && (lyingDown(cur) || cur === 'waking') ? 'waking' : target.mood));
     // During the first catch-up, Milo moves when the room starts to.
@@ -132,7 +140,7 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
     firstMood.current = false;
     const t = setTimeout(go, wait);
     return () => clearTimeout(t);
-  }, [target.mood, miloOverride]);
+  }, [target.mood, miloOverride, onScreen]);
   const onSettled = (s: MiloState) => {
     if (s === 'waking') setMilo(moodRef.current);
   };

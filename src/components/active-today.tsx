@@ -15,7 +15,7 @@ import { ProgressRing } from '@/components/progress-ring';
 import type { QuickLog } from '@/db/quick-log';
 import { ACTIVITY_PRESETS, describeLog } from '@/logic/activity';
 import { useTheme } from '@/theme/theme-context';
-import { isMistTheme, radius, spacing } from '@/theme/typography';
+import { isMistTheme, MIN_TAP, radius, spacing } from '@/theme/typography';
 
 export function ActiveTodayCard({ minutes, goal, onLog }: { minutes: number; goal: number; onLog: () => void }) {
   const { colors, name } = useTheme();
@@ -129,7 +129,7 @@ export function LogChips({ logs, onDelete, emptyText }: { logs: QuickLog[]; onDe
   // Same height with or without logs, so the room above never has to resize.
   if (logs.length === 0)
     return (
-      <View style={{ minHeight: 44, justifyContent: 'center', alignItems: 'center' }}>
+      <View style={{ minHeight: MIN_TAP, justifyContent: 'center', alignItems: 'center' }}>
         <AppText variant="small" muted>
           {emptyText}
         </AppText>
@@ -154,8 +154,9 @@ export function LogChips({ logs, onDelete, emptyText }: { logs: QuickLog[]; onDe
               ])
             }
             accessibilityRole="button"
-            accessibilityLabel={`${what} at ${format(l.loggedAt, 'H:mm')}. Tap to delete`}>
-            <GlassTile style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 44, paddingHorizontal: spacing.md, borderRadius: radius.md }}>
+            accessibilityLabel={`${what} at ${format(l.loggedAt, 'H:mm')}`}
+            accessibilityHint="Asks before deleting this log">
+            <GlassTile style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: MIN_TAP, paddingHorizontal: spacing.md, borderRadius: radius.md }}>
               <SymbolView name={icon as SFSymbol} size={16} tintColor={colors.accent} />
               <AppText variant="small">{what.charAt(0).toUpperCase() + what.slice(1)}</AppText>
             </GlassTile>
