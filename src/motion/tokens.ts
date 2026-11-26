@@ -23,6 +23,8 @@ export const DURATION = {
 export const ARC = {
   hop: { rise: 240, fall: 220, height: 28 },
   jump: { rise: 300, fall: 280, height: 58 },
+  /** Hopping off the couch toward you (Start): up a little, then down past the floor ("drop"). */
+  leap: { rise: 220, fall: 200, height: 30, drop: 70 },
 } as const;
 
 /** Squash and stretch shapes (scaleX, scaleY), volume roughly kept. */
@@ -42,6 +44,25 @@ export const WAKE = {
   crouch: micro.slow + micro.base + transition.short,
   hop: micro.slow + micro.base + transition.short + micro.base,
   land: micro.slow + micro.base + transition.short + micro.base + ARC.hop.rise + ARC.hop.fall,
+} as const;
+
+/** Leaving for a workout, in ms from the tap: ears perk, crouch, take off. Total about 650 ms. */
+export const LEAVE = {
+  perk: 0,
+  crouch: 100, // overlaps the perk: anticipation
+  takeoff: 250,
+} as const;
+
+/** The room (and Milo) on the way out to a workout and back, in ms. */
+export const TRIP = {
+  /** The room starts easing up and out this long after the tap... */
+  roomOut: 300,
+  /** ...and the workout screen is opened at this point, while the room is halfway gone. */
+  navigate: 450,
+  /** The workout screen's fade in (it finishes the whole start at about 800 ms). */
+  screenFade: 350,
+  /** Coming back: a beat after Home is in view, Milo hops back in. */
+  arrive: 250,
 } as const;
 
 /** One celebration jump, in ms from its start: crouch, take off, land. */

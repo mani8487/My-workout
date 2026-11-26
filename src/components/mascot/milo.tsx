@@ -28,6 +28,8 @@ const DESCRIPTION: Record<MiloState, string> = {
   reacting: 'Milo the cat raises a paw',
   celebrating: 'Milo the cat jumps for joy',
   drinking: 'Milo the cat is drinking water',
+  departing: 'Milo the cat hops off to join your workout',
+  arriving: 'Milo the cat hops back to his couch',
 };
 
 type Props = {
@@ -40,10 +42,12 @@ type Props = {
   onPress?: () => void;
   /** Keep the couch when Milo gets up (the Living Home room). */
   keepCouch?: boolean;
+  /** Wears his towel (after a workout today). */
+  towel?: boolean;
   style?: StyleProp<ViewStyle>;
 };
 
-export function Milo({ state, size = 160, cue = 0, onSettled, onPress, keepCouch = false, style }: Props) {
+export function Milo({ state, size = 160, cue = 0, onSettled, onPress, keepCouch = false, towel = false, style }: Props) {
   const reducedMotion = useReducedMotion();
   const { isDark } = useTheme();
   const onScreen = useMotionActive();
@@ -76,6 +80,7 @@ export function Milo({ state, size = 160, cue = 0, onSettled, onPress, keepCouch
         reducedMotion={reducedMotion}
         isDark={isDark}
         keepCouch={keepCouch}
+        towel={towel}
         onSettled={handleSettled}
       />
     </Pressable>

@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { MiloPeek, PEEK_VISIBLE } from '@/components/scene/milo-peek';
 import { SkeletonScreen } from '@/components/skeleton';
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
@@ -21,11 +22,15 @@ import type { Workout, WorkoutId } from '@/db/types';
 import { titleCase } from '@/logic/format';
 import { estimateMinutes, getWorkoutPreview } from '@/logic/today';
 import { useTheme } from '@/theme/theme-context';
-import { radius, spacing } from '@/theme/typography';
+import { isMistTheme, radius, spacing } from '@/theme/typography';
+
+/** Milo's size when he peeks up from the bottom of the preview. */
+const PEEK_SIZE = 130;
 
 export default function PreviewScreen() {
   const db = useSQLiteContext();
-  const { colors } = useTheme();
+  const { colors, name: themeName } = useTheme();
+  const mist = isMistTheme(themeName);
   const { id } = useLocalSearchParams<{ id: WorkoutId }>();
   const [data, setData] = useState<{ workout: Workout; plan: PlannedExercise[]; minutes: number } | null>(null);
   const [starting, setStarting] = useState(false);
@@ -75,7 +80,7 @@ export default function PreviewScreen() {
   return (
     <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: colors.background }}>
       <ScreenHeader title="Workout Preview" onBack={() => router.back()} />
-      <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg }}>
+      <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg, paddingBottom: mist ? Math.round(PEEK_SIZE * PEEK_VISIBLE) + spacing.lg : spacing.lg }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
           <SymbolView name={data.workout.icon as SFSymbol} size={40} tintColor={colors.accent} />
           <View style={{ flex: 1 }}>
@@ -124,6 +129,12 @@ export default function PreviewScreen() {
         </View>
       </ScrollView>
       <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.md }}>
+        {/* Living Home: Milo followed you here and peeks up over the bottom bar. */}
+        {mist && (
+          <View pointerEvents="none" style={{ position: 'absolute', right: spacing.lg, top: -Math.round(PEEK_SIZE * PEEK_VISIBLE) }}>
+            <MiloPeek size={PEEK_SIZE} />
+          </View>
+        )}
         {suggestion && !override && (
           <SuggestionBanner
             message={suggestion.message}

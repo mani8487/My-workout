@@ -31,7 +31,7 @@ import Animated, {
 import { SvgXml } from 'react-native-svg';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { AMBIENT, ARC, CELEBRATE, DURATION, EASE, SHAPE, SPRING, WAKE, breathe, floatLoop, loopWithGaps, pick } from '@/motion';
+import { AMBIENT, ARC, CELEBRATE, DURATION, EASE, LEAVE, SHAPE, SPRING, WAKE, breathe, floatLoop, loopWithGaps, pick } from '@/motion';
 
 import { GROUND_Y, LAYERS, LIE_POSE, NECK, STAGE, TAIL_BASE, type LayerName } from './layers';
 import { MILO_FX } from './palette';
@@ -50,6 +50,8 @@ const LOOK: Record<MiloState, string> = {
   content: 'content',
   reacting: 'paw',
   celebrating: 'party',
+  departing: 'sit',
+  arriving: 'sit',
   drinking: 'drink',
 };
 const NEVER = ReduceMotion.Never;
@@ -171,7 +173,7 @@ function Z({ progress, on, k, color }: { progress: SharedValue<number>; on: Shar
 
 // ---------- the renderer ----------
 
-export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, tapSignal, paused, reducedMotion, isDark, keepCouch = false, onSettled }: MiloRendererProps) {
+export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, tapSignal, paused, reducedMotion, isDark, keepCouch = false, towel = false, onSettled }: MiloRendererProps) {
   const k = size / STAGE;
   const lying = state === 'sleeping' || state === 'stirring' || state === 'waking';
 
@@ -202,9 +204,12 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
   const zzOn = useSharedValue(state === 'sleeping' ? 1 : 0);
   const confetti = useSharedValue(0);
   const sparks = useSharedValue(0);
+  const near = useSharedValue(1); // scale toward the viewer while leaping off or back in
+  const present = useSharedValue(1); // fades him in when he arrives from below the room
+  const towelOn = useSharedValue(towel ? 1 : 0);
 
   // Cancel every animation when Milo leaves the screen for good.
-  const allRef = useRef([pose, headLift, headTurn, dip, lap, breath, breathDepth, sx, sy, jumpY, followY, tailSway, earL, earR, earTapL, earTapR, stageOpacity, eyes, paw, bowl, z1, z2, z3, zzOn, confetti, sparks]);
+  const allRef = useRef([pose, headLift, headTurn, dip, lap, breath, breathDepth, sx, sy, jumpY, followY, tailSway, earL, earR, earTapL, earTapR, stageOpacity, eyes, paw, bowl, z1, z2, z3, zzOn, confetti, sparks, near, present, towelOn]);
   const unmounted = useRef(false);
   useEffect(() => {
     unmounted.current = false;
@@ -264,10 +269,13 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
       else confetti.set(withTiming(1, { duration: DURATION.particle * (1 - c), easing: EASE.rise }));
     }
     if (state !== 'reacting' && state !== 'celebrating') to(paw, 0);
-    if (state !== 'waking') {
+    const travelling = state === 'waking' || state === 'departing' || state === 'arriving';
+    if (!travelling) {
       to(jumpY, 0);
       to(sx, 1);
       to(sy, 1);
+      to(near, 1);
+      to(present, 1);
     }
 
     switch (state) {
@@ -368,6 +376,85 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
         sparks.set(0);
         sparks.set(withDelay(micro.fast, withTiming(1, { duration: transition.long, easing: EASE.out })));
         break;
+
+      case 'departing': {
+        // Ears perk, a crouch (anticipation), then one arc up and down toward you, past the floor.
+        if (R) {
+          place(pose, 1);
+          place(eyes, 0);
+          reducedTimer = setTimeout(() => settle('departing'), micro.base);
+          break;
+        }
+        pose.set(withTiming(1, { duration: LEAVE.takeoff, easing: EASE.inOut })); // off the couch if he was lying on it
+        to(headLift, 0);
+        eyes.set(withTiming(0, { duration: micro.fast, easing: EASE.out }));
+        const perk = (deg: number) => withSequence(withTiming(deg, { duration: micro.fast, easing: EASE.out }), withDelay(transition.short, withSpring(0, SPRING.soft)));
+        earTapL.set(perk(8));
+        earTapR.set(perk(-8));
+        const leap = (axis: 'x' | 'y') =>
+          withDelay(
+            LEAVE.crouch,
+            withSequence(
+              withTiming(SHAPE.crouch[axis], { duration: LEAVE.takeoff - LEAVE.crouch, easing: EASE.out }),
+              withTiming(SHAPE.takeoff[axis], { duration: ARC.leap.rise, easing: EASE.rise }),
+              withTiming(1, { duration: ARC.leap.fall, easing: EASE.fall }),
+            ),
+          );
+        sx.set(leap('x'));
+        sy.set(leap('y'));
+        jumpY.set(
+          withDelay(
+            LEAVE.takeoff,
+            withSequence(
+              withTiming(-ARC.leap.height, { duration: ARC.leap.rise, easing: EASE.rise }),
+              withTiming(ARC.leap.drop, { duration: ARC.leap.fall, easing: EASE.fall }, (finished) => {
+                if (finished) scheduleOnRN(settle, 'departing');
+              }),
+            ),
+          ),
+        );
+        near.set(withDelay(LEAVE.takeoff, withTiming(1.15, { duration: ARC.leap.rise + ARC.leap.fall, easing: EASE.inOut })));
+        break;
+      }
+
+      case 'arriving': {
+        // From just below the room: fade in, one arc up and down into his spot, a soft squash, settle.
+        if (R) {
+          place(pose, 1);
+          place(jumpY, 0);
+          place(near, 1);
+          place(present, 1);
+          place(eyes, 0);
+          reducedTimer = setTimeout(() => settle('arriving'), micro.base);
+          break;
+        }
+        pose.set(1);
+        headLift.set(0);
+        eyes.set(0);
+        jumpY.set(ARC.leap.drop);
+        near.set(1.12);
+        present.set(0);
+        present.set(withTiming(1, { duration: micro.base, easing: EASE.out }));
+        jumpY.set(
+          withSequence(
+            withTiming(-ARC.leap.height * 0.6, { duration: ARC.leap.rise, easing: EASE.rise }),
+            withTiming(0, { duration: ARC.leap.fall, easing: EASE.fall }),
+          ),
+        );
+        near.set(withTiming(1, { duration: ARC.leap.rise + ARC.leap.fall, easing: EASE.inOut }));
+        const land = (axis: 'x' | 'y') =>
+          withSequence(
+            withTiming(SHAPE.takeoff[axis], { duration: ARC.leap.rise, easing: EASE.rise }),
+            withTiming(1, { duration: ARC.leap.fall, easing: EASE.fall }),
+            withTiming(SHAPE.land[axis], { duration: micro.fast, easing: EASE.out }),
+            withSpring(1, SPRING.snappy, (finished) => {
+              if (finished && axis === 'y') scheduleOnRN(settle, 'arriving');
+            }),
+          );
+        sx.set(land('x'));
+        sy.set(land('y'));
+        break;
+      }
 
       case 'celebrating':
         to(pose, 1);
@@ -526,6 +613,12 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, paused, reducedMotion, celebrateCue]);
 
+  // ----- the towel (after a workout today) fades on or off -----
+  useEffect(() => {
+    const target = towel ? 1 : 0;
+    towelOn.set(reducedMotion ? target : withTiming(target, { duration: transition.short, easing: EASE.inOut }));
+  }, [towel, reducedMotion, towelOn]);
+
   // ----- follow-through: ears and tail trail vertical body motion -----
   useAnimatedReaction(
     () => jumpY.get(),
@@ -558,7 +651,11 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
   };
 
   const stageStyle = useAnimatedStyle(() => ({ opacity: stageOpacity.get() }));
-  const rigStyle = useAnimatedStyle(() => ({ transform: [{ translateY: jumpY.get() * k }] }));
+  const rigStyle = useAnimatedStyle(() => ({
+    opacity: present.get(),
+    transform: [{ translateY: jumpY.get() * k }, { scale: near.get() }],
+  }));
+  const towelStyle = useAnimatedStyle(() => ({ opacity: towelOn.get() * pose.get() }));
   const couchStyle = useAnimatedStyle(() => ({ opacity: keepCouch ? 1 : 1 - pose.get() }));
   const bowlStyle = useAnimatedStyle(() => ({ opacity: bowl.get() }));
 
@@ -566,7 +663,7 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
     const q = pose.get();
     const air = Math.min(1, -jumpY.get() / 70);
     return {
-      opacity: 1 - air * 0.5,
+      opacity: (1 - air * 0.5) * present.get(),
       transform: [{ translateY: (1 - q) * 7 * k }, { scaleX: (1 - q * (100 / 220)) * (1 - air * 0.35) }],
     };
   });
@@ -639,13 +736,14 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
       />
       <Layer name="couch" k={k} style={couchStyle} />
 
-      <Animated.View style={[stage, rigStyle]}>
+      <Animated.View style={[stage, { transformOrigin: [size / 2, GROUND_Y * k, 0] }, rigStyle]}>
         <Animated.View style={[stage, { transformOrigin: [TAIL_BASE.x * k, TAIL_BASE.y * k, 0] }, tailStyle]}>
           <Layer name="tail" k={k} />
         </Animated.View>
         <Layer name="body-lie" k={k} style={bodyLieStyle} />
         <Layer name="body-sit" k={k} style={bodySitStyle} />
         <Layer name="front-paw" k={k} style={pawStyle} />
+        <Layer name="towel" k={k} style={towelStyle} />
         <Animated.View style={[stage, { transformOrigin: [NECK.x * k, NECK.y * k, 0] }, headStyle]}>
           <Layer name="ear-left" k={k} style={earLStyle} />
           <Layer name="ear-right" k={k} style={earRStyle} />

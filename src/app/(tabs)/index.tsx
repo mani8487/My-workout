@@ -89,6 +89,8 @@ type HomeData = {
   day: string;
   /** Milo's status line for this visit. */
   voice: string;
+  /** A workout was finished today (Milo wears his towel). */
+  workoutDone: boolean;
 };
 
 export default function HomeScreen() {
@@ -137,6 +139,26 @@ export default function HomeScreen() {
   // Living Home: a light buzz when a movement you just logged lands in the room.
   // Set when "+ Log movement" opens the sheet; checked (and cleared) on the very next reload.
   const logPending = useRef(false);
+
+  // Living Home: Start Workout plays Milo's exit (perk, hop off toward you, the room eases away),
+  // then opens the workout. Coming back to Home plays his return.
+  const [departCue, setDepartCue] = useState(0);
+  const [arriveCue, setArriveCue] = useState(0);
+  const away = useRef(false);
+  const leaving = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      leaving.current = false;
+      if (!away.current) return;
+      away.current = false;
+      setArriveCue((c) => c + 1);
+    }, []),
+  );
+  // Stable, so the (memoised) room doesn't re-render for it.
+  const todaysWorkoutId = data?.workout?.id;
+  const openTodaysPreview = useCallback(() => {
+    if (todaysWorkoutId) router.push({ pathname: '/workout/preview', params: { id: todaysWorkoutId } });
+  }, [todaysWorkoutId]);
   /** Set on opening the app and on coming back from the background; the next load gives Milo a new line. */
   const freshLine = useRef(true);
   const prevMinutes = useRef<{ day: string; minutes: number } | null>(null);
@@ -234,7 +256,7 @@ export default function HomeScreen() {
         );
         freshLine.current = false;
         setSetting(db, MILO_LINE_KEY, encodeShown({ id: voice.id, key: voice.key })).catch(() => {});
-        setData({ name, rotation, workout, active, plans, days, previews, logs, activeToday, goal, hour, day, voice: voice.text });
+        setData({ name, rotation, workout, active, plans, days, previews, logs, activeToday, goal, hour, day, voice: voice.text, workoutDone: workoutsToday > 0 });
         setSceneFrom((f) => f ?? catchUpFrom(lastSeen, day));
         const before = prevMinutes.current;
         prevMinutes.current = { day, minutes: activeToday };
@@ -305,6 +327,14 @@ export default function HomeScreen() {
       : `${workout.name} was already done on ${shortDate(rotation.done.get(workout.id)!)} this cycle`;
 
   const openPreview = () => workout && router.push({ pathname: '/workout/preview', params: { id: workout.id } });
+  const startFromRoom = () => {
+    if (!mist || !sceneFrom || roomHeight === 0) return openPreview();
+    if (leaving.current) return; // one exit per tap
+    leaving.current = true;
+    away.current = true;
+    Haptics.selectionAsync().catch(() => {});
+    setDepartCue((c) => c + 1);
+  };
   const changeFor = (day: ScheduleDay) =>
     router.push(day.isToday ? '/workout/change' : { pathname: '/workout/change', params: { date: day.key } });
 
@@ -339,7 +369,7 @@ export default function HomeScreen() {
             title={workout.name}
             detail={detailFor(workout)}
             onPress={openPreview}
-            button={{ title: 'Start Workout', onPress: openPreview }}
+            button={{ title: 'Start Workout', onPress: startFromRoom }}
             secondary={{ title: 'Change', label: 'Change workout', onPress: () => changeFor(selected) }}
           />
         );
@@ -656,6 +686,10 @@ export default function HomeScreen() {
                 hour={data.hour}
                 from={sceneFrom}
                 maxHeight={roomHeight}
+                departCue={departCue}
+                onDeparted={openTodaysPreview}
+                arriveCue={arriveCue}
+                towel={data.workoutDone}
               />
             )}
           </View>

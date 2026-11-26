@@ -24,7 +24,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { Milo, type MiloState } from '@/components/mascot';
-import { DURATION, EASE, SPRING, useMotionActive, useReducedMotion } from '@/motion';
+import { DURATION, EASE, SPRING, TRIP, useMotionActive, useReducedMotion } from '@/motion';
 import { daylight, describeScene, dimness, moodOfStage, sceneTarget, warmth, type Mood } from '@/logic/scene-state';
 import { useTheme } from '@/theme/theme-context';
 
@@ -34,6 +34,8 @@ import { Curtains, Dust, Floor, Lamp, Plant, Rays, ROOM, RoomWindow, Sill, Veil,
 /** Share of the screen height the room may use. */
 const MAX_HEIGHT_SHARE = 0.34;
 /** Milo's square stage in room units, standing on the floor in the middle of the room. */
+/** How far (room units) the room drifts up as it leaves for a workout. */
+const ROOM_LIFT = 24;
 const MILO = { size: 200, centerX: 180, groundInStage: (208 / 240) * 200 };
 
 const lyingDown = (s: MiloState) => s === 'sleeping' || s === 'stirring';
@@ -53,10 +55,18 @@ type Props = {
   from?: { stage: number; water: number };
   /** Scene Lab: show this Milo state instead of the mood (bump cue to replay). */
   miloOverride?: MiloState | null;
+  /** Bump to leave for a workout: Milo hops off toward you and the room eases up and out. */
+  departCue?: number;
+  /** Called when it's time to open the workout screen (the room is half gone). */
+  onDeparted?: () => void;
+  /** Bump when back on Home after leaving: the room eases back and Milo hops into his spot. */
+  arriveCue?: number;
+  /** Milo wears his towel (a workout is done today). */
+  towel?: boolean;
   miloCue?: number;
 };
 
-export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinutes, waterMl, waterGoalMl, hour, maxHeight, from, miloOverride, miloCue = 0 }: Props) {
+export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinutes, waterMl, waterGoalMl, hour, maxHeight, from, miloOverride, miloCue = 0, departCue = 0, onDeparted, arriveCue = 0, towel = false }: Props) {
   const { width, height } = useWindowDimensions();
   const { isDark, colors } = useTheme();
   const palette = roomPalette(isDark);
@@ -86,7 +96,42 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
   const fade = useSharedValue(1); // Reduce Motion: the room dips to swap states unseen
   const cool = useDerivedValue(() => dimness(stage.get()));
   const warm = useDerivedValue(() => warmth(stage.get()));
-  useEffect(() => () => [stage, level, day, fade, fit].forEach((v) => cancelAnimation(v)), [stage, level, day, fade, fit]);
+  const trip = useSharedValue(0); // 0 = the room is here, 1 = it has eased up and out (off to a workout)
+  useEffect(() => () => [stage, level, day, fade, fit, trip].forEach((v) => cancelAnimation(v)), [stage, level, day, fade, fit, trip]);
+
+  // ----- leaving for a workout, and coming back -----
+  type Travel = 'none' | 'departing' | 'arriving';
+  const [travel, setTravel] = useState<Travel>('none');
+  const [seen, setSeen] = useState({ departCue, arriveCue });
+  if (seen.departCue !== departCue || seen.arriveCue !== arriveCue) {
+    setSeen({ departCue, arriveCue });
+    if (seen.departCue !== departCue && departCue) setTravel('departing');
+    else if (seen.arriveCue !== arriveCue && arriveCue) setTravel('arriving');
+  }
+  const departedRef = useRef(onDeparted);
+  useEffect(() => {
+    departedRef.current = onDeparted;
+  }, [onDeparted]);
+  useEffect(() => {
+    if (!departCue) return;
+    // Milo goes first (perk, crouch, hop); the room follows him out a beat later. With Reduce Motion, a plain fade.
+    trip.set(
+      withDelay(
+        reduced ? 0 : TRIP.roomOut,
+        withTiming(1, { duration: reduced ? DURATION.micro.base : DURATION.transition.short, easing: EASE.inOut, reduceMotion: NEVER }),
+        NEVER,
+      ),
+    );
+    const t = setTimeout(() => departedRef.current?.(), reduced ? DURATION.micro.base : TRIP.navigate);
+    return () => clearTimeout(t);
+    // Only a new cue starts the trip.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [departCue]);
+  useEffect(() => {
+    if (!arriveCue) return;
+    trip.set(withTiming(0, { duration: reduced ? DURATION.micro.base : DURATION.transition.base, easing: EASE.out, reduceMotion: NEVER }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [arriveCue]);
 
   // ----- the room follows today's numbers -----
   const first = useRef(true);
@@ -144,12 +189,16 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
   }, [target.mood, miloOverride, onScreen]);
   const onSettled = (s: MiloState) => {
     if (s === 'waking') setMilo(moodRef.current);
+    if (s === 'arriving') setTravel('none');
   };
 
-  const roomStyle = useAnimatedStyle(() => ({ opacity: fade.get(), transform: [{ scale: fit.get() }] }));
+  const roomStyle = useAnimatedStyle(() => ({
+    opacity: fade.get() * (1 - trip.get()),
+    transform: [{ translateY: -trip.get() * ROOM_LIFT * k }, { scale: fit.get() }],
+  }));
   const stageW = ROOM.w * k;
   const stageStyle = { position: 'absolute' as const, left: (width - stageW) / 2, top: 0, width: stageW, height: ROOM.h * k };
-  const shown = miloOverride ?? milo;
+  const shown = miloOverride ?? (travel === 'none' ? milo : travel);
 
   return (
     <Animated.View
@@ -170,6 +219,7 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
           cue={miloCue}
           onSettled={onSettled}
           keepCouch
+          towel={towel}
           size={MILO.size * k}
           style={{ position: 'absolute', left: (MILO.centerX - MILO.size / 2) * k, top: (ROOM.floorY - MILO.groundInStage) * k }}
         />

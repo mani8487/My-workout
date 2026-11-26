@@ -29,6 +29,7 @@ Listed back to front.
 | `front-paw` | 124 | 150 | 26 × 58 | 13, 8 (shoulder) | Milo's RIGHT front leg; rotates up to −130° for the paw lift |
 | `ear-left` | 72 | 22 | 34 × 36 | 17, 32 (ear base) | twitch ±14° |
 | `ear-right` | 134 | 22 | 34 × 36 | 17, 32 (ear base) | twitch ±14° |
+| `towel` | 82 | 104 | 76 × 44 | 38, 10 | white towel over the shoulders with aqua stripes; shown after a workout (fades in) |
 | `collar` | 92 | 110 | 56 × 22 | 28, 8 | mint collar with tag; moves with the head |
 | `head` | 66 | 38 | 108 × 82 | 54, 74 (neck) | turns, lifts, dips to drink |
 | `eyes-open` | 88 | 66 | 64 × 22 | 32, 11 | blink crossfade |
@@ -44,7 +45,9 @@ Listed back to front.
   moved by (+18, −54), turned +70°. Draw `head` and `tail` once, in the sitting
   position; the app places them for lying.
 
-Floating "Zz", confetti and paw sparkles are drawn in code.
+Floating "Zz", confetti and paw sparkles are drawn in code. The whole puppet
+(body, towel, head group, tail) also scales from its feet at the ground line
+when Milo leaps toward you or hops back in; no extra art is needed for that.
 
 ## Palette (Mist & Mint)
 

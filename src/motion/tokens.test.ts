@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { AMBIENT, ARC, CELEBRATE, DURATION, SHAPE, WAKE, pick } from './tokens.ts';
+import { AMBIENT, ARC, CELEBRATE, DURATION, LEAVE, SHAPE, TRIP, WAKE, pick } from './tokens.ts';
 
 test('duration bands stay inside the motion spec', () => {
   for (const ms of Object.values(DURATION.micro)) assert.ok(ms >= 150 && ms <= 250, `micro ${ms}`);
@@ -44,4 +44,13 @@ test('celebration lands after crouch and take-off', () => {
 
 test('squash and stretch roughly keep volume (area within 5%)', () => {
   for (const [name, s] of Object.entries(SHAPE)) assert.ok(Math.abs(s.x * s.y - 1) <= 0.05, name);
+});
+
+test('the start transition fits the 600-800 ms window', () => {
+  assert.ok(LEAVE.perk < LEAVE.crouch && LEAVE.crouch < LEAVE.takeoff);
+  const miloGone = LEAVE.takeoff + ARC.leap.rise + ARC.leap.fall;
+  const screenIn = TRIP.navigate + TRIP.screenFade;
+  assert.ok(miloGone >= 600 && miloGone <= 800, `milo ${miloGone}`);
+  assert.ok(screenIn >= 600 && screenIn <= 800, `screen ${screenIn}`);
+  assert.ok(TRIP.roomOut < TRIP.navigate);
 });

@@ -36,11 +36,14 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { DATABASE_NAME, initDatabase } from '@/db/init';
 import { RestTimerProvider } from '@/logic/rest-timer';
-import { MotionRoot } from '@/motion';
+import { MotionRoot, TRIP } from '@/motion';
+import { isMistTheme } from '@/theme/typography';
 import { AppThemeProvider, useTheme } from '@/theme/theme-context';
 
 function Navigation() {
-  const { colors, isDark } = useTheme();
+  const { colors, isDark, name } = useTheme();
+  // Living Home (Mist): the workout preview fades in as the room leaves, finishing the start move.
+  const previewOptions = isMistTheme(name) ? { animation: 'fade' as const, animationDuration: TRIP.screenFade } : undefined;
   const base = isDark ? DarkTheme : DefaultTheme;
 
   // Tell the navigation library to use our colour roles too.
@@ -61,7 +64,7 @@ function Navigation() {
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="workout/preview" />
+        <Stack.Screen name="workout/preview" options={previewOptions} />
         {/* Week Schedule slides up from the bottom. */}
         <Stack.Screen name="week" options={{ presentation: 'modal' }} />
         <Stack.Screen name="workout/change" options={{ presentation: 'modal' }} />

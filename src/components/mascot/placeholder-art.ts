@@ -74,6 +74,13 @@ export const PLACEHOLDER_ART: Record<LayerName, string> = {
     `<path d="M30 34 L26 5 C25 1 22 1 20 3 L2 25" fill="${FUR}" ${line}/>
      <path d="M24 28 L23 10 L10 23 Z" fill="${PINK}"/>`,
   ),
+  towel: svg(
+    76,
+    44,
+    `<path d="M5 9 Q38 27 71 9 L71 17 Q38 35 5 17 Z" fill="${WHITE}" stroke="${LINE}" stroke-width="1.6"/>
+     <rect x="9" y="13" width="15" height="28" rx="4" fill="${WHITE}" stroke="${LINE}" stroke-width="1.6"/>
+     <path d="M10 31 H23 M10 35 H23" stroke="${AQUA}" stroke-width="2.2"/>`,
+  ),
   collar: svg(
     56,
     22,

@@ -109,6 +109,10 @@ function LabBody({ dark, setDark, motion, setMotion }: { dark: boolean; setDark:
   const [override, setOverride] = useState<MiloState | null>(null);
   const [cue, setCue] = useState(0);
   const [replay, setReplay] = useState(0);
+  const [departCue, setDepartCue] = useState(0);
+  const [arriveCue, setArriveCue] = useState(0);
+  const [away, setAway] = useState(false);
+  const [towel, setTowel] = useState(false);
 
   // Milo's voice: the same picker Home uses. A new line whenever the situation changes or on "New line".
   const [yesterday, setYesterday] = useState(false);
@@ -158,6 +162,9 @@ function LabBody({ dark, setDark, motion, setMotion }: { dark: boolean; setDark:
             from={replay > 0 ? EMPTY_ROOM : undefined}
             miloOverride={override}
             miloCue={cue}
+            departCue={departCue}
+            arriveCue={arriveCue}
+            towel={towel}
           />
         </View>
         <View style={{ alignItems: 'center', gap: 2 }}>
@@ -191,6 +198,20 @@ function LabBody({ dark, setDark, motion, setMotion }: { dark: boolean; setDark:
           <Chip label="42 min yesterday" on={yesterday} onPress={() => setYesterday((v) => !v)} />
           <Chip label="5-day streak" on={streak} onPress={() => setStreak((v) => !v)} />
           <Chip label="Workout done" on={workoutDone} onPress={() => setWorkoutDone((v) => !v)} />
+        </Row>
+
+        <Row title="Workout start and return">
+          <Chip
+            label={away ? 'Come back' : 'Start workout'}
+            on={false}
+            hint={away ? 'Milo hops back into his spot as the room returns' : 'Plays the start move: ears perk, Milo hops off, the room eases away'}
+            onPress={() => {
+              if (away) setArriveCue((c) => c + 1);
+              else setDepartCue((c) => c + 1);
+              setAway((a) => !a);
+            }}
+          />
+          <Chip label="Towel" on={towel} onPress={() => setTowel((t) => !t)} />
         </Row>
 
         <Row title="Catch-up">
