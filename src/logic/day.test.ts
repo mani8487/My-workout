@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { catchUpFrom, dayKeyOf, encodeLastSeen, msUntilNextMidnight } from './day.ts';
+import { catchUpFrom, dayKeyOf, encodeLastSeen, msUntilNextMidnight, streakDays } from './day.ts';
 
 describe('day rollover', () => {
   it('day key is the local calendar day', () => {
@@ -36,5 +36,28 @@ describe('catch-up start', () => {
     assert.deepEqual(catchUpFrom('not json', today), { stage: 0, water: 0 });
     assert.deepEqual(catchUpFrom(JSON.stringify({ day: today, stage: 9, water: -3 }), today), { stage: 2, water: 0 });
     assert.deepEqual(catchUpFrom(JSON.stringify({ day: today, stage: 'x' }), today), { stage: 0, water: 0 });
+  });
+});
+
+describe('streak', () => {
+  const now = new Date(2026, 10, 27, 9, 0);
+  const at = (daysAgo: number, hour = 12) => new Date(2026, 10, 27 - daysAgo, hour).getTime();
+  it('counts back from today when today has activity', () => {
+    assert.equal(streakDays([at(0), at(1), at(2)], now), 3);
+  });
+  it('an empty today does not break it: counts back from yesterday', () => {
+    assert.equal(streakDays([at(1), at(2), at(2, 18), at(3)], now), 3);
+  });
+  it('stops at the first gap', () => {
+    assert.equal(streakDays([at(0), at(1), at(3), at(4)], now), 2);
+  });
+  it('is 0 with nothing recent', () => {
+    assert.equal(streakDays([], now), 0);
+    assert.equal(streakDays([at(2), at(3)], now), 0);
+  });
+  it('crosses month ends', () => {
+    const dec2 = new Date(2026, 11, 2, 8);
+    const t = (y: number, m: number, d: number) => new Date(y, m, d, 12).getTime();
+    assert.equal(streakDays([t(2026, 11, 1), t(2026, 10, 30), t(2026, 10, 29)], dec2), 3);
   });
 });

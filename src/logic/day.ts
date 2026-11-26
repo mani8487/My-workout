@@ -47,3 +47,20 @@ export function catchUpFrom(saved: string | null, todayKey: string): { stage: nu
     return empty;
   }
 }
+
+/**
+ * Days in a row with any activity, ending today if today already has some,
+ * otherwise ending yesterday (an unfinished today doesn't break the streak).
+ * `times` are activity timestamps (finished workouts and quick logs).
+ */
+export function streakDays(times: readonly number[], now: Date): number {
+  const active = new Set(times.map((t) => dayKeyOf(new Date(t))));
+  const day = (back: number) => dayKeyOf(new Date(now.getFullYear(), now.getMonth(), now.getDate() - back));
+  let back = active.has(day(0)) ? 0 : 1;
+  let count = 0;
+  while (active.has(day(back))) {
+    count++;
+    back++;
+  }
+  return count;
+}

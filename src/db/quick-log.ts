@@ -100,3 +100,25 @@ export async function getGroupsTrainedSince(db: SQLiteDatabase, from: number): P
   for (const l of logs) groups.add(l.muscle_group as ActivityGroup);
   return groups;
 }
+
+/** When each bit of activity happened since `from`: finished workouts (start time) and quick logs. */
+export async function getActivityTimesSince(db: SQLiteDatabase, from: number): Promise<number[]> {
+  const rows = await db.getAllAsync<{ t: number }>(
+    `SELECT started_at AS t FROM sessions WHERE status = 'finished' AND finished_at IS NOT NULL AND started_at >= ?
+     UNION ALL
+     SELECT logged_at AS t FROM quick_logs WHERE logged_at >= ?`,
+    from,
+    from,
+  );
+  return rows.map((r) => r.t);
+}
+
+/** How many workouts were finished in a time window. */
+export async function countWorkoutsBetween(db: SQLiteDatabase, from: number, to: number): Promise<number> {
+  const row = await db.getFirstAsync<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM sessions WHERE status = 'finished' AND finished_at IS NOT NULL AND started_at >= ? AND started_at < ?`,
+    from,
+    to,
+  );
+  return row?.n ?? 0;
+}
