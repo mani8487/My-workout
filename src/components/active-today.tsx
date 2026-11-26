@@ -7,6 +7,7 @@
 import { format } from 'date-fns';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { Alert, Pressable, ScrollView, View } from 'react-native';
+import Animated, { FadeIn, LinearTransition } from 'react-native-reanimated';
 
 import { AppText } from '@/components/app-text';
 import { GlassTile } from '@/components/glass-tile';
@@ -14,6 +15,7 @@ import { PressableScale } from '@/components/pressable-scale';
 import { ProgressRing } from '@/components/progress-ring';
 import type { QuickLog } from '@/db/quick-log';
 import { ACTIVITY_PRESETS, describeLog } from '@/logic/activity';
+import { DURATION, EASE } from '@/motion';
 import { useTheme } from '@/theme/theme-context';
 import { isMistTheme, MIN_TAP, radius, spacing } from '@/theme/typography';
 
@@ -121,48 +123,58 @@ export function DayLogList({ logs, onDelete }: { logs: QuickLog[]; onDelete: (lo
 }
 
 /**
- * Living Home: the selected day's logs as one row of small pills (scrolls
- * sideways if there are many), so Home fits on one screen. Tap one to delete it.
+ * Living Home: the selected day's activities as one light line under the room's
+ * status ("20 min walk · 10 min yoga"), so they read as part of today's progress
+ * rather than as more buttons. Scrolls sideways if there are many; new ones fade
+ * in. Tap one to delete it (it asks first).
  */
-export function LogChips({ logs, onDelete, emptyText }: { logs: QuickLog[]; onDelete: (log: QuickLog) => void; emptyText: string }) {
+export function LogLine({ logs, onDelete, emptyText }: { logs: QuickLog[]; onDelete: (log: QuickLog) => void; emptyText: string }) {
   const { colors } = useTheme();
-  // Same height with or without logs, so the room above never has to resize.
-  if (logs.length === 0)
-    return (
-      <View style={{ minHeight: MIN_TAP, justifyContent: 'center', alignItems: 'center' }}>
-        <AppText variant="small" muted>
-          {emptyText}
-        </AppText>
-      </View>
-    );
   return (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
       style={{ marginHorizontal: -spacing.lg, flexGrow: 0 }}
-      contentContainerStyle={{ gap: spacing.sm, paddingHorizontal: spacing.lg }}>
-      {logs.map((l) => {
-        const icon = ACTIVITY_PRESETS.find((p) => p.id === l.activity)?.icon ?? 'figure.mixed.cardio';
-        const what = describeLog(l.name, l.amount, l.unit);
-        return (
-          <PressableScale
-            key={l.id}
-            onPress={() =>
-              Alert.alert('Delete this log?', what, [
-                { text: 'Keep', style: 'cancel' },
-                { text: 'Delete', style: 'destructive', onPress: () => onDelete(l) },
-              ])
-            }
-            accessibilityRole="button"
-            accessibilityLabel={`${what} at ${format(l.loggedAt, 'H:mm')}`}
-            accessibilityHint="Asks before deleting this log">
-            <GlassTile style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: MIN_TAP, paddingHorizontal: spacing.md, borderRadius: radius.md }}>
-              <SymbolView name={icon as SFSymbol} size={16} tintColor={colors.accent} />
-              <AppText variant="small">{what.charAt(0).toUpperCase() + what.slice(1)}</AppText>
-            </GlassTile>
-          </PressableScale>
-        );
-      })}
+      contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: spacing.lg, minHeight: MIN_TAP }}>
+      {logs.length === 0 ? (
+        <AppText variant="small" color={colors.faint}>
+          {emptyText}
+        </AppText>
+      ) : (
+        logs.map((l, i) => {
+          const icon = ACTIVITY_PRESETS.find((p) => p.id === l.activity)?.icon ?? 'figure.mixed.cardio';
+          const what = describeLog(l.name, l.amount, l.unit);
+          return (
+            <Animated.View
+              key={l.id}
+              entering={FadeIn.duration(DURATION.transition.base).easing(EASE.out)}
+              layout={LinearTransition.duration(DURATION.transition.short).easing(EASE.inOut)}
+              style={{ flexDirection: 'row', alignItems: 'center' }}>
+              {i > 0 && (
+                <AppText variant="small" color={colors.faint} accessible={false}>
+                  {'  ·  '}
+                </AppText>
+              )}
+              <PressableScale
+                onPress={() =>
+                  Alert.alert('Delete this log?', what, [
+                    { text: 'Keep', style: 'cancel' },
+                    { text: 'Delete', style: 'destructive', onPress: () => onDelete(l) },
+                  ])
+                }
+                accessibilityRole="button"
+                accessibilityLabel={`${what} at ${format(l.loggedAt, 'H:mm')}`}
+                accessibilityHint="Asks before deleting this log"
+                style={{ minHeight: MIN_TAP, flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+                <SymbolView name={icon as SFSymbol} size={14} tintColor={colors.accent} />
+                <AppText variant="small" color={colors.textMuted}>
+                  {what}
+                </AppText>
+              </PressableScale>
+            </Animated.View>
+          );
+        })
+      )}
     </ScrollView>
   );
 }

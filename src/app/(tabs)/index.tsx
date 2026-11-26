@@ -30,7 +30,7 @@ import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { CompletedCard, EmptyDayCard } from '@/components/day-cards';
-import { ActiveTodayCard, DayLogList, LogChips } from '@/components/active-today';
+import { ActiveTodayCard, DayLogList, LogLine } from '@/components/active-today';
 import { CompactDayCard } from '@/components/compact-day-card';
 import { GlassTile } from '@/components/glass-tile';
 import { MistDayCard } from '@/components/mist-day-card';
@@ -612,6 +612,10 @@ export default function HomeScreen() {
             style={{ textAlign: 'center' }}>
             <AppText variant="small">{moodSentence(data.activeToday, data.goal)}</AppText> {minutesText(data.activeToday, data.goal)}
           </AppText>
+          {/* The day's activities sit with the progress line, as light text rather than buttons. */}
+          <View style={{ marginTop: -spacing.md }}>
+            <LogLine logs={todaysLogs} onDelete={deleteLog} emptyText={selected.isToday ? 'Nothing logged yet today' : 'Nothing logged this day'} />
+          </View>
           {freshBanner}
           {renderDayCard()}
           {/* Side by side; stacked with large text so neither gets squeezed. */}
@@ -623,7 +627,6 @@ export default function HomeScreen() {
               </View>
             )}
           </View>
-          <LogChips logs={todaysLogs} onDelete={deleteLog} emptyText={selected.isToday ? 'Nothing logged yet today' : 'Nothing logged this day'} />
         </ScrollView>
       </SafeAreaView>
     );
