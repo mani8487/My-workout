@@ -9,16 +9,19 @@
  *  - A future day: the planned workout (Start only works on the day itself),
  *    or "Rest day". Change Workout lets you reschedule that day.
  *
- * Mist & Mint has its own calmer layout: greeting with the calendar / water /
- * settings row, the week strip, Milo asleep on his couch, then the day card.
+ * Mist & Mint is the Living Home: greeting with calendar and settings, the
+ * week strip, the room (the scene itself shows today's progress), one status
+ * line, the day card, "+ Log movement" and a slim water chip. The room catches
+ * up from what you last saw, buzzes lightly when a log lands, and resets at
+ * midnight or when the app wakes on a new day.
  */
 import { addDays, addWeeks, format, isSameDay } from 'date-fns';
 import * as Haptics from 'expo-haptics';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
-import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState, Pressable, ScrollView, View } from 'react-native';
 
 import { PressableScale } from '@/components/pressable-scale';
 import { SkeletonScreen } from '@/components/skeleton';
@@ -28,9 +31,14 @@ import { Card } from '@/components/card';
 import { CompletedCard, EmptyDayCard } from '@/components/day-cards';
 import { ActiveTodayCard, DayLogList } from '@/components/active-today';
 import { CompactDayCard } from '@/components/compact-day-card';
-import { Milo } from '@/components/mascot';
 import { MistDayCard } from '@/components/mist-day-card';
+import { LivingScene } from '@/components/scene/living-scene';
 import { TopActions } from '@/components/top-actions';
+import { WaterChip } from '@/components/water-chip';
+import { useWaterToday } from '@/db/water';
+import { catchUpFrom, encodeLastSeen, LAST_SEEN_KEY } from '@/logic/day';
+import { minutesText, moodSentence, sceneTarget } from '@/logic/scene-state';
+import { useTodayKey } from '@/logic/use-today';
 import { deleteQuickLog, getActiveMinutesBetween, getQuickLogsBetween, type QuickLog } from '@/db/quick-log';
 import { ACTIVE_GOAL_KEY, DEFAULT_ACTIVE_GOAL_MIN } from '@/logic/activity';
 import { Hero, HeroButton, HeroChip, HeroOutlineButton, HeroTitle } from '@/components/hero';
@@ -39,7 +47,7 @@ import { WeekStrip } from '@/components/week-strip';
 import { getLastSessionHighlight } from '@/db/history';
 import { formatKg } from '@/logic/format';
 import { getActiveSessionId, getSessionDetail } from '@/db/sessions';
-import { getSetting } from '@/db/settings';
+import { getSetting, setSetting } from '@/db/settings';
 import type { Workout } from '@/db/types';
 import { acceptFreshStart, dismissFreshStart, freshStartOffer } from '@/logic/fresh-start';
 import type { Rotation } from '@/logic/rotation';
@@ -63,6 +71,9 @@ type HomeData = {
   /** Today's active minutes (workouts + quick logs) and the daily goal. */
   activeToday: number;
   goal: number;
+  /** Living Home: what the room showed last time (for the catch-up), and the hour it loaded. */
+  lastSeen: string | null;
+  hour: number;
 };
 
 export default function HomeScreen() {
@@ -77,6 +88,24 @@ export default function HomeScreen() {
   const [weekStart, setWeekStart] = useState(() => weekStartOf(new Date()));
   const [direction, setDirection] = useState<-1 | 0 | 1>(0);
   const [selectedKey, setSelectedKey] = useState(() => dateKey(new Date()));
+  const todayKey = useTodayKey();
+  const water = useWaterToday();
+
+  // A new day (midnight, or the app waking on a new day): move "today" along with it.
+  const prevToday = useRef(todayKey);
+  useEffect(() => {
+    const old = prevToday.current;
+    if (old === todayKey) return;
+    prevToday.current = todayKey;
+    setSelectedKey((k) => (k === old ? todayKey : k));
+    setWeekStart((w) => (isSameDay(w, weekStartOf(parseDateKey(old))) ? weekStartOf(new Date()) : w));
+  }, [todayKey]);
+
+  // Coming back from the background: reload, so the room catches up with anything new.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (s) => s === 'active' && setReloadKey((k) => k + 1));
+    return () => sub.remove();
+  }, []);
 
   // The Week Schedule screen can send us back with a day to select (?date=2026-11-24).
   const params = useLocalSearchParams<{ date?: string }>();
@@ -94,7 +123,7 @@ export default function HomeScreen() {
       (async () => {
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
-        const [{ rotation, workout }, name, activeId, plans, days, logs, activeToday, goalSetting] = await Promise.all([
+        const [{ rotation, workout }, name, activeId, plans, days, logs, activeToday, goalSetting, lastSeen] = await Promise.all([
           getToday(db),
           getSetting(db, 'user_name'),
           getActiveSessionId(db),
@@ -103,7 +132,10 @@ export default function HomeScreen() {
           getQuickLogsBetween(db, weekStart.getTime(), addDays(weekStart, 7).getTime()),
           getActiveMinutesBetween(db, todayStart.getTime(), addDays(todayStart, 1).getTime()),
           getSetting(db, ACTIVE_GOAL_KEY),
+          getSetting(db, LAST_SEEN_KEY),
         ]);
+        const now = new Date();
+        const hour = now.getHours() + now.getMinutes() / 60;
         const goal = Number(goalSetting) > 0 ? Number(goalSetting) : DEFAULT_ACTIVE_GOAL_MIN;
         const previews: HomeData['previews'] = {};
         for (const w of [workout, ...days.map((d) => d.planned)]) {
@@ -120,13 +152,38 @@ export default function HomeScreen() {
             active = { name: d.workoutName, setsDone };
           }
         }
-        setData({ name, rotation, workout, active, plans, days, previews, logs, activeToday, goal });
+        setData({ name, rotation, workout, active, plans, days, previews, logs, activeToday, goal, lastSeen, hour });
         setWeeksAway(activeId == null ? await freshStartOffer(db) : null);
       })();
     // reloadKey is listed on purpose: bumping it forces a reload (e.g. after Fresh Start).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [db, reloadKey, weekStart]),
+    }, [db, reloadKey, weekStart, todayKey]),
   );
+
+  // Living Home: a light buzz when a movement you just logged lands in the room.
+  const logPending = useRef(false);
+  const prevMinutes = useRef<number | null>(null);
+  const minutesNow = data?.activeToday ?? null;
+  useEffect(() => {
+    if (minutesNow == null) return;
+    const before = prevMinutes.current;
+    prevMinutes.current = minutesNow;
+    if (logPending.current && before != null && minutesNow > before) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    logPending.current = false;
+  }, [minutesNow]);
+  const logMovement = () => {
+    logPending.current = true;
+    router.push('/quick-log');
+  };
+
+  // Remember what the room shows, so a cold start can catch up from it.
+  const target = data && water ? sceneTarget({ activeMinutes: data.activeToday, goalMinutes: data.goal, waterMl: water.ml, waterGoalMl: water.goal }) : null;
+  useEffect(() => {
+    if (!mist || !target) return;
+    setSetting(db, LAST_SEEN_KEY, encodeLastSeen({ day: todayKey, stage: target.stage, water: target.water })).catch(() => {});
+    // Saved whenever what the room shows changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [db, mist, todayKey, target?.stage, target?.water]);
 
   // A real line from your last session of this workout (instead of a stock quote).
   const highlightFor = data?.workout?.id ?? null;
@@ -155,7 +212,7 @@ export default function HomeScreen() {
     setSelectedKey(isSameDay(next, thisWeek) ? dateKey(new Date()) : dateKey(next));
   }
 
-  if (!data) return <SkeletonScreen />;
+  if (!data || (mist && !water)) return <SkeletonScreen />;
 
   const { rotation, workout, active, previews } = data;
   const selected = data.days.find((d) => d.key === selectedKey) ?? data.days[0];
@@ -372,7 +429,7 @@ export default function HomeScreen() {
             </AppText>
             {data.name ? <AppText variant="title">{data.name}</AppText> : null}
           </View>
-          <TopActions onCalendar={() => router.push({ pathname: '/week', params: { start: dateKey(weekStart) } })} />
+          <TopActions showWater={false} onCalendar={() => router.push({ pathname: '/week', params: { start: dateKey(weekStart) } })} />
         </View>
       ) : (
       /* Greeting (light lead-in, name in semibold) + settings */
@@ -429,9 +486,29 @@ export default function HomeScreen() {
       />
       </View>
 
-      {/* Milo asleep on his couch: no card or border around him. The top of his
-          stage is empty (that's where his "Zz" float), so it tucks under the strip. */}
-      {mist && <Milo state="sleeping" size={250} style={{ alignSelf: 'center', marginTop: -64, marginBottom: -28 }} />}
+      {/* The room: edge to edge, no card or border, blending into the page. */}
+      {mist && water && (
+        <View style={{ marginHorizontal: -spacing.lg, marginTop: -spacing.sm }}>
+          <LivingScene
+            activeMinutes={data.activeToday}
+            goalMinutes={data.goal}
+            waterMl={water.ml}
+            waterGoalMl={water.goal}
+            hour={data.hour}
+            from={catchUpFrom(data.lastSeen, todayKey)}
+          />
+        </View>
+      )}
+      {mist && (
+        <View style={{ alignItems: 'center', gap: 2, marginTop: -spacing.sm }}>
+          <AppText variant="label" style={{ textAlign: 'center' }}>
+            {moodSentence(data.activeToday, data.goal)}
+          </AppText>
+          <AppText variant="small" muted>
+            {minutesText(data.activeToday, data.goal)}
+          </AppText>
+        </View>
+      )}
 
       {weeksAway != null && (
         <Card>
@@ -466,7 +543,14 @@ export default function HomeScreen() {
 
       <DayCard />
 
-      <ActiveTodayCard minutes={data.activeToday} goal={data.goal} onLog={() => router.push('/quick-log')} />
+      {mist ? (
+        <>
+          <Button title="+ Log movement" kind="secondary" onPress={logMovement} accessibilityLabel="Log movement" />
+          <WaterChip />
+        </>
+      ) : (
+        <ActiveTodayCard minutes={data.activeToday} goal={data.goal} onLog={() => router.push('/quick-log')} />
+      )}
       <DayLogList
         logs={data.logs.filter((l) => dateKey(new Date(l.loggedAt)) === selected.key)}
         onDelete={async (l) => {

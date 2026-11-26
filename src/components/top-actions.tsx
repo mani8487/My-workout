@@ -17,9 +17,11 @@ import { useTheme } from '@/theme/theme-context';
 type Props = {
   /** Opens the week schedule; defaults to the current week. */
   onCalendar?: () => void;
+  /** Living Home shows water as a chip below instead, so it hides the droplet here. */
+  showWater?: boolean;
 };
 
-export function TopActions({ onCalendar }: Props) {
+export function TopActions({ onCalendar, showWater = true }: Props) {
   const db = useSQLiteContext();
   const water = useWaterToday();
   return (
@@ -34,17 +36,19 @@ export function TopActions({ onCalendar }: Props) {
         }}
       />
       {/* Tap: the hydration pop-up. Long-press: log your last amount straight away. */}
-      <WaterGauge
-        ml={water?.ml ?? 0}
-        goal={water?.goal ?? 2000}
-        onPress={() => router.push('/water')}
-        onLongPress={async () => {
-          const amount = water?.lastMl ?? 250;
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-          await addWater(db, amount);
-          AccessibilityInfo.announceForAccessibility('Added ' + fmtMl(amount) + ' millilitres');
-        }}
-      />
+      {showWater && (
+        <WaterGauge
+          ml={water?.ml ?? 0}
+          goal={water?.goal ?? 2000}
+          onPress={() => router.push('/water')}
+          onLongPress={async () => {
+            const amount = water?.lastMl ?? 250;
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+            await addWater(db, amount);
+            AccessibilityInfo.announceForAccessibility('Added ' + fmtMl(amount) + ' millilitres');
+          }}
+        />
+      )}
       <IconButton icon="gearshape" label="Settings" onPress={() => router.push('/settings')} />
     </View>
   );
