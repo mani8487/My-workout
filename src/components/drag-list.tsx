@@ -13,7 +13,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { type SharedValue, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { SPRING_RELEASE, SPRING_SETTLE } from '@/theme/motion';
+import { SPRING } from '@/motion';
 import { useTheme } from '@/theme/theme-context';
 
 type Layout = { y: number; h: number };
@@ -137,7 +137,7 @@ function DragItem({
       // Slide into the gap it opened, then hand the new order to the list.
       const dest = to === index ? 0 : to > index ? ls[to].y + ls[to].h - (ls[index].y + ls[index].h) : ls[to].y - ls[index].y;
       // Spring carries the finger's speed into the drop, and never overshoots the slot.
-      dragY.set(withSpring(dest, { ...SPRING_RELEASE, duration: 300, velocity: e.velocityY, overshootClamping: true }, () => {
+      dragY.set(withSpring(dest, { ...SPRING.snappy, duration: 300, velocity: e.velocityY, overshootClamping: true }, () => {
         scheduleOnRN(onDrop, index, to);
       }));
       lifted.value = withTiming(0, { duration: 160 });
@@ -159,7 +159,7 @@ function DragItem({
       if (d < index && index <= to) shift = -h;
       if (to <= index && index < d) shift = h;
     }
-    return { zIndex: 0, transform: [{ translateY: withSpring(shift, SPRING_SETTLE) }, { scale: 1 }], shadowOpacity: 0 };
+    return { zIndex: 0, transform: [{ translateY: withSpring(shift, SPRING.soft) }, { scale: 1 }], shadowOpacity: 0 };
   });
 
   const handle = (

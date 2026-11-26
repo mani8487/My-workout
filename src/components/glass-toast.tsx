@@ -10,7 +10,7 @@ import Animated, { FadeInDown, FadeOut, ReduceMotion } from 'react-native-reanim
 
 import { AppText } from '@/components/app-text';
 import { GlassTile } from '@/components/glass-tile';
-import { EASE_OUT } from '@/theme/motion';
+import { EASE } from '@/motion';
 import { useTheme } from '@/theme/theme-context';
 import { spacing } from '@/theme/typography';
 
@@ -35,7 +35,7 @@ export function GlassToast({ signal, message, icon = 'checkmark.circle.fill' }: 
       {visible && (
         <Animated.View
           key={signal}
-          entering={FadeInDown.duration(260).easing(EASE_OUT).reduceMotion(ReduceMotion.System)}
+          entering={FadeInDown.duration(260).easing(EASE.out).reduceMotion(ReduceMotion.System)}
           exiting={FadeOut.duration(220)}>
           <GlassTile
             style={{

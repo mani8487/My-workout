@@ -6,9 +6,9 @@
  * With iPhone's Reduce Motion on, it dims a little instead of shrinking.
  */
 import { Pressable, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
-import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
-import { EASE_OUT } from '@/theme/motion';
+import { DURATION, EASE, useReducedMotion } from '@/motion';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -36,11 +36,11 @@ export function PressableScale({ style, pressedScale = 0.97, onPressIn, onPressO
       pressRetentionOffset={RETENTION}
       {...rest}
       onPressIn={(e) => {
-        pressed.set(withTiming(1, { duration: 120, easing: EASE_OUT }));
+        pressed.set(withTiming(1, { duration: DURATION.micro.fast, easing: EASE.out }));
         onPressIn?.(e);
       }}
       onPressOut={(e) => {
-        pressed.set(withTiming(0, { duration: 150, easing: EASE_OUT }));
+        pressed.set(withTiming(0, { duration: DURATION.micro.base, easing: EASE.out }));
         onPressOut?.(e);
       }}
       style={[style, animatedStyle]}

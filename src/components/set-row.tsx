@@ -37,7 +37,7 @@ import { AppText } from '@/components/app-text';
 import { closePad, openPad, type PadField, updatePad, useActivePadId } from '@/components/number-pad';
 import type { PreviousSet, SessionSet, SetPatch } from '@/db/sessions';
 import { formatKg, formatSet, parseKg, parseReps } from '@/logic/format';
-import { SPRING_SETTLE } from '@/theme/motion';
+import { SPRING } from '@/motion';
 import { useTheme } from '@/theme/theme-context';
 import { isMistTheme, MAX_FONT_SCALE, MIN_TAP, radius, spacing, typography } from '@/theme/typography';
 
@@ -180,7 +180,7 @@ export function SetRow({ set, label, isCurrent = false, previous, hidePrevious, 
     // Reduce Motion: a gentle fade instead of the sweep.
     wipe.value = reduced
       ? withTiming(showDone ? 1 : 0, { duration: 200, reduceMotion: ReduceMotion.Never })
-      : withSpring(showDone ? 1 : 0, { ...SPRING_SETTLE, duration: showDone ? 400 : 250 });
+      : withSpring(showDone ? 1 : 0, { ...SPRING.soft, duration: showDone ? 400 : 250 });
   }, [showDone, wipe, reduced]);
   const wipeStyle = useAnimatedStyle(() =>
     reduced

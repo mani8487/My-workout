@@ -16,7 +16,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 
 import { AppText } from '@/components/app-text';
 import type { ScheduleDay } from '@/logic/schedule';
-import { EASE_OUT, SPRING_RELEASE } from '@/theme/motion';
+import { EASE, SPRING } from '@/motion';
 import { useTheme } from '@/theme/theme-context';
 import { isMistTheme, spacing, TIGHT_FONT_SCALE } from '@/theme/typography';
 
@@ -63,12 +63,12 @@ export function WeekStrip({ weekStart, days, loggedKeys, selectedKey, isCurrentW
         const delta = projected < 0 ? 1 : -1;
         // Finish the throw off-screen, then swap in the next week.
         x.set(
-          withTiming(-delta * w, { duration: 160, easing: EASE_OUT }, (done) => {
+          withTiming(-delta * w, { duration: 160, easing: EASE.out }, (done) => {
             if (done) scheduleOnRN(commit, delta);
           }),
         );
       } else {
-        x.set(withSpring(0, { ...SPRING_RELEASE, velocity: e.velocityX }));
+        x.set(withSpring(0, { ...SPRING.snappy, velocity: e.velocityX }));
       }
     });
 
@@ -76,7 +76,7 @@ export function WeekStrip({ weekStart, days, loggedKeys, selectedKey, isCurrentW
   const weekTime = weekStart.getTime();
   useEffect(() => {
     if (direction === 0) return;
-    x.set(withSequence(withTiming(direction * width.get(), { duration: 0 }), withSpring(0, SPRING_RELEASE)));
+    x.set(withSequence(withTiming(direction * width.get(), { duration: 0 }), withSpring(0, SPRING.snappy)));
   }, [weekTime, direction, x, width]);
 
   const slide = useAnimatedStyle(() => ({ transform: [{ translateX: x.get() }] }));

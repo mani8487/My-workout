@@ -55,7 +55,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "test": "node --experimental-strip-types --no-warnings --test src/logic/*.test.ts"
+    "test": "node --experimental-strip-types --no-warnings --test src/logic/*.test.ts src/motion/*.test.ts"
   },
   "private": true
 }

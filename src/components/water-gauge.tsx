@@ -8,7 +8,7 @@ import Animated, { useAnimatedProps, useSharedValue, withSpring } from 'react-na
 import Svg, { Circle, ClipPath, Defs, Path, Rect } from 'react-native-svg';
 
 import { PressableScale } from '@/components/pressable-scale';
-import { SPRING_SETTLE } from '@/theme/motion';
+import { SPRING } from '@/motion';
 import { useTheme } from '@/theme/theme-context';
 
 const AnimatedRect = Animated.createAnimatedComponent(Rect);
@@ -36,7 +36,7 @@ export function WaterGauge({ ml, goal, onPress, onLongPress }: Props) {
   const level = useSharedValue(target);
 
   useEffect(() => {
-    level.set(withSpring(target, SPRING_SETTLE));
+    level.set(withSpring(target, SPRING.soft));
   }, [level, target]);
 
   const waterProps = useAnimatedProps(() => {

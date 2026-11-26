@@ -26,7 +26,7 @@ import {
   QUICK_ML,
   waterPace,
 } from '@/logic/hydration';
-import { SPRING_SETTLE } from '@/theme/motion';
+import { SPRING } from '@/motion';
 import { useTheme } from '@/theme/theme-context';
 import { MAX_FONT_SCALE, spacing, typography } from '@/theme/typography';
 
@@ -42,7 +42,7 @@ export default function WaterSheet() {
   const goal = water?.goal ?? 2000;
   const fill = useSharedValue(0);
   useEffect(() => {
-    fill.value = withSpring(Math.min(1, goal > 0 ? ml / goal : 0), SPRING_SETTLE);
+    fill.value = withSpring(Math.min(1, goal > 0 ? ml / goal : 0), SPRING.soft);
   }, [ml, goal, fill]);
   const barStyle = useAnimatedStyle(() => ({ width: `${fill.value * 100}%` }));
 

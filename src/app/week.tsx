@@ -44,7 +44,7 @@ import { dateKey, getWeekSchedule, parseDateKey, weekStartOf, type ScheduleDay }
 import { getQuickLogsBetween } from '@/db/quick-log';
 import { activeMinutes, describeLog } from '@/logic/activity';
 import { getWorkoutPreview } from '@/logic/today';
-import { EASE_OUT, SPRING_RELEASE } from '@/theme/motion';
+import { EASE, SPRING } from '@/motion';
 import { useTheme } from '@/theme/theme-context';
 import { MIN_TAP, spacing } from '@/theme/typography';
 
@@ -184,14 +184,14 @@ export default function WeekScheduleScreen() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
         setExpanded({ row: rows[index], from: { x: bx - rx, y: by - ry, w: bw, h: bh } });
         grow.value = 0;
-        grow.value = withSpring(1, { ...SPRING_RELEASE, dampingRatio: 0.9 });
+        grow.value = withSpring(1, { ...SPRING.snappy, dampingRatio: 0.9 });
       });
     });
   }
 
   function collapse() {
     // Ease-out, never ease-in: the card starts moving the instant you tap.
-    grow.value = withTiming(0, { duration: 240, easing: EASE_OUT }, (finished) => {
+    grow.value = withTiming(0, { duration: 240, easing: EASE.out }, (finished) => {
       if (finished) scheduleOnRN(setExpanded, null);
     });
   }
