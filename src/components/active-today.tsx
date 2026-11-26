@@ -123,12 +123,12 @@ export function DayLogList({ logs, onDelete }: { logs: QuickLog[]; onDelete: (lo
 }
 
 /**
- * Living Home: the selected day's activities as one light line under the room's
- * status ("20 min walk · 10 min yoga"), so they read as part of today's progress
+ * Living Home: today's minutes and the selected day's activities as one light
+ * line ("20 / 30 active min · 20 min walk · 10 min yoga"), so they read as progress
  * rather than as more buttons. Scrolls sideways if there are many; new ones fade
  * in. Tap one to delete it (it asks first).
  */
-export function LogLine({ logs, onDelete, emptyText }: { logs: QuickLog[]; onDelete: (log: QuickLog) => void; emptyText: string }) {
+export function LogLine({ lead, logs, onDelete, emptyText }: { lead: string; logs: QuickLog[]; onDelete: (log: QuickLog) => void; emptyText: string }) {
   const { colors } = useTheme();
   return (
     <ScrollView
@@ -136,12 +136,15 @@ export function LogLine({ logs, onDelete, emptyText }: { logs: QuickLog[]; onDel
       showsHorizontalScrollIndicator={false}
       style={{ marginHorizontal: -spacing.lg, flexGrow: 0 }}
       contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: spacing.lg, minHeight: MIN_TAP }}>
+      <AppText variant="small" color={colors.textMuted}>
+        {lead}
+      </AppText>
       {logs.length === 0 ? (
         <AppText variant="small" color={colors.faint}>
-          {emptyText}
+          {`  ·  ${emptyText}`}
         </AppText>
       ) : (
-        logs.map((l, i) => {
+        logs.map((l) => {
           const icon = ACTIVITY_PRESETS.find((p) => p.id === l.activity)?.icon ?? 'figure.mixed.cardio';
           const what = describeLog(l.name, l.amount, l.unit);
           return (
@@ -150,11 +153,9 @@ export function LogLine({ logs, onDelete, emptyText }: { logs: QuickLog[]; onDel
               entering={FadeIn.duration(DURATION.transition.base).easing(EASE.out)}
               layout={LinearTransition.duration(DURATION.transition.short).easing(EASE.inOut)}
               style={{ flexDirection: 'row', alignItems: 'center' }}>
-              {i > 0 && (
-                <AppText variant="small" color={colors.faint} accessible={false}>
-                  {'  ·  '}
-                </AppText>
-              )}
+              <AppText variant="small" color={colors.faint} accessible={false}>
+                {'  ·  '}
+              </AppText>
               <PressableScale
                 onPress={() =>
                   Alert.alert('Delete this log?', what, [

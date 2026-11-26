@@ -35,13 +35,15 @@ import { CompactDayCard } from '@/components/compact-day-card';
 import { GlassTile } from '@/components/glass-tile';
 import { MistDayCard } from '@/components/mist-day-card';
 import { LivingScene } from '@/components/scene/living-scene';
+import { MiloLine } from '@/components/scene/milo-line';
 import { TopActions } from '@/components/top-actions';
 import { WaterChip } from '@/components/water-chip';
 import { useWaterToday } from '@/db/water';
-import { catchUpFrom, dayKeyOf, encodeLastSeen, LAST_SEEN_KEY } from '@/logic/day';
-import { minutesText, moodSentence, sceneTarget } from '@/logic/scene-state';
+import { catchUpFrom, dayKeyOf, encodeLastSeen, LAST_SEEN_KEY, streakDays } from '@/logic/day';
+import { pickLine } from '@/logic/milo-voice';
+import { minutesText, moodOf, sceneTarget } from '@/logic/scene-state';
 import { useTodayKey } from '@/logic/use-today';
-import { deleteQuickLog, getActiveMinutesBetween, getQuickLogsBetween, type QuickLog } from '@/db/quick-log';
+import { countWorkoutsBetween, deleteQuickLog, getActiveMinutesBetween, getActivityTimesSince, getQuickLogsBetween, type QuickLog } from '@/db/quick-log';
 import { ACTIVE_GOAL_KEY, DEFAULT_ACTIVE_GOAL_MIN } from '@/logic/activity';
 import { Hero, HeroButton, HeroChip, HeroOutlineButton, HeroTitle } from '@/components/hero';
 import { Backdrop, Screen } from '@/components/screen';
@@ -61,6 +63,10 @@ import { isMistTheme, MIN_TAP, radius, SERIF_ITALIC, spacing } from '@/theme/typ
 
 /** Living Home: the room never gets shorter than this; a very small phone scrolls instead. */
 const ROOM_MIN_HEIGHT = 170;
+/** How far back to look when counting the activity streak. */
+const STREAK_LOOKBACK_DAYS = 120;
+/** Settings key: the id of Milo's last line, so the next visit never repeats it. */
+const MILO_LINE_KEY = 'milo_last_line';
 
 type HomeData = {
   name: string | null;
@@ -81,6 +87,8 @@ type HomeData = {
   hour: number;
   /** The local day this data was loaded for. */
   day: string;
+  /** Milo's status line for this visit. */
+  voice: string;
 };
 
 export default function HomeScreen() {
@@ -151,7 +159,22 @@ export default function HomeScreen() {
       (async () => {
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
-        const [{ rotation, workout }, name, activeId, plans, days, logs, activeToday, goalSetting, lastSeen] = await Promise.all([
+        const yesterdayStart = addDays(todayStart, -1).getTime();
+        const [
+          { rotation, workout },
+          name,
+          activeId,
+          plans,
+          days,
+          logs,
+          activeToday,
+          goalSetting,
+          lastSeen,
+          yesterdayMinutes,
+          activityTimes,
+          workoutsToday,
+          lastLine,
+        ] = await Promise.all([
           getToday(db),
           getSetting(db, 'user_name'),
           getActiveSessionId(db),
@@ -161,6 +184,10 @@ export default function HomeScreen() {
           getActiveMinutesBetween(db, todayStart.getTime(), addDays(todayStart, 1).getTime()),
           getSetting(db, ACTIVE_GOAL_KEY),
           getSetting(db, LAST_SEEN_KEY),
+          getActiveMinutesBetween(db, yesterdayStart, todayStart.getTime()),
+          getActivityTimesSince(db, addDays(todayStart, -STREAK_LOOKBACK_DAYS).getTime()),
+          countWorkoutsBetween(db, todayStart.getTime(), addDays(todayStart, 1).getTime()),
+          getSetting(db, MILO_LINE_KEY),
         ]);
         const now = new Date();
         const hour = now.getHours() + now.getMinutes() / 60;
@@ -181,7 +208,21 @@ export default function HomeScreen() {
             active = { name: d.workoutName, setsDone };
           }
         }
-        setData({ name, rotation, workout, active, plans, days, previews, logs, activeToday, goal, hour, day });
+        // Milo's line for this visit: fits today's data, never the same as last time.
+        const voice = pickLine(
+          {
+            mood: moodOf(activeToday, goal),
+            activeMinutes: activeToday,
+            goalMinutes: goal,
+            streakDays: streakDays(activityTimes, now),
+            yesterdayMinutes,
+            workoutDoneToday: workoutsToday > 0,
+          },
+          lastLine,
+          Math.random(),
+        );
+        setSetting(db, MILO_LINE_KEY, voice.id).catch(() => {});
+        setData({ name, rotation, workout, active, plans, days, previews, logs, activeToday, goal, hour, day, voice: voice.text });
         setSceneFrom((f) => f ?? catchUpFrom(lastSeen, day));
         const before = prevMinutes.current;
         prevMinutes.current = { day, minutes: activeToday };
@@ -602,19 +643,15 @@ export default function HomeScreen() {
               />
             )}
           </View>
-          {/* VoiceOver already reads this from the room's label, so it's hidden here to avoid saying it twice. */}
-          <AppText
-            variant="small"
-            muted
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-            numberOfLines={2}
-            style={{ textAlign: 'center' }}>
-            <AppText variant="small">{moodSentence(data.activeToday, data.goal)}</AppText> {minutesText(data.activeToday, data.goal)}
-          </AppText>
-          {/* The day's activities sit with the progress line, as light text rather than buttons. */}
+          {/* Milo's voice, then today's minutes and the day's activities as one light line. */}
+          <MiloLine text={data.voice} />
           <View style={{ marginTop: -spacing.md }}>
-            <LogLine logs={todaysLogs} onDelete={deleteLog} emptyText={selected.isToday ? 'Nothing logged yet today' : 'Nothing logged this day'} />
+            <LogLine
+              lead={minutesText(data.activeToday, data.goal)}
+              logs={todaysLogs}
+              onDelete={deleteLog}
+              emptyText={selected.isToday ? 'nothing logged yet' : 'nothing logged this day'}
+            />
           </View>
           {freshBanner}
           {renderDayCard()}

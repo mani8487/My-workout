@@ -16,7 +16,9 @@ import { type MiloState } from '@/components/mascot';
 import { Page } from '@/components/page';
 import { PressableScale } from '@/components/pressable-scale';
 import { LivingScene } from '@/components/scene/living-scene';
-import { minutesText, moodSentence } from '@/logic/scene-state';
+import { MiloLine } from '@/components/scene/milo-line';
+import { pickLine } from '@/logic/milo-voice';
+import { minutesText, moodOf } from '@/logic/scene-state';
 import { ReducedMotionOverride, useReducedMotion } from '@/motion';
 import { MistPreview, useTheme } from '@/theme/theme-context';
 import { MIN_TAP, radius, spacing } from '@/theme/typography';
@@ -108,6 +110,27 @@ function LabBody({ dark, setDark, motion, setMotion }: { dark: boolean; setDark:
   const [cue, setCue] = useState(0);
   const [replay, setReplay] = useState(0);
 
+  // Milo's voice: the same picker Home uses. A new line whenever the situation changes or on "New line".
+  const [yesterday, setYesterday] = useState(false);
+  const [streak, setStreak] = useState(false);
+  const [workoutDone, setWorkoutDone] = useState(false);
+  const voiceCtx = {
+    mood: moodOf(minutes, goal),
+    activeMinutes: minutes,
+    goalMinutes: goal,
+    streakDays: streak ? 5 : 0,
+    yesterdayMinutes: yesterday ? 42 : 0,
+    workoutDoneToday: workoutDone,
+  };
+  const ctxKey = JSON.stringify(voiceCtx);
+  const [voice, setVoice] = useState(() => pickLine(voiceCtx, null, Math.random()));
+  const [voiceKey, setVoiceKey] = useState(ctxKey);
+  const newLine = () => setVoice((v) => pickLine(voiceCtx, v.id, Math.random()));
+  if (voiceKey !== ctxKey) {
+    setVoiceKey(ctxKey);
+    setVoice(pickLine(voiceCtx, voice.id, (voice.id.length * 0.137 + minutes * 0.031) % 1));
+  }
+
   const label = STATES.find((x) => x.state === override)?.label ?? 'Auto';
   useEffect(() => {
     AccessibilityInfo.announceForAccessibility(`Milo: ${label}`);
@@ -137,7 +160,7 @@ function LabBody({ dark, setDark, motion, setMotion }: { dark: boolean; setDark:
           />
         </View>
         <View style={{ alignItems: 'center', gap: 2 }}>
-          <AppText variant="label">{override ? `Milo: ${label}` : moodSentence(minutes, goal)}</AppText>
+          {override ? <AppText variant="label">{`Milo: ${label}`}</AppText> : <MiloLine text={voice.text} />}
           <AppText variant="small" muted>
             {minutesText(minutes, goal)} · {(waterMl / 1000).toFixed(1)} / 2 L · {clock(hour)}
             {reduced ? ' · Reduce Motion' : ''}
@@ -161,6 +184,13 @@ function LabBody({ dark, setDark, motion, setMotion }: { dark: boolean; setDark:
         </Row>
         <LabSlider label={`Water: ${waterMl} ml of ${WATER_GOAL}`} value={waterMl} min={0} max={3000} step={50} onChange={setWaterMl} />
         <LabSlider label={`Time of day: ${clock(hour)}`} value={hour} min={0} max={23.5} step={0.5} onChange={setHour} />
+
+        <Row title="Milo's line">
+          <Chip label="New line" on={false} hint="Picks another line; never the same one twice in a row" onPress={newLine} />
+          <Chip label="42 min yesterday" on={yesterday} onPress={() => setYesterday((v) => !v)} />
+          <Chip label="5-day streak" on={streak} onPress={() => setStreak((v) => !v)} />
+          <Chip label="Workout done" on={workoutDone} onPress={() => setWorkoutDone((v) => !v)} />
+        </Row>
 
         <Row title="Catch-up">
           <Chip label="Replay from 0" on={false} hint="Rebuilds the room and plays the catch-up from an empty morning" onPress={() => setReplay((r) => r + 1)} />
