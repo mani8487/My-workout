@@ -20,7 +20,7 @@ import * as Haptics from 'expo-haptics';
 import { router, useFocusEffect, useIsFocused, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, ScrollView, View } from 'react-native';
 
 import { PressableScale } from '@/components/pressable-scale';
@@ -71,8 +71,7 @@ type HomeData = {
   /** Today's active minutes (workouts + quick logs) and the daily goal. */
   activeToday: number;
   goal: number;
-  /** Living Home: what the room showed last time (for the catch-up), and the hour it loaded. */
-  lastSeen: string | null;
+  /** Living Home: the hour this data was loaded at (sets the sky). */
   hour: number;
   /** The local day this data was loaded for. */
   day: string;
@@ -98,13 +97,21 @@ export default function HomeScreen() {
   // Home is back in view (with a light buzz), so you see the glass fill.
   const [water, setWater] = useState<WaterToday | null>(null);
   const shownWater = useRef<WaterToday | null>(null);
+  const wasCovered = useRef(false);
   useEffect(() => {
-    if (!focused || !liveWater) return;
+    if (!focused) {
+      wasCovered.current = true;
+      return;
+    }
+    if (!liveWater) return;
     const shown = shownWater.current;
-    if (shown && shown.day === liveWater.day && liveWater.ml > shown.ml) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    // Only for water added while Home was covered (the chip's own long-press already buzzes).
+    if (mist && wasCovered.current && shown && shown.day === liveWater.day && liveWater.ml > shown.ml)
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    wasCovered.current = false;
     shownWater.current = liveWater;
     setWater(liveWater);
-  }, [focused, liveWater]);
+  }, [focused, liveWater, mist]);
 
   // A new day (midnight, or the app waking on a new day): move "today" along with it.
   const prevToday = useRef(todayKey);
@@ -129,7 +136,9 @@ export default function HomeScreen() {
   // Living Home: a light buzz when a movement you just logged lands in the room.
   // Set when "+ Log movement" opens the sheet; checked (and cleared) on the very next reload.
   const logPending = useRef(false);
-  const prevMinutes = useRef<number | null>(null);
+  const prevMinutes = useRef<{ day: string; minutes: number } | null>(null);
+  // Where the room's first catch-up starts; captured once, on the first load.
+  const [sceneFrom, setSceneFrom] = useState<{ stage: number; water: number } | null>(null);
   const logMovement = () => {
     logPending.current = true;
     router.push('/quick-log');
@@ -181,10 +190,13 @@ export default function HomeScreen() {
             active = { name: d.workoutName, setsDone };
           }
         }
-        setData({ name, rotation, workout, active, plans, days, previews, logs, activeToday, goal, lastSeen, hour, day });
+        setData({ name, rotation, workout, active, plans, days, previews, logs, activeToday, goal, hour, day });
+        setSceneFrom((f) => f ?? catchUpFrom(lastSeen, day));
         const before = prevMinutes.current;
-        prevMinutes.current = activeToday;
-        if (logPending.current && before != null && activeToday > before) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+        prevMinutes.current = { day, minutes: activeToday };
+        // A log that lands just after midnight counts from 0, not from yesterday's total.
+        const was = before?.day === day ? before.minutes : 0;
+        if (logPending.current && before != null && activeToday > was) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
         logPending.current = false;
         setWeeksAway(activeId == null ? await freshStartOffer(db) : null);
       })();
@@ -203,9 +215,6 @@ export default function HomeScreen() {
     // Saved whenever what the room shows changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [db, mist, fresh, todayKey, target?.stage, target?.water]);
-  // Read by the room only when it first appears; kept stable so the room doesn't re-render for it.
-  const lastSeen = data?.lastSeen ?? null;
-  const sceneFrom = useMemo(() => catchUpFrom(lastSeen, todayKey), [lastSeen, todayKey]);
 
   // A real line from your last session of this workout (instead of a stock quote).
   const highlightFor = data?.workout?.id ?? null;
@@ -509,7 +518,7 @@ export default function HomeScreen() {
       </View>
 
       {/* The room: edge to edge, no card or border, blending into the page. */}
-      {mist && water && (
+      {mist && water && sceneFrom && (
         <View style={{ marginHorizontal: -spacing.lg, marginTop: -spacing.sm }}>
           <LivingScene
             activeMinutes={data.activeToday}

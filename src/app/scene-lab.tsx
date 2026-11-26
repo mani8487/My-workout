@@ -34,6 +34,7 @@ const STATES: { state: MiloState | null; label: string }[] = [
 ];
 const GOALS = [0, 30, 60];
 const WATER_GOAL = 2000;
+const EMPTY_ROOM = { stage: 0, water: 0 };
 
 type Motion = 'system' | 'on' | 'off';
 
@@ -130,7 +131,7 @@ function LabBody({ dark, setDark, motion, setMotion }: { dark: boolean; setDark:
             waterMl={waterMl}
             waterGoalMl={WATER_GOAL}
             hour={hour}
-            from={replay > 0 ? { stage: 0, water: 0 } : undefined}
+            from={replay > 0 ? EMPTY_ROOM : undefined}
             miloOverride={override}
             miloCue={cue}
           />

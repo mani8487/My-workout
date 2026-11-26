@@ -88,10 +88,13 @@ export function useWaterToday() {
   }, [db]);
   useEffect(load, [load, today]);
   useEffect(() => {
-    load();
     listeners.add(load);
-    // A new day, or a workout finished elsewhere: reload when the app comes back.
-    const sub = AppState.addEventListener('change', (s) => s === 'active' && load());
+    // A workout finished elsewhere: reload when the app comes back from the background.
+    let last = AppState.currentState;
+    const sub = AppState.addEventListener('change', (s) => {
+      if (last === 'background' && s === 'active') load();
+      last = s;
+    });
     return () => {
       listeners.delete(load);
       sub.remove();

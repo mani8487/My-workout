@@ -78,7 +78,10 @@ const dark: RoomPalette = {
   dust: '#FFE6B8',
 };
 
-/** The same colour fully transparent, for gradient ends (plain 'transparent' is black and can muddy a fade). */
+/**
+ * The same colour fully transparent, for gradient ends (plain 'transparent' is
+ * black and can muddy a fade). Only for rgba(...) colours, like the veils and floor.
+ */
 export function clearOf(rgba: string): string {
   return rgba.replace(/,\s*[\d.]+\)$/, ',0)');
 }
