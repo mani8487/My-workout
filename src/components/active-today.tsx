@@ -128,7 +128,8 @@ export function DayLogList({ logs, onDelete }: { logs: QuickLog[]; onDelete: (lo
  * rather than as more buttons. Scrolls sideways if there are many; new ones fade
  * in. Tap one to delete it (it asks first).
  */
-export function LogLine({ lead, logs, onDelete, emptyText }: { lead: string; logs: QuickLog[]; onDelete: (log: QuickLog) => void; emptyText: string }) {
+/** `lead` (today's minutes) shows only for today; other days list just their activities. */
+export function LogLine({ lead, logs, onDelete, emptyText }: { lead: string | null; logs: QuickLog[]; onDelete: (log: QuickLog) => void; emptyText: string }) {
   const { colors } = useTheme();
   return (
     <ScrollView
@@ -136,15 +137,18 @@ export function LogLine({ lead, logs, onDelete, emptyText }: { lead: string; log
       showsHorizontalScrollIndicator={false}
       style={{ marginHorizontal: -spacing.lg, flexGrow: 0 }}
       contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: spacing.lg, minHeight: MIN_TAP }}>
-      <AppText variant="small" color={colors.textMuted}>
-        {lead}
-      </AppText>
+      {/* VoiceOver already hears today's minutes in the room's label. */}
+      {lead && (
+        <AppText variant="small" color={colors.textMuted} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          {lead}
+        </AppText>
+      )}
       {logs.length === 0 ? (
-        <AppText variant="small" color={colors.faint}>
-          {`  ·  ${emptyText}`}
+        <AppText variant="small" color={colors.textMuted}>
+          {lead ? `  ·  ${emptyText}` : emptyText}
         </AppText>
       ) : (
-        logs.map((l) => {
+        logs.map((l, i) => {
           const icon = ACTIVITY_PRESETS.find((p) => p.id === l.activity)?.icon ?? 'figure.mixed.cardio';
           const what = describeLog(l.name, l.amount, l.unit);
           return (
@@ -153,9 +157,11 @@ export function LogLine({ lead, logs, onDelete, emptyText }: { lead: string; log
               entering={FadeIn.duration(DURATION.transition.base).easing(EASE.out)}
               layout={LinearTransition.duration(DURATION.transition.short).easing(EASE.inOut)}
               style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <AppText variant="small" color={colors.faint} accessible={false}>
-                {'  ·  '}
-              </AppText>
+              {(lead || i > 0) && (
+                <AppText variant="small" color={colors.faint} accessible={false}>
+                  {'  ·  '}
+                </AppText>
+              )}
               <PressableScale
                 onPress={() =>
                   Alert.alert('Delete this log?', what, [

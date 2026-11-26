@@ -12,7 +12,6 @@ import {
   dustCount,
   lampOn,
   minutesText,
-  moodSentence,
   moodOf,
   moteOpacity,
   ratio,
@@ -126,7 +125,5 @@ describe('words', () => {
     assert.equal(describeScene(10, 30), 'Milo is awake. 10 of 30 active minutes.');
     assert.equal(describeScene(0, 30), 'Milo is asleep. 0 of 30 active minutes.');
     assert.equal(describeScene(1, 0), 'Milo is content. 1 active minute.');
-    assert.equal(moodSentence(5, 30), 'Milo is stirring.');
-    assert.equal(moodSentence(30, 30), 'Milo is content.');
   });
 });

@@ -40,7 +40,7 @@ import { TopActions } from '@/components/top-actions';
 import { WaterChip } from '@/components/water-chip';
 import { useWaterToday } from '@/db/water';
 import { catchUpFrom, dayKeyOf, encodeLastSeen, LAST_SEEN_KEY, streakDays } from '@/logic/day';
-import { pickLine } from '@/logic/milo-voice';
+import { decodeShown, encodeShown, nextLine } from '@/logic/milo-voice';
 import { minutesText, moodOf, sceneTarget } from '@/logic/scene-state';
 import { useTodayKey } from '@/logic/use-today';
 import { countWorkoutsBetween, deleteQuickLog, getActiveMinutesBetween, getActivityTimesSince, getQuickLogsBetween, type QuickLog } from '@/db/quick-log';
@@ -125,7 +125,10 @@ export default function HomeScreen() {
   useEffect(() => {
     let last = AppState.currentState;
     const sub = AppState.addEventListener('change', (s) => {
-      if (last === 'background' && s === 'active') setReloadKey((k) => k + 1);
+      if (last === 'background' && s === 'active') {
+        freshLine.current = true; // back in the app: Milo has something new to say
+        setReloadKey((k) => k + 1);
+      }
       last = s;
     });
     return () => sub.remove();
@@ -134,6 +137,8 @@ export default function HomeScreen() {
   // Living Home: a light buzz when a movement you just logged lands in the room.
   // Set when "+ Log movement" opens the sheet; checked (and cleared) on the very next reload.
   const logPending = useRef(false);
+  /** Set on coming back from the background; the next load gives Milo a new line. */
+  const freshLine = useRef(false);
   const prevMinutes = useRef<{ day: string; minutes: number } | null>(null);
   // Where the room's first catch-up starts; captured once, on the first load.
   const [sceneFrom, setSceneFrom] = useState<{ stage: number; water: number } | null>(null);
@@ -156,6 +161,8 @@ export default function HomeScreen() {
   // Reload every time Home comes into view, and when the week changes.
   useFocusEffect(
     useCallback(() => {
+      // Only the newest load may show its results (an older one finishing late is dropped).
+      let cancelled = false;
       (async () => {
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
@@ -208,8 +215,10 @@ export default function HomeScreen() {
             active = { name: d.workoutName, setsDone };
           }
         }
-        // Milo's line for this visit: fits today's data, never the same as last time.
-        const voice = pickLine(
+        if (cancelled) return;
+        // Milo's line: the same one while the situation is the same, a new one (never the last one)
+        // when it changes or when you come back to the app.
+        const voice = nextLine(
           {
             mood: moodOf(activeToday, goal),
             activeMinutes: activeToday,
@@ -218,10 +227,13 @@ export default function HomeScreen() {
             yesterdayMinutes,
             workoutDoneToday: workoutsToday > 0,
           },
-          lastLine,
+          day,
+          decodeShown(lastLine),
+          freshLine.current,
           Math.random(),
         );
-        setSetting(db, MILO_LINE_KEY, voice.id).catch(() => {});
+        freshLine.current = false;
+        setSetting(db, MILO_LINE_KEY, encodeShown({ id: voice.id, key: voice.key })).catch(() => {});
         setData({ name, rotation, workout, active, plans, days, previews, logs, activeToday, goal, hour, day, voice: voice.text });
         setSceneFrom((f) => f ?? catchUpFrom(lastSeen, day));
         const before = prevMinutes.current;
@@ -230,8 +242,12 @@ export default function HomeScreen() {
         const was = before?.day === day ? before.minutes : 0;
         if (logPending.current && before != null && activeToday > was) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
         logPending.current = false;
-        setWeeksAway(activeId == null ? await freshStartOffer(db) : null);
+        const away = activeId == null ? await freshStartOffer(db) : null;
+        if (!cancelled) setWeeksAway(away);
       })();
+      return () => {
+        cancelled = true;
+      };
     // reloadKey is listed on purpose: bumping it forces a reload (e.g. after Fresh Start).
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [db, reloadKey, weekStart, todayKey]),
@@ -647,10 +663,10 @@ export default function HomeScreen() {
           <MiloLine text={data.voice} />
           <View style={{ marginTop: -spacing.md }}>
             <LogLine
-              lead={minutesText(data.activeToday, data.goal)}
+              lead={selected.isToday ? minutesText(data.activeToday, data.goal) : null}
               logs={todaysLogs}
               onDelete={deleteLog}
-              emptyText={selected.isToday ? 'nothing logged yet' : 'nothing logged this day'}
+              emptyText={selected.isToday ? 'nothing logged yet' : `Nothing logged on ${format(selected.date, 'EEEE')}`}
             />
           </View>
           {freshBanner}

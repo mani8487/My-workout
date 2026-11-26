@@ -156,11 +156,6 @@ const MOOD_WORDS: Record<Mood, string> = {
   content: 'Milo is content',
 };
 
-/** "Milo is awake." (the line under the room until Milo's voice arrives). */
-export function moodSentence(activeMinutes: number, goalMinutes: number): string {
-  return `${MOOD_WORDS[moodOf(activeMinutes, goalMinutes)]}.`;
-}
-
 /** "10 / 30 active min" (the small text under the scene). */
 export function minutesText(activeMinutes: number, goalMinutes: number): string {
   const m = Math.round(Math.max(0, finite(activeMinutes)));

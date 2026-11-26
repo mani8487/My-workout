@@ -17,7 +17,7 @@ import { Page } from '@/components/page';
 import { PressableScale } from '@/components/pressable-scale';
 import { LivingScene } from '@/components/scene/living-scene';
 import { MiloLine } from '@/components/scene/milo-line';
-import { pickLine } from '@/logic/milo-voice';
+import { nextLine, type ShownLine } from '@/logic/milo-voice';
 import { minutesText, moodOf } from '@/logic/scene-state';
 import { ReducedMotionOverride, useReducedMotion } from '@/motion';
 import { MistPreview, useTheme } from '@/theme/theme-context';
@@ -122,14 +122,15 @@ function LabBody({ dark, setDark, motion, setMotion }: { dark: boolean; setDark:
     yesterdayMinutes: yesterday ? 42 : 0,
     workoutDoneToday: workoutDone,
   };
-  const ctxKey = JSON.stringify(voiceCtx);
-  const [voice, setVoice] = useState(() => pickLine(voiceCtx, null, Math.random()));
-  const [voiceKey, setVoiceKey] = useState(ctxKey);
-  const newLine = () => setVoice((v) => pickLine(voiceCtx, v.id, Math.random()));
-  if (voiceKey !== ctxKey) {
-    setVoiceKey(ctxKey);
-    setVoice(pickLine(voiceCtx, voice.id, (voice.id.length * 0.137 + minutes * 0.031) % 1));
-  }
+  // Same rule as Home: keep the line while the situation is the same (numbers update), new one otherwise.
+  const [shown, setShown] = useState<ShownLine | null>(null);
+  const [roll, setRoll] = useState(() => Math.random());
+  const voice = nextLine(voiceCtx, 'lab', shown, false, roll);
+  if (!shown || shown.id !== voice.id || shown.key !== voice.key) setShown({ id: voice.id, key: voice.key });
+  const newLine = () => {
+    setRoll(Math.random());
+    setShown((s) => (s ? { id: s.id, key: '' } : s)); // a stale key forces a different line
+  };
 
   const label = STATES.find((x) => x.state === override)?.label ?? 'Auto';
   useEffect(() => {

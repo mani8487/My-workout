@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { LINES, linesFor, MAX_LINE_LENGTH, pickLine, type VoiceContext } from './milo-voice.ts';
+import { decodeShown, encodeShown, LINES, linesFor, MAX_LINE_LENGTH, nextLine, pickLine, situationKey, type VoiceContext } from './milo-voice.ts';
 import type { Mood } from './scene-state.ts';
 
 const MOODS: Mood[] = ['sleeping', 'stirring', 'sitting', 'content'];
@@ -48,8 +48,8 @@ describe('Milo voice lines', () => {
     assert.ok(ids(base('sleeping', { yesterdayMinutes: 42 })).includes('sleep-yesterday-watched'));
     assert.ok(!ids(base('sitting')).includes('sit-streak'));
     assert.ok(ids(base('sitting', { streakDays: 2 })).includes('sit-streak'));
-    assert.ok(!ids(base('content', { streakDays: 2 })).includes('goal-streak'));
-    assert.ok(ids(base('content', { workoutDoneToday: true })).includes('sit-workout'));
+    assert.ok(!ids(base('content', { streakDays: 1 })).includes('goal-streak'));
+    assert.ok(ids(base('content', { workoutDoneToday: true })).includes('workout-filed'));
     // Mood lines never leak into other moods.
     assert.ok(ids(base('sleeping')).every((id) => !id.startsWith('goal-') && !id.startsWith('sit-')));
   });
@@ -90,5 +90,52 @@ describe('pickLine', () => {
   it('copes with odd random numbers and an unknown last id', () => {
     const c = base('stirring');
     for (const r of [-1, 2, Number.NaN]) assert.ok(linesFor(c).some((l) => l.id === pickLine(c, 'gone', r).id));
+  });
+});
+
+describe('numbers read naturally', () => {
+  const all = (c: VoiceContext) => linesFor(c).map((l) => l.say(c));
+  it('says "1 minute", never "1 minutes" or "0 minutes"', () => {
+    for (const mood of MOODS) {
+      for (const c of [base(mood, { activeMinutes: mood === 'sleeping' ? 0 : 0.4, yesterdayMinutes: 1 }), base(mood, { activeMinutes: 1, yesterdayMinutes: 0.6 })]) {
+        for (const text of all(c)) {
+          assert.doesNotMatch(text, /\b1 minutes\b/, text);
+          assert.doesNotMatch(text, /\b0 (minutes?|today|of)\b/, text);
+        }
+      }
+    }
+    const c = base('sleeping', { yesterdayMinutes: 1 });
+    assert.equal(LINES.find((l) => l.id === 'sleep-yesterday-watched')!.say(c), '1 minute yesterday. I watched. Mostly from the couch.');
+  });
+  it('never shows a goal of 0', () => {
+    assert.ok(!linesFor(base('sitting', { goalMinutes: 0 })).some((l) => l.id === 'sit-progress'));
+  });
+});
+
+describe('nextLine: same situation keeps the line', () => {
+  const day = '2026-11-27';
+  it('keeps the shown line (with fresh numbers) while nothing important changed', () => {
+    const c = base('sitting', { activeMinutes: 12 });
+    const first = nextLine(c, day, null, false, 0.4);
+    const again = nextLine({ ...c, activeMinutes: 18 }, day, { id: first.id, key: first.key }, false, 0.9);
+    assert.equal(again.id, first.id);
+  });
+  it('picks a different line when the mood, the day or a fact changes, or when forced', () => {
+    const c = base('sitting');
+    const first = nextLine(c, day, null, false, 0.4);
+    const shown = { id: first.id, key: first.key };
+    assert.notEqual(nextLine(base('content'), day, shown, false, 0.4).key, first.key);
+    assert.notEqual(nextLine(c, '2026-11-28', shown, false, 0.4).id, first.id);
+    assert.notEqual(nextLine({ ...c, workoutDoneToday: true }, day, shown, false, 0.4).id, first.id);
+    assert.notEqual(nextLine(c, day, shown, true, 0.4).id, first.id);
+  });
+  it('the situation ignores minutes within a mood', () => {
+    assert.equal(situationKey(base('sitting', { activeMinutes: 11 }), 'd'), situationKey(base('sitting', { activeMinutes: 25 }), 'd'));
+  });
+  it('reads back what was saved, and old plain ids', () => {
+    assert.deepEqual(decodeShown(encodeShown({ id: 'sit-up', key: 'k' })), { id: 'sit-up', key: 'k' });
+    assert.deepEqual(decodeShown('sit-up'), { id: 'sit-up', key: '' });
+    assert.equal(decodeShown(null), null);
+    assert.equal(decodeShown('{"id":3}'), null);
   });
 });
