@@ -67,6 +67,20 @@ export function AppThemeProvider({ children }: { children: ReactNode }) {
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
+/**
+ * Shows everything inside in Mist light or Mist dark, whatever the app theme
+ * is (the Scene Lab uses this to compare both). Mist and Mist dark share fonts
+ * and shapes, so only the colours change.
+ */
+export function MistPreview({ dark, children }: { dark: boolean; children: ReactNode }) {
+  const outer = useTheme();
+  const value = useMemo<ThemeValue>(
+    () => ({ ...outer, colors: dark ? mistDarkColors : mistColors, name: dark ? 'mist-dark' : 'mist', isDark: dark }),
+    [outer, dark],
+  );
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+}
+
 /** Use inside any screen: `const { colors } = useTheme();` */
 export function useTheme(): ThemeValue {
   const value = useContext(ThemeContext);

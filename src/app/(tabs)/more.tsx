@@ -19,6 +19,7 @@ export default function MoreScreen() {
       </Section>
       <Section title="App">
         <ListRow icon="gearshape" title="Settings" subtitle="Your name and appearance" onPress={() => router.push('/settings')} />
+        <ListRow icon="wand.and.stars" title="Scene Lab" subtitle="Preview Milo and the home scene" onPress={() => router.push('/scene-lab')} />
       </Section>
     </Screen>
   );
