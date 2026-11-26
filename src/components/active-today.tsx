@@ -6,7 +6,7 @@
  */
 import { format } from 'date-fns';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
-import { Alert, Pressable, View } from 'react-native';
+import { Alert, Pressable, ScrollView, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { GlassTile } from '@/components/glass-tile';
@@ -117,5 +117,51 @@ export function DayLogList({ logs, onDelete }: { logs: QuickLog[]; onDelete: (lo
         );
       })}
     </Box>
+  );
+}
+
+/**
+ * Living Home: the selected day's logs as one row of small pills (scrolls
+ * sideways if there are many), so Home fits on one screen. Tap one to delete it.
+ */
+export function LogChips({ logs, onDelete, emptyText }: { logs: QuickLog[]; onDelete: (log: QuickLog) => void; emptyText: string }) {
+  const { colors } = useTheme();
+  // Same height with or without logs, so the room above never has to resize.
+  if (logs.length === 0)
+    return (
+      <View style={{ minHeight: 44, justifyContent: 'center', alignItems: 'center' }}>
+        <AppText variant="small" muted>
+          {emptyText}
+        </AppText>
+      </View>
+    );
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={{ marginHorizontal: -spacing.lg, flexGrow: 0 }}
+      contentContainerStyle={{ gap: spacing.sm, paddingHorizontal: spacing.lg }}>
+      {logs.map((l) => {
+        const icon = ACTIVITY_PRESETS.find((p) => p.id === l.activity)?.icon ?? 'figure.mixed.cardio';
+        const what = describeLog(l.name, l.amount, l.unit);
+        return (
+          <PressableScale
+            key={l.id}
+            onPress={() =>
+              Alert.alert('Delete this log?', what, [
+                { text: 'Keep', style: 'cancel' },
+                { text: 'Delete', style: 'destructive', onPress: () => onDelete(l) },
+              ])
+            }
+            accessibilityRole="button"
+            accessibilityLabel={`${what} at ${format(l.loggedAt, 'H:mm')}. Tap to delete`}>
+            <GlassTile style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 44, paddingHorizontal: spacing.md, borderRadius: radius.md }}>
+              <SymbolView name={icon as SFSymbol} size={16} tintColor={colors.accent} />
+              <AppText variant="small">{what.charAt(0).toUpperCase() + what.slice(1)}</AppText>
+            </GlassTile>
+          </PressableScale>
+        );
+      })}
+    </ScrollView>
   );
 }

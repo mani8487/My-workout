@@ -1,12 +1,14 @@
 /**
  * Mist & Mint "Today's Workout" card on Home: a small label, the workout name,
- * one line of detail and a full-width pill button.
+ * one line of detail and a pill button (with an optional quieter one beside it).
  */
+import { View } from 'react-native';
+
 import { AppText } from '@/components/app-text';
 import { GlassTile } from '@/components/glass-tile';
 import { PressableScale } from '@/components/pressable-scale';
 import { useTheme } from '@/theme/theme-context';
-import { radius, spacing } from '@/theme/typography';
+import { MIN_TAP, radius, spacing } from '@/theme/typography';
 
 type Props = {
   eyebrow: string;
@@ -14,11 +16,13 @@ type Props = {
   detail?: string;
   /** The main button; leave out for days you can't start yet. */
   button?: { title: string; onPress: () => void };
+  /** A quieter outlined pill beside (or instead of) the main button, e.g. "Change". */
+  secondary?: { title: string; onPress: () => void; label?: string };
   /** Tapping the card body (e.g. open the preview). */
   onPress?: () => void;
 };
 
-export function MistDayCard({ eyebrow, title, detail, button, onPress }: Props) {
+export function MistDayCard({ eyebrow, title, detail, button, secondary, onPress }: Props) {
   const { colors } = useTheme();
   return (
     <GlassTile style={{ borderRadius: radius.lg, padding: spacing.lg, gap: spacing.md }}>
@@ -42,23 +46,46 @@ export function MistDayCard({ eyebrow, title, detail, button, onPress }: Props) 
           </AppText>
         ) : null}
       </PressableScale>
-      {button && (
-        <PressableScale
-          onPress={button.onPress}
-          accessibilityRole="button"
-          accessibilityLabel={button.title}
-          style={{
-            minHeight: 50,
-            borderRadius: 999,
-            backgroundColor: colors.accent,
-            alignItems: 'center',
-            justifyContent: 'center',
-            paddingHorizontal: spacing.lg,
-          }}>
-          <AppText variant="label" color={colors.onAccent}>
-            {button.title}
-          </AppText>
-        </PressableScale>
+      {(button || secondary) && (
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          {button && (
+            <PressableScale
+              onPress={button.onPress}
+              accessibilityRole="button"
+              accessibilityLabel={button.title}
+              style={{
+                flex: 1,
+                minHeight: MIN_TAP,
+                borderRadius: 999,
+                backgroundColor: colors.accent,
+                alignItems: 'center',
+                justifyContent: 'center',
+                paddingHorizontal: spacing.lg,
+              }}>
+              <AppText variant="label" color={colors.onAccent}>
+                {button.title}
+              </AppText>
+            </PressableScale>
+          )}
+          {secondary && (
+            <PressableScale
+              onPress={secondary.onPress}
+              accessibilityRole="button"
+              accessibilityLabel={secondary.label ?? secondary.title}
+              style={{
+                flex: button ? 0 : 1,
+                minHeight: MIN_TAP,
+                borderRadius: 999,
+                borderWidth: 1,
+                borderColor: colors.inputBorder,
+                alignItems: 'center',
+                justifyContent: 'center',
+                paddingHorizontal: spacing.lg,
+              }}>
+              <AppText variant="label">{secondary.title}</AppText>
+            </PressableScale>
+          )}
+        </View>
       )}
     </GlassTile>
   );

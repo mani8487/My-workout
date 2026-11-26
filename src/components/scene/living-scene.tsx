@@ -47,6 +47,8 @@ type Props = {
   waterGoalMl: number;
   /** Local hour (fractions allowed): sets the sky outside the window. */
   hour: number;
+  /** The most height the room may take (Home gives it what's left on screen). Defaults to a third of the screen. */
+  maxHeight?: number;
   /** Where the catch-up starts. Only read when the scene first appears. */
   from?: { stage: number; water: number };
   /** Scene Lab: show this Milo state instead of the mood (bump cue to replay). */
@@ -54,9 +56,17 @@ type Props = {
   miloCue?: number;
 };
 
-export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinutes, waterMl, waterGoalMl, hour, from, miloOverride, miloCue = 0 }: Props) {
+export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinutes, waterMl, waterGoalMl, hour, maxHeight, from, miloOverride, miloCue = 0 }: Props) {
   const { width, height } = useWindowDimensions();
-  const k = Math.min(width / ROOM.w, (height * MAX_HEIGHT_SHARE) / ROOM.h);
+  // The room is drawn at the size it first gets. If the space later shrinks (a taller card below),
+  // it scales down smoothly from the floor up instead of jumping to a new size.
+  const [firstMax] = useState(maxHeight);
+  const k = Math.min(width / ROOM.w, (firstMax ?? height * MAX_HEIGHT_SHARE) / ROOM.h);
+  const fitTarget = maxHeight ? Math.min(1, maxHeight / (ROOM.h * k)) : 1;
+  const fit = useSharedValue(fitTarget);
+  useEffect(() => {
+    fit.set(withSpring(fitTarget, SPRING.gentle));
+  }, [fit, fitTarget]);
   const { isDark, colors } = useTheme();
   const palette = roomPalette(isDark);
   const reduced = useReducedMotion();
@@ -71,7 +81,7 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
   const fade = useSharedValue(1); // Reduce Motion: the room dips to swap states unseen
   const cool = useDerivedValue(() => dimness(stage.get()));
   const warm = useDerivedValue(() => warmth(stage.get()));
-  useEffect(() => () => [stage, level, day, fade].forEach((v) => cancelAnimation(v)), [stage, level, day, fade]);
+  useEffect(() => () => [stage, level, day, fade, fit].forEach((v) => cancelAnimation(v)), [stage, level, day, fade, fit]);
 
   // ----- the room follows today's numbers -----
   const first = useRef(true);
@@ -127,7 +137,7 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
     if (s === 'waking') setMilo(moodRef.current);
   };
 
-  const roomStyle = useAnimatedStyle(() => ({ opacity: fade.get() }));
+  const roomStyle = useAnimatedStyle(() => ({ opacity: fade.get(), transform: [{ scale: fit.get() }] }));
   const stageW = ROOM.w * k;
   const stageStyle = { position: 'absolute' as const, left: (width - stageW) / 2, top: 0, width: stageW, height: ROOM.h * k };
   const shown = miloOverride ?? milo;
@@ -137,7 +147,7 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
       accessible
       accessibilityRole="image"
       accessibilityLabel={describeScene(activeMinutes, goalMinutes)}
-      style={[{ width, height: ROOM.h * k }, roomStyle]}>
+      style={[{ width, height: ROOM.h * k, transformOrigin: 'bottom' }, roomStyle]}>
       <Floor k={k} palette={palette} />
       <View style={stageStyle}>
         <RoomWindow k={k} day={day} palette={palette} />
