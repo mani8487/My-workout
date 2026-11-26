@@ -236,6 +236,7 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
       // While the room is away (off to a workout) it isn't read out.
       accessible={travel !== 'departing'}
       accessibilityElementsHidden={travel === 'departing'}
+      importantForAccessibility={travel === 'departing' ? 'no-hide-descendants' : 'auto'}
       accessibilityRole="image"
       accessibilityLabel={describeScene(activeMinutes, goalMinutes)}
       style={[{ width, height: ROOM.h * k, transformOrigin: 'bottom' }, roomStyle]}>

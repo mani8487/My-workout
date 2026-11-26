@@ -173,7 +173,8 @@ export default function HomeScreen() {
   const todaysWorkoutId = data?.workout?.id;
   const openTodaysPreview = useCallback(() => {
     if (todaysWorkoutId) router.push({ pathname: '/workout/preview', params: { id: todaysWorkoutId, from: 'room' } });
-  }, [todaysWorkoutId]);
+    else comeBack(); // nothing to open after all (today's plan changed mid-move): bring the room back
+  }, [todaysWorkoutId, comeBack]);
   /** Set on opening the app and on coming back from the background; the next load gives Milo a new line. */
   const freshLine = useRef(true);
   const prevMinutes = useRef<{ day: string; minutes: number } | null>(null);
