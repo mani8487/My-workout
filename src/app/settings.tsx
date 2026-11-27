@@ -149,16 +149,13 @@ export default function SettingsScreen() {
           value={preference}
           onChange={setPreference}
           options={[
-            { value: 'dark', label: 'Dark' },
-            { value: 'light', label: 'Light' },
-            { value: 'frost', label: 'Frost' },
-            { value: 'ember', label: 'Ember' },
-            { value: 'mist', label: 'Mist' },
             { value: 'auto', label: 'Auto' },
+            { value: 'light', label: 'Light' },
+            { value: 'dark', label: 'Dark' },
           ]}
         />
         <AppText variant="small" muted>
-          Auto and Mist follow your iPhone&apos;s light or dark setting.
+          Auto follows your iPhone&apos;s light or dark setting.
         </AppText>
       </Card>
 

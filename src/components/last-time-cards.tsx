@@ -48,7 +48,7 @@ export function LastTimeCards({ exercise }: { exercise: SessionExercise }) {
 
       <View
         style={{
-          // Suggestion card: a brass left edge in Dark/Light, a solid slate card in Frost.
+          // Suggestion card: a mint left edge.
           backgroundColor: colors.suggestBg,
           borderWidth: 1,
           borderColor: colors.border,

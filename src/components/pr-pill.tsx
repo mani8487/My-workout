@@ -1,5 +1,5 @@
 /**
- * The one SOLID brass element in the app, so a record feels special:
+ * The one SOLID accent element in the app, so a record feels special:
  * a pill with a trophy and WEIGHT PR / REP PR, with a single soft shimmer
  * the first time it appears.
  */

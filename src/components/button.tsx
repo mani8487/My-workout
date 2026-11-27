@@ -23,7 +23,7 @@ export function Button({ title, kind = 'primary', size = 'normal', style, ...res
       accessibilityRole="button"
       style={[
         {
-          // Primary = solid brass. Secondary = quiet outline.
+          // Primary = solid accent. Secondary = quiet outline.
           backgroundColor: isPrimary ? colors.accent : 'transparent',
           borderColor: isPrimary ? colors.accent : colors.inputBorder,
           borderWidth: 1,

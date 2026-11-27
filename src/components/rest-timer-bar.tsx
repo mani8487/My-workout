@@ -1,5 +1,5 @@
 /**
- * Rest timer strip: a thin brass ring that drains, the countdown, +30s and Skip.
+ * Rest timer strip: a thin accent ring that drains, the countdown, +30s and Skip.
  * Never blocks the screen. A soft haptic and a gentle pulse when it ends.
  */
 import * as Haptics from 'expo-haptics';

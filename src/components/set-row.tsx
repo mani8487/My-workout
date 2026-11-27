@@ -37,7 +37,7 @@ import type { PreviousSet, SessionSet, SetPatch } from '@/db/sessions';
 import { formatKg, formatSet, parseKg, parseReps } from '@/logic/format';
 import { DURATION, EASE, SPRING, useReducedMotion } from '@/motion';
 import { useTheme } from '@/theme/theme-context';
-import { isMistTheme, MAX_FONT_SCALE, MIN_TAP, radius, spacing, typography } from '@/theme/typography';
+import { MAX_FONT_SCALE, MIN_TAP, radius, spacing, typography } from '@/theme/typography';
 
 /** Mist & Mint: dark navy ink and the muted mint of a finished row (navy on mint reads well in both modes). */
 const MIST_INK = '#28384A';
@@ -89,8 +89,6 @@ type Props = {
   set: SessionSet;
   /** "1", "2"… for working sets, "W" for warm-ups. */
   label: string;
-  /** The next set to do: shown as an orange dot instead of its number (Ember). */
-  isCurrent?: boolean;
   previous?: PreviousSet;
   hidePrevious?: boolean;
   showRir: boolean;
@@ -101,9 +99,8 @@ type Props = {
   onDelete: () => void;
 };
 
-export function SetRow({ set, label, isCurrent = false, previous, hidePrevious, showRir, onSave, onCompleted, onRir, onDelete }: Props) {
-  const { colors, name, isDark } = useTheme();
-  const mist = isMistTheme(name);
+export function SetRow({ set, label, previous, hidePrevious, showRir, onSave, onCompleted, onRir, onDelete }: Props) {
+  const { colors, isDark } = useTheme();
   const isDone = set.completedAt != null;
 
   const [weightText, setWeightText] = useState(formatKg(set.weightKg));
@@ -114,8 +111,8 @@ export function SetRow({ set, label, isCurrent = false, previous, hidePrevious, 
 
   const inputsLive = !isDone || editing;
   const showDone = isDone && !editing;
-  // Text colour on a finished Mist row (undefined = the normal colours).
-  const ink = mist && showDone ? MIST_INK : undefined;
+  // Text colour on a finished row (undefined = the normal colours).
+  const ink = showDone ? MIST_INK : undefined;
 
   async function handleTick() {
     // Ticking a finished set (not being edited) un-ticks it.
@@ -138,7 +135,7 @@ export function SetRow({ set, label, isCurrent = false, previous, hidePrevious, 
     const wasNew = !isDone;
     setEditing(false);
     if (wasNew) {
-      if (mist) playRipple();
+      playRipple();
       onCompleted();
     }
   }
@@ -231,7 +228,7 @@ export function SetRow({ set, label, isCurrent = false, previous, hidePrevious, 
       <Swipeable
         friction={2}
         rightThreshold={40}
-        renderRightActions={(progress) => <DeleteAction progress={progress} onDelete={onDelete} hideAtRest={mist} />}>
+        renderRightActions={(progress) => <DeleteAction progress={progress} onDelete={onDelete} />}>
         <View
           style={{
             flexDirection: 'row',
@@ -239,9 +236,7 @@ export function SetRow({ set, label, isCurrent = false, previous, hidePrevious, 
             gap: 6,
             paddingVertical: spacing.sm,
             paddingHorizontal: spacing.sm,
-            // Solid card underneath so the swipe covers the Delete button; green tint on top when done.
-            // Mist: see-through so the glass table shows (Delete stays hidden until you swipe).
-            backgroundColor: mist ? 'transparent' : colors.card,
+            // See-through so the glass table shows; Delete stays hidden until you swipe.
             overflow: 'hidden',
           }}>
           {/* Green tint that wipes across from the left when the set is ticked. */}
@@ -254,30 +249,28 @@ export function SetRow({ set, label, isCurrent = false, previous, hidePrevious, 
                 bottom: 0,
                 left: 0,
                 right: 0,
-                backgroundColor: mist ? (isDark ? MIST_ROW_DONE.dark : MIST_ROW_DONE.light) : colors.successSoft,
+                backgroundColor: isDark ? MIST_ROW_DONE.dark : MIST_ROW_DONE.light,
                 transformOrigin: 'left',
               },
               wipeStyle,
             ]}
           />
-          {mist && (
-            <Animated.View
-              pointerEvents="none"
-              style={[
-                {
-                  position: 'absolute',
-                  width: RIPPLE * 2,
-                  height: RIPPLE * 2,
-                  borderRadius: RIPPLE,
-                  top: '50%',
-                  marginTop: -RIPPLE,
-                  right: spacing.sm + COLS.note + 6 + COLS.tick / 2 - RIPPLE,
-                  backgroundColor: '#A8DCC6',
-                },
-                rippleStyle,
-              ]}
-            />
-          )}
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              {
+                position: 'absolute',
+                width: RIPPLE * 2,
+                height: RIPPLE * 2,
+                borderRadius: RIPPLE,
+                top: '50%',
+                marginTop: -RIPPLE,
+                right: spacing.sm + COLS.note + 6 + COLS.tick / 2 - RIPPLE,
+                backgroundColor: '#A8DCC6',
+              },
+              rippleStyle,
+            ]}
+          />
 
           {/* Set number. Tap for a menu; long-press toggles warm-up. */}
           <Pressable
@@ -288,7 +281,7 @@ export function SetRow({ set, label, isCurrent = false, previous, hidePrevious, 
             }}
             delayLongPress={350}
             accessibilityLabel={
-              set.isWarmup ? 'Warm-up set. Tap for options' : `Set ${label}${isCurrent ? ', up now' : ''}. Tap for options`
+              set.isWarmup ? 'Warm-up set. Tap for options' : `Set ${label}. Tap for options`
             }
             style={{
               width: COLS.set,
@@ -298,13 +291,9 @@ export function SetRow({ set, label, isCurrent = false, previous, hidePrevious, 
               justifyContent: 'center',
               backgroundColor: set.isWarmup ? colors.accentSoft : 'transparent',
             }}>
-            {isCurrent && !set.isWarmup ? (
-              <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: colors.accent }} />
-            ) : (
-              <AppText variant="label" color={ink ?? (set.isWarmup ? colors.accent : colors.text)}>
-                {label}
-              </AppText>
-            )}
+            <AppText variant="label" color={ink ?? (set.isWarmup ? colors.accent : colors.text)}>
+              {label}
+            </AppText>
           </Pressable>
 
           {/* Last time's result, muted (hidden in History). */}
@@ -453,9 +442,9 @@ export function SetRow({ set, label, isCurrent = false, previous, hidePrevious, 
 }
 
 /** The red Delete revealed by swiping a row left. In Mist the row is see-through, so it only shows while swiping. */
-function DeleteAction({ progress, onDelete, hideAtRest }: { progress: SharedValue<number>; onDelete: () => void; hideAtRest: boolean }) {
+function DeleteAction({ progress, onDelete }: { progress: SharedValue<number>; onDelete: () => void }) {
   const { colors } = useTheme();
-  const style = useAnimatedStyle(() => ({ opacity: hideAtRest && progress.value < 0.02 ? 0 : 1 }));
+  const style = useAnimatedStyle(() => ({ opacity: progress.value < 0.02 ? 0 : 1 }));
   return (
     <Animated.View style={style}>
       <Pressable

@@ -4,31 +4,7 @@
  * - Holds a "stack" of screens: the tab bar lives at the bottom of the stack,
  *   and later the workout screens (Active Workout, Finish Summary, etc.) slide in on top of it.
  */
-import {
-  Inter_300Light,
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_700Bold,
-  useFonts,
-} from '@expo-google-fonts/inter';
-import {
-  Manrope_300Light,
-  Manrope_400Regular,
-  Manrope_500Medium,
-  Manrope_600SemiBold,
-  Manrope_700Bold,
-} from '@expo-google-fonts/manrope';
-import {
-  Geist_300Light,
-  Geist_400Regular,
-  Geist_500Medium,
-  Geist_600SemiBold,
-  Geist_700Bold,
-} from '@expo-google-fonts/geist';
-import { GeistMono_500Medium } from '@expo-google-fonts/geist-mono';
-import { DMSans_300Light, DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold, DMSans_700Bold } from '@expo-google-fonts/dm-sans';
-import { InstrumentSerif_400Regular, InstrumentSerif_400Regular_Italic } from '@expo-google-fonts/instrument-serif';
+import { DMSans_300Light, DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold, DMSans_700Bold, useFonts } from '@expo-google-fonts/dm-sans';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import { SQLiteProvider } from 'expo-sqlite';
 import { StatusBar } from 'expo-status-bar';
@@ -37,13 +13,13 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { DATABASE_NAME, initDatabase } from '@/db/init';
 import { RestTimerProvider } from '@/logic/rest-timer';
 import { MotionRoot, TRIP } from '@/motion';
-import { isMistTheme } from '@/theme/typography';
 import { AppThemeProvider, useTheme } from '@/theme/theme-context';
 
+/** Living Home: the workout preview fades in as the room leaves, finishing the start move. */
+const PREVIEW_OPTIONS = { animation: 'fade', animationDuration: TRIP.screenFade } as const;
+
 function Navigation() {
-  const { colors, isDark, name } = useTheme();
-  // Living Home (Mist): the workout preview fades in as the room leaves, finishing the start move.
-  const previewOptions = isMistTheme(name) ? { animation: 'fade' as const, animationDuration: TRIP.screenFade } : undefined;
+  const { colors, isDark } = useTheme();
   const base = isDark ? DarkTheme : DefaultTheme;
 
   // Tell the navigation library to use our colour roles too.
@@ -64,7 +40,7 @@ function Navigation() {
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="workout/preview" options={previewOptions} />
+        <Stack.Screen name="workout/preview" options={PREVIEW_OPTIONS} />
         {/* Week Schedule slides up from the bottom. */}
         <Stack.Screen name="week" options={{ presentation: 'modal' }} />
         <Stack.Screen name="workout/change" options={{ presentation: 'modal' }} />
@@ -103,32 +79,8 @@ function Navigation() {
 export { CrashScreen as ErrorBoundary } from '@/components/crash-screen';
 
 export default function RootLayout() {
-  // The Inter font files are bundled inside the app, so this works offline.
-  const [fontsLoaded] = useFonts({
-    Inter_300Light,
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
-    Manrope_300Light, // Frost theme font
-    Manrope_400Regular,
-    Manrope_500Medium,
-    Manrope_600SemiBold,
-    Manrope_700Bold,
-    Geist_300Light, // Ember theme fonts
-    Geist_400Regular,
-    Geist_500Medium,
-    Geist_600SemiBold,
-    Geist_700Bold,
-    GeistMono_500Medium,
-    DMSans_300Light,
-    DMSans_400Regular,
-    DMSans_500Medium,
-    DMSans_600SemiBold,
-    DMSans_700Bold,
-    InstrumentSerif_400Regular,
-    InstrumentSerif_400Regular_Italic,
-  });
+  // The DM Sans font files are bundled inside the app, so this works offline.
+  const [fontsLoaded] = useFonts({ DMSans_300Light, DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold, DMSans_700Bold });
   if (!fontsLoaded) return null;
 
   return (

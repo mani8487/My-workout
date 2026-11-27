@@ -61,7 +61,7 @@ export function LineChart({
             <Svg width={width} height={height}>
               <Line x1={0} y1={sy(maxY)} x2={width} y2={sy(maxY)} stroke={colors.border} strokeWidth={1} />
               <Line x1={0} y1={sy(minY)} x2={width} y2={sy(minY)} stroke={colors.border} strokeWidth={1} />
-              {/* Titanium line; the best point is highlighted in brass. */}
+              {/* Titanium line; the best point is highlighted in the accent colour. */}
               {points.length > 1 && (
                 <Polyline points={coords} fill="none" stroke={colors.chart} strokeWidth={2} strokeLinejoin="round" />
               )}

@@ -1,12 +1,9 @@
 /**
- * Colour roles: "Calibrated Steel and Brass".
+ * Colour roles for Mist & Mint, the app's one look.
  *
  * Every colour in the app is referred to by its JOB (its "role"), never by a
- * raw value. Dark and light are just two value sets for the same roles.
- *
- * Note on contrast: the design's darkest grey (#5F6773) is too faint for
- * small text on the dark background (fails WCAG AA), so muted TEXT uses the
- * lighter "textSecondary" grey; the darker grey is only used for decoration.
+ * raw value. Light and dark are two value sets for the same roles; the app
+ * follows the iPhone's setting unless Settings picks one.
  */
 
 export type ColorRoles = {
@@ -27,9 +24,9 @@ export type ColorRoles = {
   /** Decorative only (never for text you need to read). */
   faint: string;
 
-  /** Brushed brass: actions, highlights, PR pills. */
+  /** Main actions and highlights (navy in light, mint in dark). */
   accent: string;
-  /** Text on top of solid brass. */
+  /** Text on top of the accent colour. */
   onAccent: string;
   accentSoft: string;
 
@@ -54,8 +51,8 @@ export type ColorRoles = {
   danger: string;
   dangerSoft: string;
 
-  /** Optional soft gradient behind whole screens (Frost). */
-  backgroundGradient: [string, string] | null;
+  /** The soft gradient behind whole screens. */
+  backgroundGradient: [string, string];
 
   /** The big "today's workout" card on Home. */
   heroStart: string;
@@ -72,200 +69,6 @@ export type ColorRoles = {
   onSuggest: string;
   /** Coloured left edge, or 'transparent' for none. */
   suggestEdge: string;
-};
-
-export const darkColors: ColorRoles = {
-  background: '#0E0F11',
-  card: '#17191D',
-  cardAlt: '#1E2126',
-  border: 'rgba(255,255,255,0.07)',
-  input: '#22252B',
-  inputBorder: '#2E323A',
-
-  text: '#F3F4F6',
-  textMuted: '#8A93A2',
-  faint: '#5F6773',
-
-  accent: '#C8A96A',
-  onAccent: '#0E0F11',
-  accentSoft: 'rgba(200,169,106,0.14)',
-
-  chart: '#7C8594',
-  water: '#55CBE3',
-
-  success: '#6EE7B7',
-  successSoft: 'rgba(46,111,94,0.25)',
-
-  warning: '#E0B25C',
-  warningSoft: 'rgba(224,178,92,0.14)',
-
-  sage: '#9DBFAE',
-  sageSoft: 'rgba(157,191,174,0.14)',
-
-  // Lighter red than Light/Frost so red text stays readable on near-black (AA).
-  danger: '#D25C5C',
-  dangerSoft: 'rgba(210,92,92,0.18)',
-
-  backgroundGradient: null,
-  heroStart: '#1E2126',
-  heroEnd: '#17191D',
-  onHero: '#F3F4F6',
-  onHeroMuted: '#8A93A2',
-  heroChip: 'rgba(255,255,255,0.06)',
-  heroButton: '#C8A96A',
-  onHeroButton: '#0E0F11',
-
-  suggestBg: '#17191D',
-  onSuggest: '#F3F4F6',
-  suggestEdge: '#C8A96A',
-};
-
-export const lightColors: ColorRoles = {
-  background: '#F5F3EE',
-  card: '#FFFFFF',
-  cardAlt: '#EFEDE7',
-  border: 'rgba(0,0,0,0.08)',
-  input: '#ECEAE4',
-  inputBorder: '#DAD7CF',
-
-  text: '#17191D',
-  textMuted: '#5F6773',
-  faint: '#A3A8B0',
-
-  // Deeper brass so brass text on white passes contrast (the old #9A7B34 didn't),
-  // which in turn means white text on brass now passes too.
-  accent: '#7F6428',
-  onAccent: '#FFFFFF',
-  accentSoft: 'rgba(127,100,40,0.12)',
-
-  chart: '#7C8594',
-  water: '#36B6D5',
-
-  success: '#2E6F5E',
-  successSoft: 'rgba(46,111,94,0.14)',
-
-  warning: '#9A6A12',
-  warningSoft: 'rgba(224,178,92,0.18)',
-
-  sage: '#4F7A65',
-  sageSoft: 'rgba(79,122,101,0.12)',
-
-  danger: '#B84A4A',
-  dangerSoft: 'rgba(184,74,74,0.12)',
-
-  backgroundGradient: null,
-  heroStart: '#FFFFFF',
-  heroEnd: '#F8F6F1',
-  onHero: '#17191D',
-  onHeroMuted: '#5F6773',
-  heroChip: 'rgba(0,0,0,0.05)',
-  heroButton: '#7F6428',
-  onHeroButton: '#FFFFFF',
-
-  suggestBg: '#FFFFFF',
-  onSuggest: '#17191D',
-  suggestEdge: '#7F6428',
-};
-
-/**
- * Frost: calm and airy. Pale cool blue-grey, frosted glass cards, dark slate
- * accents. Muted text is darkened slightly from the design's #98A2B0 so it
- * stays readable on glass (WCAG AA).
- */
-export const frostColors: ColorRoles = {
-  background: '#E6ECF2',
-  card: 'rgba(255,255,255,0.62)',
-  cardAlt: '#FFFFFF',
-  border: 'rgba(255,255,255,0.75)',
-  input: '#F4F7FA',
-  inputBorder: '#CDD5DF',
-
-  text: '#1F2630',
-  textMuted: '#5F6B79',
-  faint: '#98A2B0',
-
-  accent: '#3E4756',
-  onAccent: '#FFFFFF',
-  accentSoft: 'rgba(62,71,86,0.10)',
-
-  chart: '#8C98AA',
-  water: '#36B6D5',
-
-  // Darker green than the design's #3F8F7A so green text passes AA on the pale background.
-  success: '#2F7464',
-  successSoft: 'rgba(63,143,122,0.16)',
-
-  warning: '#9A6A12',
-  warningSoft: 'rgba(224,178,92,0.20)',
-
-  sage: '#2F7464',
-  sageSoft: 'rgba(63,143,122,0.12)',
-
-  danger: '#B84A4A',
-  dangerSoft: 'rgba(184,74,74,0.12)',
-
-  backgroundGradient: ['#E6ECF2', '#D5DDE6'],
-  heroStart: '#475062',
-  heroEnd: '#5E6A7E',
-  onHero: '#FFFFFF',
-  onHeroMuted: 'rgba(255,255,255,0.78)',
-  heroChip: 'rgba(255,255,255,0.14)',
-  heroButton: '#FFFFFF',
-  onHeroButton: '#1F2630',
-
-  suggestBg: '#3E4756',
-  onSuggest: '#FFFFFF',
-  suggestEdge: 'transparent',
-};
-
-/**
- * Ember: Apple-style true black with one bright orange for actions, iOS green
- * for finished sets. Orange is used sparingly (play button, current set, Next)
- * so it always means "do this". Text on orange is black: white would fail contrast.
- */
-export const emberColors: ColorRoles = {
-  background: '#000000',
-  card: '#1C1C1E',
-  cardAlt: '#2C2C2E',
-  border: 'rgba(255,255,255,0.08)',
-  input: '#1C1C1E',
-  inputBorder: '#2C2C2E',
-
-  text: '#F5F5F7',
-  textMuted: '#98989F',
-  faint: '#48484A',
-
-  accent: '#FF7A1A',
-  onAccent: '#000000',
-  accentSoft: 'rgba(255,122,26,0.16)',
-
-  chart: '#8E8E93',
-  water: '#55CBE3',
-
-  success: '#30D158',
-  successSoft: 'rgba(48,209,88,0.16)',
-
-  warning: '#FFB340',
-  warningSoft: 'rgba(255,179,64,0.16)',
-
-  sage: '#30D158',
-  sageSoft: 'rgba(48,209,88,0.14)',
-
-  danger: '#FF453A',
-  dangerSoft: 'rgba(255,69,58,0.18)',
-
-  backgroundGradient: null,
-  heroStart: '#1C1C1E',
-  heroEnd: '#1C1C1E',
-  onHero: '#F5F5F7',
-  onHeroMuted: '#98989F',
-  heroChip: '#2C2C2E',
-  heroButton: '#FF7A1A',
-  onHeroButton: '#000000',
-
-  suggestBg: '#1C1C1E',
-  onSuggest: '#F5F5F7',
-  suggestEdge: '#FF7A1A',
 };
 
 /**

@@ -5,10 +5,9 @@ import { ScrollView, View } from 'react-native';
 import { useTheme } from '@/theme/theme-context';
 import { spacing } from '@/theme/typography';
 
-/** The theme's background: a soft gradient in Frost, a flat colour otherwise. */
+/** The screen background: a soft mist-to-mint gradient. */
 export function Backdrop() {
   const { colors } = useTheme();
-  if (!colors.backgroundGradient) return null;
   return (
     <LinearGradient
       colors={colors.backgroundGradient}

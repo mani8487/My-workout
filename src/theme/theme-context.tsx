@@ -1,50 +1,39 @@
 /**
- * Decides which theme is on and hands its colour roles to every screen.
+ * Decides whether Mist & Mint shows light or dark, and hands its colour roles to every screen.
  *
- * Choices (Settings): Auto (follows the iPhone's light/dark), Dark, Light, Frost, Ember,
- * Mist (Mist & Mint, which also follows the iPhone's light/dark).
+ * Choices (Settings → Appearance): Auto (follows the iPhone), Light, Dark.
  */
 import { useSQLiteContext } from 'expo-sqlite';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useColorScheme } from 'react-native';
 
 import { getSetting, setSetting } from '@/db/settings';
-import { darkColors, emberColors, frostColors, lightColors, mistColors, mistDarkColors, type ColorRoles } from './colors';
-import { applyThemeStyle, type ThemeName } from './typography';
+import { mistColors, mistDarkColors, type ColorRoles } from './colors';
+import type { ThemeName } from './typography';
 
-export type ThemePreference = 'auto' | 'dark' | 'light' | 'frost' | 'ember' | 'mist';
+export type ThemePreference = 'auto' | 'light' | 'dark';
 
 type ThemeValue = {
   colors: ColorRoles;
   /** Which theme is actually showing. */
   name: ThemeName;
-  /** True for the dark theme (used for the status bar and system pickers). */
+  /** True for the dark version (used for the status bar and system pickers). */
   isDark: boolean;
   preference: ThemePreference;
   setPreference: (p: ThemePreference) => void;
 };
 
 const ThemeContext = createContext<ThemeValue | null>(null);
-const COLORS: Record<ThemeName, ColorRoles> = {
-  dark: darkColors,
-  light: lightColors,
-  frost: frostColors,
-  ember: emberColors,
-  mist: mistColors,
-  'mist-dark': mistDarkColors,
-};
+const COLORS: Record<ThemeName, ColorRoles> = { mist: mistColors, 'mist-dark': mistDarkColors };
 
 export function AppThemeProvider({ children }: { children: ReactNode }) {
   const db = useSQLiteContext();
   const systemScheme = useColorScheme();
   const [preference, setPreferenceState] = useState<ThemePreference>('auto');
 
-  // Load the saved choice ("system" was the old name for Auto).
+  // Load the saved choice. Choices from the old looks (Frost, Ember, Mist, "system") all mean Auto now.
   useEffect(() => {
-    getSetting(db, 'theme').then((v) => {
-      if (v === 'system') setPreferenceState('auto');
-      else if (v === 'light' || v === 'dark' || v === 'frost' || v === 'ember' || v === 'mist' || v === 'auto') setPreferenceState(v);
-    });
+    getSetting(db, 'theme').then((v) => setPreferenceState(v === 'light' || v === 'dark' ? v : 'auto'));
   }, [db]);
 
   const setPreference = useCallback(
@@ -55,22 +44,17 @@ export function AppThemeProvider({ children }: { children: ReactNode }) {
     [db],
   );
 
-  const systemDark = systemScheme === 'dark';
-  const name: ThemeName =
-    preference === 'auto' ? (systemDark ? 'dark' : 'light') : preference === 'mist' ? (systemDark ? 'mist-dark' : 'mist') : preference;
+  const dark = preference === 'auto' ? systemScheme === 'dark' : preference === 'dark';
+  const name: ThemeName = dark ? 'mist-dark' : 'mist';
 
-  const value = useMemo(() => {
-    applyThemeStyle(name); // fonts and corner shapes for this theme
-    return { colors: COLORS[name], name, isDark: name === 'dark' || name === 'ember' || name === 'mist-dark', preference, setPreference };
-  }, [name, preference, setPreference]);
+  const value = useMemo(() => ({ colors: COLORS[name], name, isDark: dark, preference, setPreference }), [name, dark, preference, setPreference]);
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
 /**
- * Shows everything inside in Mist light or Mist dark, whatever the app theme
- * is (the Scene Lab uses this to compare both). Mist and Mist dark share fonts
- * and shapes, so only the colours change.
+ * Shows everything inside in Mist light or Mist dark, whatever the app shows
+ * (the Scene Lab uses this to compare both).
  */
 export function MistPreview({ dark, children }: { dark: boolean; children: ReactNode }) {
   const outer = useTheme();

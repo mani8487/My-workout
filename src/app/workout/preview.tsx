@@ -9,7 +9,6 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MiloPeek, PEEK_VISIBLE } from '@/components/scene/milo-peek';
-import { SkeletonScreen } from '@/components/skeleton';
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
 import { PressableScale } from '@/components/pressable-scale';
@@ -24,15 +23,14 @@ import { titleCase } from '@/logic/format';
 import { estimateMinutes, getWorkoutPreview } from '@/logic/today';
 import { DURATION, EASE } from '@/motion';
 import { useTheme } from '@/theme/theme-context';
-import { isMistTheme, radius, spacing } from '@/theme/typography';
+import { radius, spacing } from '@/theme/typography';
 
 /** Milo's size when he peeks up from the bottom of the preview. */
 const PEEK_SIZE = 130;
 
 export default function PreviewScreen() {
   const db = useSQLiteContext();
-  const { colors, name: themeName } = useTheme();
-  const mist = isMistTheme(themeName);
+  const { colors } = useTheme();
   // from=room: opened by the Living Home start move, so Milo followed and peeks up from the bottom.
   const { id, from } = useLocalSearchParams<{ id: WorkoutId; from?: string }>();
   const [data, setData] = useState<{ workout: Workout; plan: PlannedExercise[]; minutes: number } | null>(null);
@@ -75,16 +73,16 @@ export default function PreviewScreen() {
     }
   }
 
-  // Mist: a plain background while loading (no skeleton flashing through the fade-in), then the content fades in.
-  if (!data) return mist ? <View style={{ flex: 1, backgroundColor: colors.background }} /> : <SkeletonScreen />;
+  // A plain background while loading (no skeleton flashing through the fade-in), then the content fades in.
+  if (!data) return <View style={{ flex: 1, backgroundColor: colors.background }} />;
   const plan = override ?? data.plan;
   const minutes = override ? estimateMinutes(override) : data.minutes;
   const totalSets = plan.reduce((n, p) => n + p.targetSets, 0);
-  const peek = mist && from === 'room';
+  const peek = from === 'room';
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: colors.background }}>
-      <Animated.View entering={mist ? FadeIn.duration(DURATION.micro.slow).easing(EASE.out) : undefined} style={{ flex: 1 }}>
+      <Animated.View entering={FadeIn.duration(DURATION.micro.slow).easing(EASE.out)} style={{ flex: 1 }}>
       <ScreenHeader title="Workout Preview" onBack={() => router.back()} />
       <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg, paddingBottom: peek ? Math.round(PEEK_SIZE * PEEK_VISIBLE) + spacing.lg : spacing.lg }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>

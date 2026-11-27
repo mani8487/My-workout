@@ -30,8 +30,6 @@ import { SkeletonScreen } from '@/components/skeleton';
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
 import { LastTimeCards } from '@/components/last-time-cards';
-import { ProgressRing } from '@/components/progress-ring';
-import { RestTimerBar } from '@/components/rest-timer-bar';
 import { closePad, NumberPad, useActivePadId, usePadSpacer } from '@/components/number-pad';
 import { COLS, SetRow } from '@/components/set-row';
 import { confirmFinishWorkout } from '@/logic/finish';
@@ -51,7 +49,7 @@ import {
 } from '@/db/sessions';
 import { getSetting, setSetting } from '@/db/settings';
 import { useTheme } from '@/theme/theme-context';
-import { isMistTheme, radius, spacing, TIGHT_FONT_SCALE } from '@/theme/typography';
+import { radius, spacing, TIGHT_FONT_SCALE } from '@/theme/typography';
 
 const TIP_KEY = 'tip.setMenuSeen';
 
@@ -63,11 +61,7 @@ function firstUnfinishedIndex(detail: SessionDetail) {
 
 export default function ActiveWorkoutScreen() {
   const db = useSQLiteContext();
-  const { colors, name: themeName } = useTheme();
-  // Ember gets the compact bottom bar and the orange current-set dot.
-  const compact = themeName === 'ember';
-  // Mist & Mint: glass table, Milo, "Set saved" pill and the glass bottom bar.
-  const mist = isMistTheme(themeName);
+  const { colors } = useTheme();
   const milo = useMiloState('sitting');
   const [savedSignal, setSavedSignal] = useState(0);
   const { height: screenH } = useWindowDimensions();
@@ -235,12 +229,8 @@ export default function ActiveWorkoutScreen() {
   const allWorking = detail.exercises.flatMap((e) => e.sets.filter((s) => !s.isWarmup));
   const allDone = allWorking.filter((s) => s.completedAt != null).length;
   const progress = allWorking.length > 0 ? allDone / allWorking.length : 0;
-  // Where you are in the workout: finished exercises plus the share of this one done.
-  const exerciseFraction = (safeIndex + (workingTotal > 0 ? workingDone / workingTotal : 0)) / total;
-  const currentSetId = exercise.sets.find((s) => s.completedAt == null)?.id;
   const prevExercise = detail.exercises[safeIndex - 1];
   const nextExercise = detail.exercises[safeIndex + 1];
-  const SetTable = mist ? GlassTile : View;
   async function addOneSet() {
     if (!exercise) return;
     await addSet(db, exercise.id);
@@ -260,17 +250,15 @@ export default function ActiveWorkoutScreen() {
         <Pressable onPress={openMenu} hitSlop={10} accessibilityLabel="Workout menu" style={{ width: 44, alignItems: 'center' }}>
           <SymbolView name="ellipsis.circle" size={22} tintColor={colors.accent} />
         </Pressable>
-        {mist && (
-          <Pressable
-            onPress={() => confirmFinishWorkout(db, detail, restTimer.skip, true)}
-            accessibilityRole="button"
-            accessibilityLabel="Finish workout"
-            style={{ minHeight: 44, paddingHorizontal: spacing.sm, justifyContent: 'center' }}>
-            <AppText variant="label" color={colors.accent}>
-              Finish
-            </AppText>
-          </Pressable>
-        )}
+        <Pressable
+          onPress={() => confirmFinishWorkout(db, detail, restTimer.skip, true)}
+          accessibilityRole="button"
+          accessibilityLabel="Finish workout"
+          style={{ minHeight: 44, paddingHorizontal: spacing.sm, justifyContent: 'center' }}>
+          <AppText variant="label" color={colors.accent}>
+            Finish
+          </AppText>
+        </Pressable>
       </View>
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
@@ -308,12 +296,7 @@ export default function ActiveWorkoutScreen() {
           <LastTimeCards exercise={exercise} />
 
           {/* Set table */}
-          <SetTable
-            style={{
-              borderRadius: radius.lg,
-              overflow: 'hidden',
-              ...(mist ? null : { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }),
-            }}>
+          <GlassTile style={{ borderRadius: radius.lg, overflow: 'hidden' }}>
             <View
               style={{
                 flexDirection: 'row',
@@ -340,16 +323,13 @@ export default function ActiveWorkoutScreen() {
                 <SetRow
                   set={set}
                   label={label}
-                  isCurrent={compact && set.id === currentSetId}
                   previous={previous}
                   showRir={rirForSetId === set.id}
                   onSave={(patch) => save(set.id, patch)}
                   onCompleted={() => {
                     setRirForSetId(set.id);
-                    if (mist) {
-                      setSavedSignal((n) => n + 1);
-                      milo.react();
-                    }
+                    setSavedSignal((n) => n + 1);
+                    milo.react();
                     // Rest starts by itself. Warm-ups get a shorter 60 s rest.
                     restTimer.start(set.isWarmup ? 60 : exercise.restSeconds);
                   }}
@@ -367,31 +347,25 @@ export default function ActiveWorkoutScreen() {
 
             {rows.length === 0 && (
               <AppText muted style={{ padding: spacing.lg, textAlign: 'center' }}>
-                No sets. Tap {mist ? '+ Set' : 'Add Set'}.
+                No sets. Tap + Set.
               </AppText>
             )}
-          </SetTable>
+          </GlassTile>
 
-          {mist ? (
-            <>
-              <MistExerciseNav
-                prevName={prevExercise?.name}
-                nextName={nextExercise?.name}
-                done={exerciseDone}
-                onPrev={() => goTo(safeIndex - 1)}
-                onNext={() => (nextExercise ? goTo(safeIndex + 1) : openOverview())}
-              />
-              {/* Milo keeps you company below the table; out of the way while typing or with a long table. */}
-              {!padOpen && !keyboardOpen && (
-                <Milo
-                  {...milo.props}
-                  size={Math.round(screenH * 0.15 * (rows.length > 5 ? 0.6 : 1))}
-                  style={{ alignSelf: 'center' }}
-                />
-              )}
-            </>
-          ) : (
-            <Button title="+ Add Set" kind="secondary" onPress={addOneSet} />
+          <MistExerciseNav
+            prevName={prevExercise?.name}
+            nextName={nextExercise?.name}
+            done={exerciseDone}
+            onPrev={() => goTo(safeIndex - 1)}
+            onNext={() => (nextExercise ? goTo(safeIndex + 1) : openOverview())}
+          />
+          {/* Milo keeps you company below the table; out of the way while typing or with a long table. */}
+          {!padOpen && !keyboardOpen && (
+            <Milo
+              {...milo.props}
+              size={Math.round(screenH * 0.15 * (rows.length > 5 ? 0.6 : 1))}
+              style={{ alignSelf: 'center' }}
+            />
           )}
 
           {showTip && (
@@ -414,109 +388,11 @@ export default function ActiveWorkoutScreen() {
             </View>
           )}
 
-          {!mist && (
-            <Button
-              title="Finish Workout"
-              kind="secondary"
-              onPress={() => confirmFinishWorkout(db, detail, restTimer.skip)}
-            />
-          )}
         </ScrollView>
-        {mist && <GlassToast signal={savedSignal} message="Set saved" />}
+        <GlassToast signal={savedSignal} message="Set saved" />
       </KeyboardAvoidingView>
 
-      {mist ? (
-        <MistWorkoutBar restSeconds={exercise.restSeconds} onAddSet={addOneSet} />
-      ) : (
-        <RestTimerBar />
-      )}
-
-      {/* Previous / Next exercise */}
-      {mist ? null : compact ? (
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: spacing.sm,
-            paddingHorizontal: spacing.lg,
-            paddingTop: spacing.md,
-            borderTopWidth: 1,
-            borderTopColor: colors.border,
-            backgroundColor: colors.background,
-          }}>
-          <PressableScale
-            onPress={openOverview}
-            pressedScale={0.98}
-            accessibilityRole="button"
-            accessibilityLabel={`Exercise ${safeIndex + 1} of ${total}, ${exercise.name}. Open workout overview`}
-            style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
-            <ProgressRing size={48} stroke={3} fraction={exerciseFraction}>
-              <AppText variant="small" maxFontSizeMultiplier={1.1}>
-                {safeIndex + 1}/{total}
-              </AppText>
-            </ProgressRing>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <AppText variant="label" numberOfLines={1}>
-                {exercise.name}
-              </AppText>
-              <AppText variant="small" muted numberOfLines={1}>
-                {nextExercise ? `Next: ${nextExercise.name}` : 'Last exercise'}
-              </AppText>
-            </View>
-          </PressableScale>
-          {prevExercise && (
-            <PressableScale
-              onPress={() => goTo(safeIndex - 1)}
-              accessibilityRole="button"
-              accessibilityLabel={`Previous exercise, ${prevExercise.name}`}
-              style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' }}>
-              <SymbolView name="chevron.left" size={16} tintColor={colors.text} />
-            </PressableScale>
-          )}
-          <PressableScale
-            onPress={() => (nextExercise ? goTo(safeIndex + 1) : openOverview())}
-            accessibilityRole="button"
-            accessibilityLabel={nextExercise ? `Next exercise, ${nextExercise.name}` : 'Overview and finish'}
-            style={{
-              height: 44,
-              paddingHorizontal: spacing.lg + 2,
-              borderRadius: 22,
-              // Solid orange once this exercise is done: the obvious next move.
-              backgroundColor: exerciseDone ? colors.accent : colors.card,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}>
-            <AppText variant="label" color={exerciseDone ? colors.onAccent : colors.text}>
-              {nextExercise ? 'Next' : 'Finish'}
-            </AppText>
-          </PressableScale>
-        </View>
-      ) : (
-      <View
-        style={{
-          flexDirection: 'row',
-          gap: spacing.md,
-          paddingHorizontal: spacing.lg,
-          paddingTop: spacing.md,
-          borderTopWidth: 1,
-          borderTopColor: colors.border,
-          backgroundColor: colors.background,
-        }}>
-        <NavButton
-          direction="prev"
-          label={prevExercise?.name}
-          disabled={!prevExercise}
-          onPress={() => goTo(safeIndex - 1)}
-        />
-        <NavButton
-          direction="next"
-          label={nextExercise?.name ?? 'Overview & Finish'}
-          disabled={false}
-          highlight={exerciseDone}
-          onPress={() => (nextExercise ? goTo(safeIndex + 1) : openOverview())}
-        />
-      </View>
-      )}
+      <MistWorkoutBar restSeconds={exercise.restSeconds} onAddSet={addOneSet} />
 
       <NumberPad scrollRef={scrollRef} scrollY={scrollY} />
     </SafeAreaView>
@@ -582,55 +458,5 @@ function HeaderCell({ width, text }: { width: number; text: string }) {
         {text}
       </AppText>
     </View>
-  );
-}
-
-function NavButton({
-  direction,
-  label,
-  disabled,
-  highlight = false,
-  onPress,
-}: {
-  direction: 'prev' | 'next';
-  label?: string;
-  disabled: boolean;
-  /** Solid accent fill: this exercise is done, so Next is the obvious move. */
-  highlight?: boolean;
-  onPress: () => void;
-}) {
-  const { colors } = useTheme();
-  const isNext = direction === 'next';
-  const fg = highlight ? colors.onAccent : colors.text;
-  return (
-    <PressableScale
-      onPress={onPress}
-      disabled={disabled}
-      accessibilityLabel={isNext ? 'Next exercise' : 'Previous exercise'}
-      style={{
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: isNext ? 'flex-end' : 'flex-start',
-        gap: spacing.xs,
-        paddingVertical: spacing.md,
-        paddingHorizontal: spacing.md,
-        borderRadius: radius.md,
-        backgroundColor: highlight ? colors.accent : colors.card,
-        borderWidth: 1,
-        borderColor: highlight ? colors.accent : colors.border,
-        opacity: disabled ? 0.4 : 1,
-      }}>
-      {!isNext && <SymbolView name="chevron.left" size={14} tintColor={fg} />}
-      <View style={{ flexShrink: 1, alignItems: isNext ? 'flex-end' : 'flex-start' }}>
-        <AppText variant="small" muted={!highlight} color={highlight ? fg : undefined}>
-          {isNext ? 'Next' : 'Previous'}
-        </AppText>
-        <AppText variant="label" numberOfLines={1} color={highlight ? fg : undefined}>
-          {label ?? '—'}
-        </AppText>
-      </View>
-      {isNext && <SymbolView name="chevron.right" size={14} tintColor={fg} />}
-    </PressableScale>
   );
 }

@@ -20,18 +20,14 @@ import { addDays, addWeeks, format, isSameDay } from 'date-fns';
 import * as Haptics from 'expo-haptics';
 import { router, useFocusEffect, useIsFocused, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { SymbolView, type SFSymbol } from 'expo-symbols';
+import { SymbolView } from 'expo-symbols';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, AppState, Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
 
-import { PressableScale } from '@/components/pressable-scale';
 import { SkeletonScreen } from '@/components/skeleton';
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
-import { Card } from '@/components/card';
-import { CompletedCard, EmptyDayCard } from '@/components/day-cards';
-import { ActiveTodayCard, DayLogList, LogLine } from '@/components/active-today';
-import { CompactDayCard } from '@/components/compact-day-card';
+import { LogLine } from '@/components/active-today';
 import { GlassTile } from '@/components/glass-tile';
 import { MistDayCard } from '@/components/mist-day-card';
 import { LivingScene } from '@/components/scene/living-scene';
@@ -47,21 +43,19 @@ import { useTodayKey } from '@/logic/use-today';
 import { TRIP } from '@/motion';
 import { countWorkoutsBetween, deleteQuickLog, getActiveMinutesBetween, getActivityTimesSince, getQuickLogsBetween, type QuickLog } from '@/db/quick-log';
 import { ACTIVE_GOAL_KEY, DEFAULT_ACTIVE_GOAL_MIN } from '@/logic/activity';
-import { Hero, HeroButton, HeroChip, HeroOutlineButton, HeroTitle } from '@/components/hero';
-import { Backdrop, Screen } from '@/components/screen';
+import { Backdrop } from '@/components/screen';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WeekStrip } from '@/components/week-strip';
-import { getLastSessionHighlight } from '@/db/history';
-import { formatDuration, formatKg } from '@/logic/format';
+import { formatDuration } from '@/logic/format';
 import { getActiveSessionId, getSessionDetail } from '@/db/sessions';
 import { getSetting, setSetting } from '@/db/settings';
 import type { Workout } from '@/db/types';
 import { acceptFreshStart, dismissFreshStart, freshStartOffer } from '@/logic/fresh-start';
 import type { Rotation } from '@/logic/rotation';
 import { dateKey, getWeekSchedule, parseDateKey, weekStartOf, type ScheduleDay } from '@/logic/schedule';
-import { getRoutineCards, getToday, getWorkoutPreview, greeting, shortDate } from '@/logic/today';
+import { getRoutineCards, getToday, getWorkoutPreview, greeting } from '@/logic/today';
 import { useTheme } from '@/theme/theme-context';
-import { isMistTheme, MIN_TAP, radius, SERIF_ITALIC, spacing } from '@/theme/typography';
+import { MIN_TAP, radius, spacing } from '@/theme/typography';
 
 /** Living Home: the room never gets shorter than this; a very small phone scrolls instead. */
 const ROOM_MIN_HEIGHT = 170;
@@ -97,10 +91,7 @@ type HomeData = {
 
 export default function HomeScreen() {
   const db = useSQLiteContext();
-  const { colors, name: themeName } = useTheme();
-  // Ember uses the quiet Apple-style row card and a small serif date.
-  const compact = themeName === 'ember';
-  const mist = isMistTheme(themeName);
+  const { colors } = useTheme();
   const [data, setData] = useState<HomeData | null>(null);
   const [weeksAway, setWeeksAway] = useState<number | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -310,28 +301,11 @@ export default function HomeScreen() {
   const fresh = data?.day === todayKey && water?.day === todayKey;
   useEffect(() => {
     // Only while Home is in view: changes made elsewhere count as "seen" once the room has shown them.
-    if (!mist || !target || !fresh || !focused) return;
+    if (!target || !fresh || !focused) return;
     setSetting(db, LAST_SEEN_KEY, encodeLastSeen({ day: todayKey, stage: target.stage, water: target.water })).catch(() => {});
     // Saved whenever what the room shows changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [db, mist, fresh, focused, todayKey, target?.stage, target?.water]);
-
-  // A real line from your last session of this workout (instead of a stock quote).
-  const highlightFor = data?.workout?.id ?? null;
-  const [highlight, setHighlight] = useState<string | null>(null);
-  useFocusEffect(
-    useCallback(() => {
-      if (!highlightFor) {
-        setHighlight(null);
-        return;
-      }
-      getLastSessionHighlight(db, highlightFor).then((h) =>
-        setHighlight(
-          h ? `Last ${h.workoutName}: ${h.exerciseName} ${h.weightKg ? `${formatKg(h.weightKg)} kg` : 'bodyweight'} × ${h.reps}` : null,
-        ),
-      );
-    }, [db, highlightFor]),
-  );
+  }, [db, fresh, focused, todayKey, target?.stage, target?.water]);
 
   const thisWeek = weekStartOf(new Date());
   const isCurrentWeek = isSameDay(weekStart, thisWeek);
@@ -343,21 +317,14 @@ export default function HomeScreen() {
     setSelectedKey(isSameDay(next, thisWeek) ? dateKey(new Date()) : dateKey(next));
   }
 
-  if (!data || (mist && !water)) return <SkeletonScreen />;
+  if (!data || !water) return <SkeletonScreen />;
 
   const { rotation, workout, active, previews } = data;
   const selected = data.days.find((d) => d.key === selectedKey) ?? data.days[0];
-  const doneCount = rotation.done.size;
-  const isUpNext = workout ? !rotation.done.has(workout.id) : true;
-  const statusLine = !workout
-    ? ''
-    : isUpNext
-      ? `${workout.name} is up next · ${doneCount} of ${rotation.workouts.length} done this cycle`
-      : `${workout.name} was already done on ${shortDate(rotation.done.get(workout.id)!)} this cycle`;
 
   const openPreview = () => workout && router.push({ pathname: '/workout/preview', params: { id: workout.id } });
   const startFromRoom = () => {
-    if (!mist || !sceneFrom || roomHeight === 0) return openPreview();
+    if (!sceneFrom || roomHeight === 0) return openPreview();
     if (leaving.current) return; // one exit per tap
     leaving.current = true;
     setLocked(true);
@@ -370,227 +337,87 @@ export default function HomeScreen() {
 
   /** The card for the selected day. */
   function renderDayCard() {
-    // ---- Mist & Mint: one calm card style (finished and rest days use the shared cards below) ----
-    if (mist) {
-      const detailFor = (w: Workout) => {
-        const p = previews[w.id];
-        if (!p) return w.muscleLabel;
-        return [p.minutes ? `${p.minutes} min` : null, `${p.exercises} ${p.exercises === 1 ? 'exercise' : 'exercises'}`]
-          .filter(Boolean)
-          .join(' · ');
-      };
-      if (selected.isToday && active) {
-        const resume = () => router.push('/workout/active');
-        return (
-          <MistDayCard
-            eyebrow="In progress"
-            title={active.name}
-            detail={`${active.setsDone} ${active.setsDone === 1 ? 'set' : 'sets'} logged so far`}
-            onPress={resume}
-            button={{ title: 'Resume Workout', onPress: resume }}
-          />
-        );
-      }
-      if (selected.isToday && selected.sessions.length === 0) {
-        if (!workout) return renderEmptyPlanCard();
-        return (
-          <MistDayCard
-            eyebrow="Today's Workout"
-            title={workout.name}
-            detail={detailFor(workout)}
-            onPress={openPreview}
-            button={{ title: 'Start Workout', onPress: startFromRoom }}
-            secondary={{ title: 'Change', label: 'Change workout', onPress: () => changeFor(selected) }}
-          />
-        );
-      }
-      if (selected.isFuture && selected.planned && selected.sessions.length === 0) {
-        const w = selected.planned;
-        return (
-          <MistDayCard
-            eyebrow={`Planned for ${format(selected.date, 'EEEE')}`}
-            title={w.name}
-            detail={detailFor(w)}
-            secondary={{ title: 'Change workout', onPress: () => changeFor(selected) }}
-          />
-        );
-      }
-      if (selected.sessions.length > 0) {
-        const s = selected.sessions[selected.sessions.length - 1];
-        const open = () => router.push({ pathname: '/session/[id]', params: { id: String(s.sessionId) } });
-        const more = selected.sessions.length - 1;
-        return (
-          <MistDayCard
-            eyebrow={selected.isToday ? 'Done today' : `Done · ${format(selected.date, 'EEEE d MMM')}`}
-            title={s.workoutName}
-            detail={[s.durationMin != null ? formatDuration(s.durationMin) : null, `${s.workingSets} sets`, `${s.volumeKg.toLocaleString()} kg`, more > 0 ? `+${more} more` : null]
-              .filter(Boolean)
-              .join(' · ')}
-            onPress={open}
-            hint="Opens every set and note"
-            button={{ title: 'View session', onPress: open }}
-            secondary={selected.isToday && workout ? { title: 'Train again', label: `Train again: ${workout.name}`, onPress: openPreview } : undefined}
-          />
-        );
-      }
-      if (selected.isToday && !workout) return renderEmptyPlanCard();
-      const missed = selected.status === 'missed';
+    const detailFor = (w: Workout) => {
+      const p = previews[w.id];
+      if (!p) return w.muscleLabel;
+      return [p.minutes ? `${p.minutes} min` : null, `${p.exercises} ${p.exercises === 1 ? 'exercise' : 'exercises'}`]
+        .filter(Boolean)
+        .join(' · ');
+    };
+    if (selected.isToday && active) {
+      const resume = () => router.push('/workout/active');
       return (
         <MistDayCard
-          eyebrow={format(selected.date, 'EEEE d MMM')}
-          title={selected.isPast && missed ? 'No workout logged' : 'Rest day'}
-          detail={selected.isPast ? (missed ? 'A planned day. Forgot to log it?' : 'Nothing planned, nothing logged.') : 'Recovery counts too.'}
-          secondary={
-            selected.isPast
-              ? { title: 'Log a workout', label: 'Log a workout for this day', onPress: () => router.push({ pathname: '/log-workout', params: { date: selected.key } }) }
-              : { title: 'Plan a workout', onPress: () => changeFor(selected) }
-          }
+          eyebrow="In progress"
+          title={active.name}
+          detail={`${active.setsDone} ${active.setsDone === 1 ? 'set' : 'sets'} logged so far`}
+          onPress={resume}
+          button={{ title: 'Resume Workout', onPress: resume }}
         />
       );
     }
-
-    // ---- Today ----
-    if (selected.isToday) {
-      if (active) {
-        const resume = () => router.push('/workout/active');
-        if (compact) {
-          return (
-            <CompactDayCard
-              eyebrow="In progress"
-              title={active.name}
-              detail={`${active.setsDone} ${active.setsDone === 1 ? 'set' : 'sets'} logged so far`}
-              onPress={resume}
-              onPlay={resume}
-              playLabel="Resume workout"
-            />
-          );
-        }
-        return (
-          <Hero>
-            <AppText variant="small" color={colors.onHeroMuted}>
-              IN PROGRESS
-            </AppText>
-            <HeroTitle>{active.name}</HeroTitle>
-            <AppText color={colors.onHeroMuted}>
-              {active.setsDone} {active.setsDone === 1 ? 'set' : 'sets'} logged so far
-            </AppText>
-            <HeroButton title="Resume Workout" onPress={() => router.push('/workout/active')} />
-          </Hero>
-        );
-      }
-      if (selected.sessions.length > 0) {
-        return (
-          <View style={{ gap: spacing.sm }}>
-            <CompletedCard day={selected} summary={selected.sessions[selected.sessions.length - 1]} />
-            {workout && (
-              <Pressable accessibilityRole="button" onPress={openPreview} hitSlop={8} style={{ alignSelf: 'center', padding: spacing.sm }}>
-                <AppText variant="small" color={colors.accent}>
-                  Train again? Start {workout.name}
-                </AppText>
-              </Pressable>
-            )}
-          </View>
-        );
-      }
+    if (selected.isToday && selected.sessions.length === 0) {
       if (!workout) return renderEmptyPlanCard();
-      const p = previews[workout.id];
-      if (compact) {
-        return (
-          <View style={{ gap: spacing.xs }}>
-            <CompactDayCard
-              eyebrow={isUpNext ? 'Today · up next' : 'Today · done this cycle'}
-              title={workout.name}
-              detail={[workout.muscleLabel, p?.minutes ? `~${p.minutes} min` : null].filter(Boolean).join(' · ')}
-              onPress={openPreview}
-              onPlay={openPreview}
-            />
-            <TextLink title="Change workout" onPress={() => changeFor(selected)} />
-          </View>
-        );
-      }
       return (
-        <View style={{ gap: spacing.sm }}>
-          <Pressable onPress={openPreview} accessibilityLabel={`Preview ${workout.name}`}>
-            <Hero>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <AppText variant="small" color={colors.onHeroMuted} style={{ flex: 1, letterSpacing: 0.5 }}>
-                  TODAY&apos;S WORKOUT
-                </AppText>
-                <HeroChip>{isUpNext ? 'Up next' : 'Done'}</HeroChip>
-              </View>
-              <HeroTitle>{workout.name}</HeroTitle>
-              <AppText color={colors.onHeroMuted}>{workout.muscleLabel}</AppText>
-              {p && <PreviewChips minutes={p.minutes} exercises={p.exercises} />}
-              <HeroButton title="Start Workout" onPress={openPreview} />
-              <HeroOutlineButton title="Change Workout" onPress={() => changeFor(selected)} />
-            </Hero>
-          </Pressable>
-          <AppText variant="small" muted style={{ paddingHorizontal: spacing.xs }}>
-            {statusLine}
-          </AppText>
-        </View>
+        <MistDayCard
+          eyebrow="Today's Workout"
+          title={workout.name}
+          detail={detailFor(workout)}
+          onPress={openPreview}
+          button={{ title: 'Start Workout', onPress: startFromRoom }}
+          secondary={{ title: 'Change', label: 'Change workout', onPress: () => changeFor(selected) }}
+        />
       );
     }
-
-    // ---- Past day ----
-    if (selected.sessions.length > 0) {
-      return <CompletedCard day={selected} summary={selected.sessions[selected.sessions.length - 1]} />;
-    }
-
-    // ---- Future day with a planned workout ----
-    if (selected.isFuture && selected.planned) {
+    if (selected.isFuture && selected.planned && selected.sessions.length === 0) {
       const w = selected.planned;
-      const p = previews[w.id];
-      if (compact) {
-        return (
-          <View style={{ gap: spacing.xs }}>
-            <CompactDayCard
-              eyebrow={`Planned · ${format(selected.date, 'EEEE')}`}
-              title={w.name}
-              detail={[w.muscleLabel, p?.minutes ? `~${p.minutes} min` : null].filter(Boolean).join(' · ')}
-            />
-            <TextLink title="Change workout" onPress={() => changeFor(selected)} />
-          </View>
-        );
-      }
       return (
-        <Hero>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <AppText variant="small" color={colors.onHeroMuted} style={{ flex: 1, letterSpacing: 0.5 }}>
-              {format(selected.date, 'EEEE d MMM').toUpperCase()}
-            </AppText>
-            <HeroChip>Planned</HeroChip>
-          </View>
-          <HeroTitle>{w.name}</HeroTitle>
-          <AppText color={colors.onHeroMuted}>{w.muscleLabel}</AppText>
-          {p && <PreviewChips minutes={p.minutes} exercises={p.exercises} />}
-          <AppText variant="label" color={colors.onHero}>
-            Planned for {format(selected.date, 'EEEE')}
-          </AppText>
-          <HeroOutlineButton title="Change Workout" onPress={() => changeFor(selected)} />
-        </Hero>
+        <MistDayCard
+          eyebrow={`Planned for ${format(selected.date, 'EEEE')}`}
+          title={w.name}
+          detail={detailFor(w)}
+          secondary={{ title: 'Change workout', onPress: () => changeFor(selected) }}
+        />
       );
     }
-
-    // ---- Rest day, or a past day with nothing logged ----
-    return <EmptyDayCard day={selected} onPlan={() => changeFor(selected)} />;
+    if (selected.sessions.length > 0) {
+      const s = selected.sessions[selected.sessions.length - 1];
+      const open = () => router.push({ pathname: '/session/[id]', params: { id: String(s.sessionId) } });
+      const more = selected.sessions.length - 1;
+      return (
+        <MistDayCard
+          eyebrow={selected.isToday ? 'Done today' : `Done · ${format(selected.date, 'EEEE d MMM')}`}
+          title={s.workoutName}
+          detail={[s.durationMin != null ? formatDuration(s.durationMin) : null, `${s.workingSets} sets`, `${s.volumeKg.toLocaleString()} kg`, more > 0 ? `+${more} more` : null]
+            .filter(Boolean)
+            .join(' · ')}
+          onPress={open}
+          hint="Opens every set and note"
+          button={{ title: 'View session', onPress: open }}
+          secondary={selected.isToday && workout ? { title: 'Train again', label: `Train again: ${workout.name}`, onPress: openPreview } : undefined}
+        />
+      );
+    }
+    if (selected.isToday && !workout) return renderEmptyPlanCard();
+    const missed = selected.status === 'missed';
+    return (
+      <MistDayCard
+        eyebrow={format(selected.date, 'EEEE d MMM')}
+        title={selected.isPast && missed ? 'No workout logged' : 'Rest day'}
+        detail={selected.isPast ? (missed ? 'A planned day. Forgot to log it?' : 'Nothing planned, nothing logged.') : 'Recovery counts too.'}
+        secondary={
+          selected.isPast
+            ? { title: 'Log a workout', label: 'Log a workout for this day', onPress: () => router.push({ pathname: '/log-workout', params: { date: selected.key } }) }
+            : { title: 'Plan a workout', onPress: () => changeFor(selected) }
+        }
+      />
+    );
   }
 
   function renderEmptyPlanCard() {
     const openPlan = () => router.push({ pathname: '/routine/[routineId]', params: { routineId: rotation.routine.id } });
-    if (mist)
-      return (
-        <MistDayCard eyebrow={rotation.routine.name} title="No workouts yet" detail="Add some in the Plan Editor." button={{ title: 'Open plan', onPress: openPlan }} />
-      );
     return (
-      <Card>
-        <AppText variant="heading">{rotation.routine.name}</AppText>
-        <AppText muted>This plan has no workouts yet. Add some in the Plan Editor.</AppText>
-        <Button
-          title="Open Plan"
-          onPress={openPlan}
-        />
-      </Card>
+      <MistDayCard eyebrow={rotation.routine.name} title="No workouts yet" detail="Add some in the Plan Editor." button={{ title: 'Open plan', onPress: openPlan }} />
     );
   }
 
@@ -620,392 +447,114 @@ export default function HomeScreen() {
     await acceptFreshStart(db);
     setReloadKey((k) => k + 1);
   };
-  const freshStartCard = weeksAway != null && (
-        <Card>
-          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm }}>
-            <AppText variant="label" style={{ flex: 1 }}>
-              Welcome back. Want to ease in?
-            </AppText>
-            <Pressable
-              onPress={dismissFresh}
-              hitSlop={12}
-              accessibilityLabel="Dismiss">
-              <SymbolView name="xmark" size={14} tintColor={colors.textMuted} />
-            </Pressable>
-          </View>
-          <AppText variant="small" muted>
-            It&apos;s been {weeksAway} weeks. A fresh start restarts the cycle, with weights about 10% lighter for your
-            first session back on each exercise.
-          </AppText>
-          <Button title="Fresh Start" kind="secondary" onPress={acceptFresh} />
-        </Card>
-      );
   const todaysLogs = data.logs.filter((l) => dateKey(new Date(l.loggedAt)) === selected.key);
   const deleteLog = async (l: QuickLog) => {
     await deleteQuickLog(db, l.id);
     setReloadKey((k) => k + 1);
   };
 
-  if (mist) {
-    // Living Home: everything fits on one screen.
-    const bigText = fontScale > 1.2;
-    // One line, so it doesn't push the room off the screen.
-    const freshBanner = weeksAway != null && (
-      <GlassTile style={{ flexDirection: 'row', alignItems: 'center', minHeight: MIN_TAP, paddingLeft: spacing.lg, borderRadius: radius.md }}>
-        <AppText variant="small" numberOfLines={1} style={{ flex: 1 }}>
-          Back after {weeksAway} weeks. Ease in?
+  // Living Home: everything fits on one screen.
+  const bigText = fontScale > 1.2;
+  // One line, so it doesn't push the room off the screen.
+  const freshBanner = weeksAway != null && (
+    <GlassTile style={{ flexDirection: 'row', alignItems: 'center', minHeight: MIN_TAP, paddingLeft: spacing.lg, borderRadius: radius.md }}>
+      <AppText variant="small" numberOfLines={1} style={{ flex: 1 }}>
+        Back after {weeksAway} weeks. Ease in?
+      </AppText>
+      <Pressable
+        onPress={() =>
+          Alert.alert(
+            'Ease back in?',
+            `It's been ${weeksAway} weeks. A fresh start restarts the cycle, with weights about 10% lighter for your first session back on each exercise.`,
+            [
+              { text: 'Not now', style: 'cancel' },
+              { text: 'Fresh start', onPress: acceptFresh },
+            ],
+          )
+        }
+        accessibilityRole="button"
+        accessibilityLabel="Fresh start"
+        accessibilityHint="Explains it and asks before restarting the cycle"
+        style={{ minHeight: MIN_TAP, justifyContent: 'center', paddingHorizontal: spacing.md }}>
+        <AppText variant="label" color={colors.accent}>
+          Fresh start
         </AppText>
-        <Pressable
-          onPress={() =>
-            Alert.alert(
-              'Ease back in?',
-              `It's been ${weeksAway} weeks. A fresh start restarts the cycle, with weights about 10% lighter for your first session back on each exercise.`,
-              [
-                { text: 'Not now', style: 'cancel' },
-                { text: 'Fresh start', onPress: acceptFresh },
-              ],
-            )
-          }
-          accessibilityRole="button"
-          accessibilityLabel="Fresh start"
-          accessibilityHint="Explains it and asks before restarting the cycle"
-          style={{ minHeight: MIN_TAP, justifyContent: 'center', paddingHorizontal: spacing.md }}>
-          <AppText variant="label" color={colors.accent}>
-            Fresh start
-          </AppText>
-        </Pressable>
-        <Pressable
-          onPress={dismissFresh}
-          accessibilityRole="button"
-          accessibilityLabel="Dismiss"
-          style={{ width: MIN_TAP, height: MIN_TAP, alignItems: 'center', justifyContent: 'center' }}>
-          <SymbolView name="xmark" size={14} tintColor={colors.textMuted} />
-        </Pressable>
-      </GlassTile>
-    );
-    // The room takes whatever height is left
-    // (a very small phone scrolls a little rather than squeeze the room below its minimum).
-    return (
-      <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: colors.background }}>
-        <Backdrop />
-        {/* Backdrop must stay the first child: the tab screen switches the first ScrollView it finds
-            to automatic insets, which would add the tab bar's height twice inside this SafeAreaView. */}
-        <ScrollView
-          pointerEvents={locked ? 'none' : 'auto'}
-          contentInsetAdjustmentBehavior="never"
-          alwaysBounceVertical={false}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ flexGrow: 1, paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.md, gap: spacing.md }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-            <AppText variant="title" accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={{ flex: 1 }}>
-              {greeting()}
-              {data.name ? `, ${data.name}` : ''}
-            </AppText>
-            <TopActions showWater={false} onCalendar={() => router.push({ pathname: '/week', params: { start: dateKey(weekStart) } })} />
-          </View>
-          {weekStrip}
-          {/* The room: edge to edge, no card or border, blending into the page. */}
-          <View
-            style={{ flex: 1, minHeight: ROOM_MIN_HEIGHT, justifyContent: 'flex-end', marginHorizontal: -spacing.lg, marginVertical: -spacing.sm }}
-            onLayout={(e) => setRoomHeight(Math.round(e.nativeEvent.layout.height))}>
-            {water && sceneFrom && roomHeight > 0 && (
-              <LivingScene
-                activeMinutes={data.activeToday}
-                goalMinutes={data.goal}
-                waterMl={water.ml}
-                waterGoalMl={water.goal}
-                hour={data.hour}
-                from={sceneFrom}
-                maxHeight={roomHeight}
-                departCue={departCue}
-                onDeparted={openTodaysPreview}
-                onAbandoned={comeBack}
-                arriveCue={arriveCue}
-                towel={data.workoutDone}
-                cameoCue={cameo.cue}
-                cameoKinds={cameo.kinds}
-              />
-            )}
-          </View>
-          {/* Milo's voice, then today's minutes and the day's activities as one light line. */}
-          <MiloLine text={data.voice} />
-          <View style={{ marginTop: -spacing.md }}>
-            <LogLine
-              lead={selected.isToday ? minutesText(data.activeToday, data.goal) : null}
-              logs={todaysLogs}
-              onDelete={deleteLog}
-              emptyText={selected.isToday ? 'nothing logged yet' : `Nothing logged on ${format(selected.date, 'EEEE')}`}
-            />
-          </View>
-          {freshBanner}
-          {renderDayCard()}
-          {/* Side by side; stacked with large text so neither gets squeezed. */}
-          <View style={{ flexDirection: bigText ? 'column' : 'row', gap: spacing.sm }}>
-            <Button title="+ Log movement" kind="secondary" onPress={logMovement} accessibilityLabel="Log movement" style={bigText ? undefined : { flex: 1 }} />
-            {water && (
-              <View style={bigText ? undefined : { flex: 1 }}>
-                <WaterChip water={water} />
-              </View>
-            )}
-          </View>
-        </ScrollView>
-      </SafeAreaView>
-    );
-  }
-
+      </Pressable>
+      <Pressable
+        onPress={dismissFresh}
+        accessibilityRole="button"
+        accessibilityLabel="Dismiss"
+        style={{ width: MIN_TAP, height: MIN_TAP, alignItems: 'center', justifyContent: 'center' }}>
+        <SymbolView name="xmark" size={14} tintColor={colors.textMuted} />
+      </Pressable>
+    </GlassTile>
+  );
+  // The room takes whatever height is left
+  // (a very small phone scrolls a little rather than squeeze the room below its minimum).
   return (
-    <Screen>
-      {/* Greeting (light lead-in, name in semibold) + settings */}
-      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        {compact ? (
-          <View style={{ flex: 1, paddingTop: spacing.sm }}>
-            <AppText variant="small" muted>
-              {greeting()}
-              {data.name ? `, ${data.name}` : ''}
-            </AppText>
-            <AppText variant="display">
-              {format(new Date(), 'd')}{' '}
-              <AppText variant="display" muted style={{ fontFamily: SERIF_ITALIC }}>
-                {format(new Date(), 'EEEE')}
-              </AppText>
-            </AppText>
-          </View>
-        ) : (
-        <View style={{ flex: 1 }}>
-          <AppText variant="display" style={{ fontWeight: '300' }}>
+    <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: colors.background }}>
+      <Backdrop />
+      {/* Backdrop must stay the first child: the tab screen switches the first ScrollView it finds
+          to automatic insets, which would add the tab bar's height twice inside this SafeAreaView. */}
+      <ScrollView
+        pointerEvents={locked ? 'none' : 'auto'}
+        contentInsetAdjustmentBehavior="never"
+        alwaysBounceVertical={false}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ flexGrow: 1, paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.md, gap: spacing.md }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+          <AppText variant="title" accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={{ flex: 1 }}>
             {greeting()}
-            {data.name ? ',' : ''}
+            {data.name ? `, ${data.name}` : ''}
           </AppText>
-          {data.name && <AppText variant="display">{data.name}</AppText>}
+          <TopActions showWater={false} onCalendar={() => router.push({ pathname: '/week', params: { start: dateKey(weekStart) } })} />
         </View>
-        )}
-        {/* Week calendar + settings, side by side with a gap so they never overlap. */}
-        <View style={{ flexDirection: 'row', gap: spacing.md, alignSelf: 'flex-start' }}>
-          <RoundButton
-            icon="calendar"
-            label="Week schedule"
-            onPress={() => {
-              Haptics.selectionAsync().catch(() => {});
-              router.push({ pathname: '/week', params: { start: dateKey(weekStart) } });
-            }}
-          />
-          <RoundButton icon="slider.horizontal.3" label="Settings" onPress={() => router.push('/settings')} />
-        </View>
-      </View>
-
-      {weekStrip}
-
-      {freshStartCard}
-
-      {renderDayCard()}
-
-      <ActiveTodayCard minutes={data.activeToday} goal={data.goal} onLog={() => router.push('/quick-log')} />
-      <DayLogList logs={todaysLogs} onDelete={deleteLog} />
-
-      {compact && <WeekSummary days={data.days} onSelect={(d) => setSelectedKey(d.key)} />}
-
-      {/* Your plans */}
-      <View style={{ gap: spacing.md, marginTop: compact ? spacing.md : 0 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          {compact ? (
-            <View style={{ flex: 1 }}>
-              <SectionLabel>Your plans</SectionLabel>
-            </View>
-          ) : (
-            <AppText variant="heading" style={{ flex: 1 }}>
-              Your plans
-            </AppText>
+        {weekStrip}
+        {/* The room: edge to edge, no card or border, blending into the page. */}
+        <View
+          style={{ flex: 1, minHeight: ROOM_MIN_HEIGHT, justifyContent: 'flex-end', marginHorizontal: -spacing.lg, marginVertical: -spacing.sm }}
+          onLayout={(e) => setRoomHeight(Math.round(e.nativeEvent.layout.height))}>
+          {water && sceneFrom && roomHeight > 0 && (
+            <LivingScene
+              activeMinutes={data.activeToday}
+              goalMinutes={data.goal}
+              waterMl={water.ml}
+              waterGoalMl={water.goal}
+              hour={data.hour}
+              from={sceneFrom}
+              maxHeight={roomHeight}
+              departCue={departCue}
+              onDeparted={openTodaysPreview}
+              onAbandoned={comeBack}
+              arriveCue={arriveCue}
+              towel={data.workoutDone}
+              cameoCue={cameo.cue}
+              cameoKinds={cameo.kinds}
+            />
           )}
-          <Pressable onPress={() => router.push('/plans')} hitSlop={12} accessibilityRole="button">
-            <AppText variant="label" color={colors.accent}>
-              Manage
-            </AppText>
-          </Pressable>
         </View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: spacing.md }}
-          style={{ marginHorizontal: -spacing.lg }}>
-          <View style={{ width: spacing.xs }} />
-          {data.plans.map((p) => (
-            <Pressable accessibilityRole="button"
-              key={p.routine.id}
-              onPress={() => router.push({ pathname: '/routine/[routineId]', params: { routineId: p.routine.id } })}
-              style={{
-                width: 230,
-                padding: spacing.lg,
-                gap: spacing.md,
-                borderRadius: radius.lg,
-                backgroundColor: colors.card,
-                borderWidth: p.active ? 2 : 1,
-                borderColor: p.active ? colors.accent : colors.border,
-              }}>
-              <AppText variant="label" numberOfLines={1}>
-                {p.routine.name}
-              </AppText>
-              <View style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' }}>
-                <Chip>{`${p.days} ${p.days === 1 ? 'day' : 'days'}`}</Chip>
-                {p.minutes > 0 && <Chip>{`~${p.minutes} min`}</Chip>}
-                {p.active && <Chip strong>Active</Chip>}
-              </View>
-            </Pressable>
-          ))}
-          <View style={{ width: spacing.xs }} />
-        </ScrollView>
-      </View>
-
-      {highlight && (
-        <AppText variant="small" muted style={{ textAlign: 'center', marginTop: spacing.sm }}>
-          {highlight}
-        </AppText>
-      )}
-    </Screen>
-  );
-}
-
-function RoundButton({ icon, label, onPress }: { icon: SFSymbol; label: string; onPress: () => void }) {
-  const { colors } = useTheme();
-  return (
-    <PressableScale
-      onPress={onPress}
-      accessibilityLabel={label}
-      hitSlop={4}
-      style={{
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        backgroundColor: colors.card,
-        borderWidth: 1,
-        borderColor: colors.border,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}>
-      <SymbolView name={icon} size={20} tintColor={colors.text} />
-    </PressableScale>
-  );
-}
-
-function PreviewChips({ minutes, exercises }: { minutes: number; exercises: number }) {
-  return (
-    <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xs }}>
-      <HeroChip icon="clock">{`${minutes} min`}</HeroChip>
-      <HeroChip icon="list.bullet">{`${exercises} exercises`}</HeroChip>
-    </View>
-  );
-}
-
-function Chip({ children, strong }: { children: string; strong?: boolean }) {
-  const { colors } = useTheme();
-  return (
-    <View
-      style={{
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.xs + 2,
-        minHeight: 28,
-        borderRadius: 999,
-        backgroundColor: strong ? colors.accent : colors.accentSoft,
-      }}>
-      <AppText variant="small" color={strong ? colors.onAccent : colors.text}>
-        {children}
-      </AppText>
-    </View>
-  );
-}
-
-/** A quiet accent-coloured text button, centred (Apple's style for secondary actions). */
-function TextLink({ title, onPress }: { title: string; onPress: () => void }) {
-  const { colors } = useTheme();
-  return (
-    <Pressable onPress={onPress} hitSlop={8} accessibilityRole="button" style={{ alignSelf: 'center', padding: spacing.sm }}>
-      <AppText variant="label" color={colors.accent}>
-        {title}
-      </AppText>
-    </Pressable>
-  );
-}
-
-/**
- * Ember Home: "This week" tiles and the next planned days, so the screen has a
- * calm rhythm top to bottom instead of everything bunched at the top.
- */
-function WeekSummary({ days, onSelect }: { days: ScheduleDay[]; onSelect: (d: ScheduleDay) => void }) {
-  const { colors } = useTheme();
-  const sessions = days.flatMap((d) => d.sessions);
-  const trainingDays = days.filter((d) => d.status !== 'rest').length;
-  const tonnes = sessions.reduce((sum, x) => sum + x.volumeKg, 0) / 1000;
-  const upcoming = days.filter((d) => d.isFuture && d.planned).slice(0, 3);
-
-  return (
-    <View style={{ gap: spacing.md, marginTop: spacing.md }}>
-      <SectionLabel>This week</SectionLabel>
-      <View style={{ flexDirection: 'row', gap: spacing.md }}>
-        <StatTile label="Workouts" value={String(sessions.length)} unit={trainingDays ? `of ${trainingDays}` : ''} />
-        <StatTile label="Volume" value={tonnes >= 10 ? tonnes.toFixed(0) : tonnes.toFixed(1)} unit="t" />
-      </View>
-
-      {upcoming.length > 0 && (
-        <>
-          <SectionLabel style={{ marginTop: spacing.md }}>Coming up</SectionLabel>
-          <View style={{ borderRadius: radius.lg, backgroundColor: colors.card, overflow: 'hidden' }}>
-            {upcoming.map((d, i) => (
-              <Pressable
-                key={d.key}
-                onPress={() => onSelect(d)}
-                accessibilityRole="button"
-                accessibilityLabel={`${d.planned!.name}, ${format(d.date, 'EEEE')}`}
-                style={({ pressed }) => ({
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: spacing.md,
-                  minHeight: 56,
-                  paddingHorizontal: spacing.lg,
-                  borderTopWidth: i > 0 ? 1 : 0,
-                  borderTopColor: colors.border,
-                  backgroundColor: pressed ? colors.cardAlt : 'transparent',
-                })}>
-                <View style={{ flex: 1 }}>
-                  <AppText variant="label" numberOfLines={1}>
-                    {d.planned!.name}
-                  </AppText>
-                  <AppText variant="small" muted>
-                    {format(d.date, 'EEEE')}
-                  </AppText>
-                </View>
-                <SymbolView name="chevron.right" size={13} tintColor={colors.faint} />
-              </Pressable>
-            ))}
-          </View>
-        </>
-      )}
-    </View>
-  );
-}
-
-function SectionLabel({ children, style }: { children: string; style?: object }) {
-  return (
-    <AppText variant="small" muted style={[{ letterSpacing: 0.8, paddingHorizontal: spacing.xs }, style]}>
-      {children.toUpperCase()}
-    </AppText>
-  );
-}
-
-function StatTile({ label, value, unit }: { label: string; value: string; unit: string }) {
-  const { colors } = useTheme();
-  return (
-    <View style={{ flex: 1, padding: spacing.lg, gap: spacing.xs, borderRadius: radius.lg, backgroundColor: colors.card }}>
-      <AppText variant="small" muted>
-        {label}
-      </AppText>
-      <AppText variant="title">
-        {value}
-        {unit ? (
-          <AppText variant="body" muted>
-            {' '}
-            {unit}
-          </AppText>
-        ) : null}
-      </AppText>
-    </View>
+        {/* Milo's voice, then today's minutes and the day's activities as one light line. */}
+        <MiloLine text={data.voice} />
+        <View style={{ marginTop: -spacing.md }}>
+          <LogLine
+            lead={selected.isToday ? minutesText(data.activeToday, data.goal) : null}
+            logs={todaysLogs}
+            onDelete={deleteLog}
+            emptyText={selected.isToday ? 'nothing logged yet' : `Nothing logged on ${format(selected.date, 'EEEE')}`}
+          />
+        </View>
+        {freshBanner}
+        {renderDayCard()}
+        {/* Side by side; stacked with large text so neither gets squeezed. */}
+        <View style={{ flexDirection: bigText ? 'column' : 'row', gap: spacing.sm }}>
+          <Button title="+ Log movement" kind="secondary" onPress={logMovement} accessibilityLabel="Log movement" style={bigText ? undefined : { flex: 1 }} />
+          {water && (
+            <View style={bigText ? undefined : { flex: 1 }}>
+              <WaterChip water={water} />
+            </View>
+          )}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
