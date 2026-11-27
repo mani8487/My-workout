@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { AMBIENT, ARC, CELEBRATE, DURATION, LEAVE, SHAPE, TRIP, WAKE, pick } from './tokens.ts';
+import { AMBIENT, ARC, CAMEO, CELEBRATE, DURATION, LEAVE, SHAPE, TRIP, WAKE, cameoLength, pick } from './tokens.ts';
 
 test('duration bands stay inside the motion spec', () => {
   for (const ms of Object.values(DURATION.micro)) assert.ok(ms >= 150 && ms <= 250, `micro ${ms}`);
@@ -57,4 +57,12 @@ test('the start transition fits the 600-800 ms window', () => {
   assert.ok(TRIP.roomOut > LEAVE.takeoff && TRIP.roomOut < landed);
   assert.ok(TRIP.navigate >= TRIP.roomOut && TRIP.navigate < landed + DURATION.micro.fast);
   assert.ok(TRIP.roomOut + DURATION.transition.short <= 800);
+});
+
+test('every cameo lasts 1.5–2.5 s, including its final settle', () => {
+  for (const kind of ['stretch', 'walk', 'run', 'squat'] as const) {
+    const total = cameoLength(kind) + DURATION.transition.short; // the settle spring
+    assert.ok(cameoLength(kind) >= 1500 && total <= 2500, `${kind}: ${cameoLength(kind)} + settle`);
+  }
+  assert.ok(CAMEO.still >= 1500 && CAMEO.still <= 2500);
 });
