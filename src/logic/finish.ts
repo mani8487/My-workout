@@ -23,9 +23,9 @@ export function confirmFinishWorkout(
     stopRestTimer();
     await finishSession(db, detail.id);
     syncMyWeek(db); // update the friends leaderboard in the background (does nothing offline or signed out)
-    // Clear the workout screens away, then show the summary on top of Home.
-    router.dismissTo('/');
-    router.push({ pathname: '/workout/summary', params: { id: String(detail.id) } });
+    // The summary takes the workout screen's place in one step; its Done button clears the rest away.
+    // (Closing the workout screens and opening the summary at the same moment could crash the app.)
+    router.replace({ pathname: '/workout/summary', params: { id: String(detail.id) } });
   }
 
   const left = workingSetsLeft(detail);
