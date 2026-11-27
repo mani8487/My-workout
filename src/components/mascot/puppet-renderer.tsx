@@ -512,6 +512,7 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
             place(earTapL, -CAMEO_SHAPE.earsBack);
             place(earTapR, CAMEO_SHAPE.earsBack);
           } else place(paw, CAMEO_SHAPE.walkPaw);
+          if (state !== 'cameo-stretch') place(eyes, 0); // eyes open for the active ones
           reducedTimer = setTimeout(() => settle(state), CAMEO.still);
           break;
         }
@@ -524,22 +525,31 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
         const hop = up
           ? [withTiming(-ARC.hop.height, { duration: ARC.hop.rise, easing: EASE.rise }), withTiming(0, { duration: ARC.hop.fall, easing: EASE.fall })]
           : [];
+        // The body stretches up for the hop and squashes as it lands, then goes straight into the wind-up.
+        const hopShape = (axis: 'x' | 'y') =>
+          up
+            ? [
+                withTiming(SHAPE.takeoff[axis], { duration: ARC.hop.rise, easing: EASE.rise }),
+                withTiming(SHAPE.land[axis], { duration: ARC.hop.fall, easing: EASE.fall }),
+              ]
+            : [];
         const later = (anim: number) => (up ? withDelay(up, anim) : anim);
         const t = (v: number, ms: number) => withTiming(v, { duration: ms, easing: EASE.inOut });
+        // Reports back on the last move, not after the final settle, so each cameo stays within ~2.5 s.
         const done = (finished?: boolean) => {
           'worklet';
           if (finished) scheduleOnRN(settle, state);
         };
         const w = CAMEO.windUp;
-        if (state !== 'cameo-stretch') eyes.set(later(withTiming(0, { duration: micro.base, easing: EASE.out })));
+        if (state !== 'cameo-stretch' && !up) eyes.set(withTiming(0, { duration: micro.base, easing: EASE.out }));
 
         if (state === 'cameo-stretch') {
           // A small dip (anticipation), reach up tall with eyes closed and the head tipped back, hold,
           // let go just past rest, and settle.
           const { reach, hold, release } = CAMEO.stretch;
           paw.set(later(withSequence(t(-CAMEO_SHAPE.dip, w), t(1, reach), withDelay(hold, t(0, release)))));
-          sx.set(later(withSequence(t(CAMEO_SHAPE.preStretch.x, w), t(CAMEO_SHAPE.stretch.x, reach), withDelay(hold, t(CAMEO_SHAPE.settle.x, release)), withSpring(1, SPRING.snappy))));
-          sy.set(later(withSequence(t(CAMEO_SHAPE.preStretch.y, w), t(CAMEO_SHAPE.stretch.y, reach), withDelay(hold, t(CAMEO_SHAPE.settle.y, release)), withSpring(1, SPRING.snappy, done))));
+          sx.set(withSequence(...hopShape('x'), t(CAMEO_SHAPE.preStretch.x, w), t(CAMEO_SHAPE.stretch.x, reach), withDelay(hold, t(CAMEO_SHAPE.settle.x, release)), withSpring(1, SPRING.snappy)));
+          sy.set(withSequence(...hopShape('y'), t(CAMEO_SHAPE.preStretch.y, w), t(CAMEO_SHAPE.stretch.y, reach), withDelay(hold, withTiming(CAMEO_SHAPE.settle.y, { duration: release, easing: EASE.inOut }, done)), withSpring(1, SPRING.snappy)));
           eyes.set(later(withSequence(withDelay(w, t(1, reach)), withDelay(hold, t(0, release)))));
           headTurn.set(later(withSequence(withDelay(w, t(-CAMEO_SHAPE.tilt, reach)), withDelay(hold, t(0, release)))));
           if (up) jumpY.set(withSequence(...hop));
@@ -557,6 +567,10 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
             pawSteps.push(i % 2 === 0 ? withSequence(t(CAMEO_SHAPE.walkPaw, half), t(0, half)) : withTiming(0, { duration: step }));
           }
           jumpY.set(withSequence(...hop, withTiming(0, { duration: w }), ...bob.slice(0, -1), withTiming(0, { duration: half, easing: EASE.breathe }, done)));
+          if (up) {
+            sx.set(withSequence(...hopShape('x'), withSpring(1, SPRING.snappy)));
+            sy.set(withSequence(...hopShape('y'), withSpring(1, SPRING.snappy)));
+          }
           headTurn.set(later(withSequence(...sway, withSpring(0, SPRING.soft))));
           paw.set(later(withDelay(micro.fast / 3, withSequence(...pawSteps))));
         } else if (state === 'cameo-run') {
@@ -575,8 +589,10 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
             pump.push(t(CAMEO_SHAPE.runPaw, half), t(0, half));
           }
           jumpY.set(withSequence(...hop, withTiming(0, { duration: w }), ...air));
-          sy.set(later(withSequence(...bodyY, withSpring(1, SPRING.snappy, done))));
-          sx.set(later(withSequence(...bodyX, withSpring(1, SPRING.snappy))));
+          // The last landing reports back; the spring after it settles while he returns to what he was doing.
+          bodyY[bodyY.length - 1] = withTiming(SHAPE.land.y, { duration: half, easing: EASE.fall }, done);
+          sy.set(withSequence(...hopShape('y'), ...bodyY, withSpring(1, SPRING.snappy)));
+          sx.set(withSequence(...hopShape('x'), ...bodyX, withSpring(1, SPRING.snappy)));
           paw.set(later(withDelay(micro.fast / 3, withSequence(...pump, withSpring(0, SPRING.soft)))));
           const back = (deg: number) =>
             later(withSequence(withTiming(deg, { duration: w, easing: EASE.out }), withDelay(cameoLength('run') - 2 * w, withSpring(0, SPRING.soft))));
@@ -594,8 +610,9 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
             bodyX.push(t(SHAPE.crouch.x, down), t(CAMEO_SHAPE.settle.x, rise));
             reach.push(t(CAMEO_SHAPE.squatPaw, down), t(0, rise));
           }
-          sy.set(later(withSequence(...bodyY, withSpring(1, SPRING.snappy, done))));
-          sx.set(later(withSequence(...bodyX, withSpring(1, SPRING.snappy))));
+          bodyY[bodyY.length - 1] = withTiming(CAMEO_SHAPE.settle.y, { duration: rise, easing: EASE.inOut }, done);
+          sy.set(withSequence(...hopShape('y'), ...bodyY, withSpring(1, SPRING.snappy)));
+          sx.set(withSequence(...hopShape('x'), ...bodyX, withSpring(1, SPRING.snappy)));
           paw.set(later(withSequence(...reach)));
           const perk = (deg: number) => later(withDelay(cameoLength('squat') - rise, withSequence(withTiming(deg, { duration: micro.fast, easing: EASE.out }), withSpring(0, SPRING.soft))));
           earTapL.set(perk(CAMEO_SHAPE.perk));

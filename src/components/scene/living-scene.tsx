@@ -34,12 +34,13 @@ import { Curtains, Dust, Floor, Lamp, Plant, Rays, ROOM, RoomWindow, Sill, Veil,
 
 /** Share of the screen height the room may use. */
 const MAX_HEIGHT_SHARE = 0.34;
-/** Milo's square stage in room units, standing on the floor in the middle of the room. */
 /** How far (room units) the room drifts up as it leaves for a workout. */
 const ROOM_LIFT = 24;
+/** Milo's square stage in room units, standing on the floor in the middle of the room. */
 const MILO = { size: 200, centerX: 180, groundInStage: (208 / 240) * 200 };
 
 const NO_CAMEOS: readonly CameoKind[] = [];
+const STOP_ACTIONS = [{ name: 'activate' as const, label: 'Stop Milo' }];
 /** VoiceOver: what Milo does in each cameo (the room itself is one image to VoiceOver). */
 const CAMEO_WORDS: Record<CameoKind, string> = {
   stretch: 'Milo stretches with you',
@@ -285,6 +286,10 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
       importantForAccessibility={travel === 'departing' ? 'no-hide-descendants' : 'auto'}
       accessibilityRole="image"
       accessibilityLabel={describeScene(activeMinutes, goalMinutes)}
+      // VoiceOver: while a cameo plays, a double-tap on the room stops it (like tapping Milo).
+      accessibilityActions={playing ? STOP_ACTIONS : undefined}
+      onAccessibilityAction={playing ? stopCameos : undefined}
+      accessibilityHint={playing ? 'Double-tap to stop Milo' : undefined}
       style={[{ width, height: ROOM.h * k, transformOrigin: 'bottom' }, roomStyle]}>
       <Floor k={k} palette={palette} />
       <View style={stageStyle}>
