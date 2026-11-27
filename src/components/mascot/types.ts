@@ -18,7 +18,12 @@ export type MiloState =
   | 'celebrating' // jump with confetti
   | 'drinking' // laps from a water bowl
   | 'departing' // ears perk, crouch, hops off toward you (leaving for a workout)
-  | 'arriving'; // hops back in from below and lands in his spot (back from a workout)
+  | 'arriving' // hops back in from below and lands in his spot (back from a workout)
+  // Activity cameos after a Quick Log (about 2 s each, then back to what he was doing):
+  | 'cameo-stretch' // reaches up and stretches, eyes closed
+  | 'cameo-walk' // a few easy steps on the spot
+  | 'cameo-run' // quick strides, ears back
+  | 'cameo-squat'; // three slow squats
 
 export type MiloRendererProps = {
   state: MiloState;

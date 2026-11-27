@@ -21,6 +21,7 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withDelay,
+  withRepeat,
   withSequence,
   withSpring,
   withTiming,
@@ -31,7 +32,7 @@ import Animated, {
 import { SvgXml } from 'react-native-svg';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { AMBIENT, ARC, CELEBRATE, DURATION, EASE, LEAVE, SHAPE, SPRING, WAKE, breathe, floatLoop, loopWithGaps, pick } from '@/motion';
+import { AMBIENT, ARC, CAMEO, CELEBRATE, DURATION, EASE, LEAVE, SHAPE, SPRING, WAKE, breathe, cameoLength, floatLoop, loopWithGaps, pick } from '@/motion';
 
 import { GROUND_Y, LAYERS, LIE_POSE, NECK, STAGE, TAIL_BASE, type LayerName } from './layers';
 import { MILO_FX } from './palette';
@@ -40,6 +41,20 @@ import type { MiloRendererProps, MiloState } from './types';
 
 const fill: ViewStyle = { position: 'absolute', left: 0, top: 0 };
 const { micro, transition } = DURATION;
+
+/** Cameo poses: how far each part moves (paw: share of the full lift; degrees; stage units). */
+const CAMEO_SHAPE = {
+  stretch: { x: 0.95, y: 1.08 }, // tall and narrow
+  squat: { y: 0.86 }, // a deeper crouch than the jump's anticipation
+  tilt: 6, // head tipped back in the stretch
+  sway: 3, // head sway while walking
+  walkBob: 3,
+  runBob: 8,
+  walkPaw: 0.3,
+  runPaw: 0.45,
+  squatPaw: 0.25,
+  earsBack: 12,
+} as const;
 
 /** Reduce Motion: states that look different swap behind a quick fade. */
 const LOOK: Record<MiloState, string> = {
@@ -52,6 +67,10 @@ const LOOK: Record<MiloState, string> = {
   celebrating: 'party',
   departing: 'sit',
   arriving: 'sit',
+  'cameo-stretch': 'stretch',
+  'cameo-walk': 'walk',
+  'cameo-run': 'run',
+  'cameo-squat': 'squat',
   drinking: 'drink',
 };
 const NEVER = ReduceMotion.Never;
@@ -276,6 +295,10 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
       to(sy, 1);
       to(near, 1);
       to(present, 1);
+      // Cameo leftovers (a head tilt, ears) ease home when anything else starts, e.g. a cameo cut short.
+      to(headTurn, 0);
+      to(earTapL, 0);
+      to(earTapR, 0);
     }
 
     switch (state) {
@@ -460,6 +483,69 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
           );
         sx.set(land('x'));
         sy.set(land('y'));
+        break;
+      }
+
+      case 'cameo-stretch':
+      case 'cameo-walk':
+      case 'cameo-run':
+      case 'cameo-squat': {
+        to(pose, 1);
+        to(headLift, 0);
+        if (state !== 'cameo-stretch') fade(eyes, 0, micro.base); // eyes open for the active ones
+        if (R) {
+          // A still pose for the activity, then back.
+          if (state === 'cameo-stretch') {
+            place(paw, 1);
+            place(eyes, 1);
+          } else if (state === 'cameo-squat') {
+            place(sx, SHAPE.crouch.x);
+            place(sy, SHAPE.crouch.y);
+          } else place(paw, state === 'cameo-run' ? CAMEO_SHAPE.runPaw : CAMEO_SHAPE.walkPaw);
+          reducedTimer = setTimeout(() => settle(state), CAMEO.still);
+          break;
+        }
+        const done = (finished?: boolean) => {
+          'worklet';
+          if (finished) scheduleOnRN(settle, state);
+        };
+        const t = (v: number, ms: number) => withTiming(v, { duration: ms, easing: EASE.inOut });
+        if (state === 'cameo-stretch') {
+          // Reach up, hold with eyes closed (head tipped back a touch), and let it all go.
+          const { reach, hold, release } = CAMEO.stretch;
+          paw.set(withSequence(t(1, reach), withDelay(hold, t(0, release))));
+          sx.set(withSequence(t(CAMEO_SHAPE.stretch.x, reach), withDelay(hold, t(1, release))));
+          sy.set(withSequence(t(CAMEO_SHAPE.stretch.y, reach), withDelay(hold, t(1, release)), withSpring(1, SPRING.snappy, done)));
+          eyes.set(withSequence(t(1, reach), withDelay(hold, t(0, release))));
+          headTurn.set(withSequence(t(-CAMEO_SHAPE.tilt, reach), withDelay(hold, t(0, release))));
+        } else if (state === 'cameo-walk') {
+          // Easy steps: a soft bob, the paw lifting each step, the head swaying with the rhythm.
+          const { step, steps } = CAMEO.walk;
+          const half = step / 2;
+          jumpY.set(withRepeat(withSequence(withTiming(-CAMEO_SHAPE.walkBob, { duration: half, easing: EASE.breathe }), withTiming(0, { duration: half, easing: EASE.breathe })), steps, false, done));
+          paw.set(withRepeat(withSequence(t(CAMEO_SHAPE.walkPaw, half), t(0, half)), steps));
+          headTurn.set(withSequence(withRepeat(withSequence(t(CAMEO_SHAPE.sway, step), t(-CAMEO_SHAPE.sway, step)), steps / 2), withSpring(0, SPRING.soft)));
+        } else if (state === 'cameo-run') {
+          // Quick strides: a bigger bounce with squash and stretch, ears swept back, paw pumping.
+          const { stride, strides } = CAMEO.run;
+          const half = stride / 2;
+          jumpY.set(withRepeat(withSequence(withTiming(-CAMEO_SHAPE.runBob, { duration: half, easing: EASE.rise }), withTiming(0, { duration: half, easing: EASE.fall })), strides, false, done));
+          sy.set(withSequence(withRepeat(withSequence(t(SHAPE.takeoff.y, half), t(SHAPE.land.y, half)), strides), withSpring(1, SPRING.snappy)));
+          sx.set(withSequence(withRepeat(withSequence(t(SHAPE.takeoff.x, half), t(SHAPE.land.x, half)), strides), withSpring(1, SPRING.snappy)));
+          paw.set(withSequence(withRepeat(withSequence(t(CAMEO_SHAPE.runPaw, half), t(0, half)), strides), withSpring(0, SPRING.soft)));
+          const back = (deg: number) => withSequence(withTiming(deg, { duration: micro.fast, easing: EASE.out }), withDelay(cameoLength('run') - micro.fast, withSpring(0, SPRING.soft)));
+          earTapL.set(back(-CAMEO_SHAPE.earsBack));
+          earTapR.set(back(CAMEO_SHAPE.earsBack));
+        } else {
+          // Slow squats: down (squash, paws reach forward for balance), up; ears perk on the last one.
+          const { down, up, reps } = CAMEO.squat;
+          sx.set(withSequence(withRepeat(withSequence(t(SHAPE.crouch.x, down), t(1, up)), reps), withSpring(1, SPRING.snappy)));
+          sy.set(withSequence(withRepeat(withSequence(t(CAMEO_SHAPE.squat.y, down), t(1, up)), reps), withSpring(1, SPRING.snappy, done)));
+          paw.set(withRepeat(withSequence(t(CAMEO_SHAPE.squatPaw, down), t(0, up)), reps));
+          const perk = (deg: number) => withDelay(cameoLength('squat') - up, withSequence(withTiming(deg, { duration: micro.fast, easing: EASE.out }), withSpring(0, SPRING.soft)));
+          earTapL.set(perk(8));
+          earTapR.set(perk(-8));
+        }
         break;
       }
 

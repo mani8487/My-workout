@@ -40,6 +40,7 @@ import { TopActions } from '@/components/top-actions';
 import { WaterChip } from '@/components/water-chip';
 import { useWaterToday } from '@/db/water';
 import { catchUpFrom, dayKeyOf, encodeLastSeen, LAST_SEEN_KEY, streakDays } from '@/logic/day';
+import { cameoFor, type CameoKind } from '@/logic/cameo';
 import { decodeShown, encodeShown, nextLine } from '@/logic/milo-voice';
 import { minutesText, moodOf, sceneTarget } from '@/logic/scene-state';
 import { useTodayKey } from '@/logic/use-today';
@@ -145,6 +146,9 @@ export default function HomeScreen() {
   // then opens the workout. Coming back to Home plays his return.
   const [departCue, setDepartCue] = useState(0);
   const [arriveCue, setArriveCue] = useState(0);
+  // Activity cameos for logs that land while Home is open (not for ones already there at launch).
+  const knownLogs = useRef<{ day: string; ids: Set<number> } | null>(null);
+  const [cameo, setCameo] = useState<{ cue: number; kinds: CameoKind[] }>({ cue: 0, kinds: [] });
   const away = useRef(false);
   const leaving = useRef(false);
   /** While the start move plays, Home ignores taps (so nothing else opens on top of it). */
@@ -219,6 +223,7 @@ export default function HomeScreen() {
           activityTimes,
           workoutsToday,
           lastLine,
+          todaysLogs,
         ] = await Promise.all([
           getToday(db),
           getSetting(db, 'user_name'),
@@ -233,6 +238,7 @@ export default function HomeScreen() {
           getActivityTimesSince(db, addDays(todayStart, -STREAK_LOOKBACK_DAYS).getTime()),
           countWorkoutsBetween(db, todayStart.getTime(), addDays(todayStart, 1).getTime()),
           getSetting(db, MILO_LINE_KEY),
+          getQuickLogsBetween(db, todayStart.getTime(), addDays(todayStart, 1).getTime()),
         ]);
         const now = new Date();
         const hour = now.getHours() + now.getMinutes() / 60;
@@ -254,6 +260,13 @@ export default function HomeScreen() {
           }
         }
         if (cancelled) return;
+        // Living Home: logs that weren't there last time (e.g. one just saved in the sheet) get a cameo.
+        const seenLogs = knownLogs.current;
+        knownLogs.current = { day, ids: new Set(todaysLogs.map((l) => l.id)) };
+        if (seenLogs?.day === day) {
+          const fresh = todaysLogs.filter((l) => !seenLogs.ids.has(l.id));
+          if (fresh.length > 0) setCameo((c) => ({ cue: c.cue + 1, kinds: fresh.map((l) => cameoFor(l.activity)) }));
+        }
         // Milo's line: the same one while the situation is the same, a new one (never the last one)
         // when it changes or when you come back to the app.
         const voice = nextLine(
@@ -709,6 +722,8 @@ export default function HomeScreen() {
                 onAbandoned={comeBack}
                 arriveCue={arriveCue}
                 towel={data.workoutDone}
+                cameoCue={cameo.cue}
+                cameoKinds={cameo.kinds}
               />
             )}
           </View>

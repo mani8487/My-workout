@@ -17,6 +17,7 @@ import { Page } from '@/components/page';
 import { PressableScale } from '@/components/pressable-scale';
 import { LivingScene } from '@/components/scene/living-scene';
 import { MiloLine } from '@/components/scene/milo-line';
+import { type CameoKind } from '@/logic/cameo';
 import { nextLine, type ShownLine } from '@/logic/milo-voice';
 import { minutesText, moodOf } from '@/logic/scene-state';
 import { ReducedMotionOverride, useReducedMotion } from '@/motion';
@@ -113,6 +114,8 @@ function LabBody({ dark, setDark, motion, setMotion }: { dark: boolean; setDark:
   const [arriveCue, setArriveCue] = useState(0);
   const [away, setAway] = useState(false);
   const [towel, setTowel] = useState(false);
+  const [cameo, setCameo] = useState<{ cue: number; kinds: CameoKind[] }>({ cue: 0, kinds: [] });
+  const play = (...kinds: CameoKind[]) => setCameo((c) => ({ cue: c.cue + 1, kinds }));
 
   // Milo's voice: the same picker Home uses. A new line whenever the situation changes or on "New line".
   const [yesterday, setYesterday] = useState(false);
@@ -165,6 +168,8 @@ function LabBody({ dark, setDark, motion, setMotion }: { dark: boolean; setDark:
             departCue={departCue}
             arriveCue={arriveCue}
             towel={towel}
+            cameoCue={cameo.cue}
+            cameoKinds={cameo.kinds}
           />
         </View>
         <View style={{ alignItems: 'center', gap: 2 }}>
@@ -198,6 +203,19 @@ function LabBody({ dark, setDark, motion, setMotion }: { dark: boolean; setDark:
           <Chip label="42 min yesterday" on={yesterday} onPress={() => setYesterday((v) => !v)} />
           <Chip label="5-day streak" on={streak} onPress={() => setStreak((v) => !v)} />
           <Chip label="Workout done" on={workoutDone} onPress={() => setWorkoutDone((v) => !v)} />
+        </Row>
+
+        <Row title="Activity cameos (tap Milo to stop one)">
+          <Chip label="Stretch" on={false} onPress={() => play('stretch')} />
+          <Chip label="Walk" on={false} onPress={() => play('walk')} />
+          <Chip label="Run" on={false} onPress={() => play('run')} />
+          <Chip label="Squat" on={false} onPress={() => play('squat')} />
+          <Chip
+            label="3 quick logs"
+            on={false}
+            hint="Walk, walk and run logged at once: the two walks play once, then the run"
+            onPress={() => play('walk', 'walk', 'run')}
+          />
         </Row>
 
         <Row title="Workout start and return">

@@ -24,7 +24,8 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { Milo, type MiloState } from '@/components/mascot';
-import { DURATION, EASE, SPRING, TRIP, useMotionActive, useReducedMotion } from '@/motion';
+import { CAMEO, DURATION, EASE, SPRING, TRIP, useMotionActive, useReducedMotion } from '@/motion';
+import { enqueueCameos, type CameoKind } from '@/logic/cameo';
 import { daylight, describeScene, dimness, moodOfStage, sceneTarget, warmth, type Mood } from '@/logic/scene-state';
 import { useTheme } from '@/theme/theme-context';
 
@@ -34,6 +35,7 @@ import { Curtains, Dust, Floor, Lamp, Plant, Rays, ROOM, RoomWindow, Sill, Veil,
 /** Share of the screen height the room may use. */
 const MAX_HEIGHT_SHARE = 0.34;
 /** Milo's square stage in room units, standing on the floor in the middle of the room. */
+const NO_CAMEOS: readonly CameoKind[] = [];
 /** How far (room units) the room drifts up as it leaves for a workout. */
 const ROOM_LIFT = 24;
 const MILO = { size: 200, centerX: 180, groundInStage: (208 / 240) * 200 };
@@ -65,12 +67,15 @@ type Props = {
   onAbandoned?: () => void;
   /** Bump when back on Home after leaving: the room eases back and Milo hops into his spot. */
   arriveCue?: number;
+  /** Bump with the activities just logged: Milo acts each one out (queued, never stacked). */
+  cameoCue?: number;
+  cameoKinds?: readonly CameoKind[];
   /** Milo wears his towel (a workout is done today). */
   towel?: boolean;
   miloCue?: number;
 };
 
-export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinutes, waterMl, waterGoalMl, hour, maxHeight, from, miloOverride, miloCue = 0, departCue = 0, onDeparted, onAbandoned, arriveCue = 0, towel = false }: Props) {
+export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinutes, waterMl, waterGoalMl, hour, maxHeight, from, miloOverride, miloCue = 0, departCue = 0, onDeparted, onAbandoned, arriveCue = 0, towel = false, cameoCue = 0, cameoKinds = NO_CAMEOS }: Props) {
   const { width, height } = useWindowDimensions();
   const { isDark, colors } = useTheme();
   const palette = roomPalette(isDark);
@@ -109,10 +114,25 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
   const [seen, setSeen] = useState({ departCue, arriveCue });
   // Cues already given when the room appeared (it was rebuilt, e.g. after a theme change) never replay.
   const [initialCues] = useState({ departCue, arriveCue });
+  // ----- activity cameos: a line of them, one at a time -----
+  const [queue, setQueue] = useState<CameoKind[]>([]);
+  const [playing, setPlaying] = useState<CameoKind | null>(null);
+  const [seenCameo, setSeenCameo] = useState(cameoCue);
+  if (seenCameo !== cameoCue) {
+    setSeenCameo(cameoCue);
+    setQueue(enqueueCameos(queue, cameoKinds, playing));
+  }
+  const stopCameos = () => {
+    setQueue([]);
+    setPlaying(null);
+  };
+
   if (seen.departCue !== departCue || seen.arriveCue !== arriveCue) {
     setSeen({ departCue, arriveCue });
-    if (seen.departCue !== departCue && departCue) setTravel('departing');
-    else if (seen.arriveCue !== arriveCue && arriveCue) setTravel('arriving');
+    if (seen.departCue !== departCue && departCue) {
+      setTravel('departing');
+      stopCameos(); // leaving for a workout cuts any cameo short
+    } else if (seen.arriveCue !== arriveCue && arriveCue) setTravel('arriving');
   }
   const departedRef = useRef(onDeparted);
   const abandonedRef = useRef(onAbandoned);
@@ -218,9 +238,23 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
     const t = setTimeout(go, wait);
     return () => clearTimeout(t);
   }, [target.mood, miloOverride, onScreen]);
+  // The next cameo starts after a short pause, only while the room is on screen, Milo is home and
+  // nothing else (the Lab) is driving him.
+  const free = onScreen && travel === 'none' && !miloOverride && playing === null;
+  const next = queue[0];
+  useEffect(() => {
+    if (!free || !next) return;
+    const t = setTimeout(() => {
+      setPlaying(next);
+      setQueue((q) => q.slice(1));
+    }, CAMEO.gap);
+    return () => clearTimeout(t);
+  }, [free, next]);
+
   const onSettled = (s: MiloState) => {
     if (s === 'waking') setMilo(moodRef.current);
     if (s === 'arriving') setTravel('none');
+    if (s.startsWith('cameo-')) setPlaying(null); // back to what he was doing; the next one follows
   };
 
   const roomStyle = useAnimatedStyle(() => ({
@@ -229,7 +263,7 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
   }));
   const stageW = ROOM.w * k;
   const stageStyle = { position: 'absolute' as const, left: (width - stageW) / 2, top: 0, width: stageW, height: ROOM.h * k };
-  const shown = miloOverride ?? (travel === 'none' ? milo : travel);
+  const shown: MiloState = miloOverride ?? (travel !== 'none' ? travel : playing ? `cameo-${playing}` : milo);
 
   return (
     <Animated.View
@@ -252,6 +286,8 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
           state={shown}
           cue={miloCue}
           onSettled={onSettled}
+          // Tapping Milo mid-cameo stops it (and the ones waiting); he goes back to what he was doing.
+          onPress={playing ? stopCameos : undefined}
           keepCouch
           towel={towel}
           size={MILO.size * k}
