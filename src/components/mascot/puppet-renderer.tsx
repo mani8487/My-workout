@@ -78,55 +78,47 @@ const LOOK: Record<MiloState, string> = {
 };
 const NEVER = ReduceMotion.Never;
 
+type CelebrateValues = Record<'sx' | 'sy' | 'paw' | 'eyes' | 'confetti' | 'jumpY', SharedValue<number>>;
+
 /**
- * The celebration: crouch (anticipation), stretch up into the air, squash on landing, settle;
- * again after a varied pause. Built like the ambient loops (a worklet holding its own repeating
- * step), which is the shape that runs safely on the UI thread.
+ * One celebration jump: crouch (anticipation), stretch up into the air, squash on landing, settle.
+ * Plain one-shot animations started from JS; the renderer's timer starts the next one. (A jump that
+ * restarted itself from its own animation callback crashed the app on iPhone.)
  */
-function celebrateLoop({ sx, sy, paw, eyes, confetti, jumpY }: Record<'sx' | 'sy' | 'paw' | 'eyes' | 'confetti' | 'jumpY', SharedValue<number>>) {
-  'worklet';
-  function jump(wait: number) {
-    'worklet';
-    const shape = (axis: 'x' | 'y') =>
-      withDelay(
-        wait,
-        withSequence(
-          withTiming(SHAPE.crouch[axis], { duration: CELEBRATE.crouch, easing: EASE.out }),
-          withTiming(SHAPE.takeoff[axis], { duration: CELEBRATE.takeoff, easing: EASE.rise }),
-          withDelay(CELEBRATE.land - CELEBRATE.crouch - CELEBRATE.takeoff, withTiming(SHAPE.land[axis], { duration: micro.fast, easing: EASE.out })),
-          withSpring(1, SPRING.snappy),
-        ),
-      );
-    sx.set(shape('x'));
-    sy.set(shape('y'));
-    paw.set(withDelay(wait + CELEBRATE.crouch, withSequence(withSpring(1, SPRING.snappy), withDelay(micro.base, withSpring(0, SPRING.soft)))));
-    eyes.set(
-      withDelay(
-        wait + CELEBRATE.crouch,
-        withSequence(
-          withTiming(1, { duration: micro.fast, easing: EASE.out }),
-          withDelay(transition.long - micro.fast, withTiming(0, { duration: micro.fast, easing: EASE.out })),
-        ),
-      ),
+function celebrateJump({ sx, sy, paw, eyes, confetti, jumpY }: CelebrateValues) {
+  const shape = (axis: 'x' | 'y') =>
+    withSequence(
+      withTiming(SHAPE.crouch[axis], { duration: CELEBRATE.crouch, easing: EASE.out }),
+      withTiming(SHAPE.takeoff[axis], { duration: CELEBRATE.takeoff, easing: EASE.rise }),
+      withDelay(CELEBRATE.land - CELEBRATE.crouch - CELEBRATE.takeoff, withTiming(SHAPE.land[axis], { duration: micro.fast, easing: EASE.out })),
+      withSpring(1, SPRING.snappy),
     );
-    // The confetti restarts from 0 only once this jump begins, so the last burst finishes falling first.
-    confetti.set(withDelay(wait, withSequence(withTiming(0, { duration: 0 }), withDelay(CELEBRATE.crouch, withTiming(1, { duration: DURATION.particle, easing: EASE.rise })))));
-    // This step reschedules the next jump, so it never collapses to zero time (ReduceMotion.Never).
-    jumpY.set(
-      withDelay(
-        wait + CELEBRATE.crouch,
-        withSequence(
-          NEVER,
-          withTiming(-ARC.jump.height, { duration: ARC.jump.rise, easing: EASE.rise, reduceMotion: NEVER }),
-          withTiming(0, { duration: ARC.jump.fall, easing: EASE.fall, reduceMotion: NEVER }, (finished) => {
-            if (finished) jump(transition.long + pick(AMBIENT.celebrateGap, Math.random()));
-          }),
-        ),
+  sx.set(shape('x'));
+  sy.set(shape('y'));
+  paw.set(withDelay(CELEBRATE.crouch, withSequence(withSpring(1, SPRING.snappy), withDelay(micro.base, withSpring(0, SPRING.soft)))));
+  eyes.set(
+    withDelay(
+      CELEBRATE.crouch,
+      withSequence(
+        withTiming(1, { duration: micro.fast, easing: EASE.out }),
+        withDelay(transition.long - micro.fast, withTiming(0, { duration: micro.fast, easing: EASE.out })),
+      ),
+    ),
+  );
+  // Each burst starts from 0; the pause between jumps is longer than a burst, so the last one has landed.
+  confetti.set(0);
+  confetti.set(withDelay(CELEBRATE.crouch, withTiming(1, { duration: DURATION.particle, easing: EASE.rise })));
+  jumpY.set(
+    withDelay(
+      CELEBRATE.crouch,
+      withSequence(
         NEVER,
+        withTiming(-ARC.jump.height, { duration: ARC.jump.rise, easing: EASE.rise, reduceMotion: NEVER }),
+        withTiming(0, { duration: ARC.jump.fall, easing: EASE.fall, reduceMotion: NEVER }),
       ),
-    );
-  }
-  jump(0);
+      NEVER,
+    ),
+  );
 }
 
 /** How far the ears and tail trail the body (degrees per stage point of lag). */
@@ -779,9 +771,21 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
       lap.set(withTiming(0, { duration: micro.fast, easing: EASE.out }));
     }
 
-    if (state === 'celebrating') celebrateLoop({ sx, sy, paw, eyes, confetti, jumpY });
+    let jumpTimer: ReturnType<typeof setTimeout> | undefined;
+    if (state === 'celebrating') {
+      // Jump, then again after a varied pause, until the state changes.
+      const values = { sx, sy, paw, eyes, confetti, jumpY };
+      const next = () => {
+        celebrateJump(values);
+        jumpTimer = setTimeout(next, CELEBRATE.land + transition.long + pick(AMBIENT.celebrateGap, Math.random()));
+      };
+      next();
+    }
 
-    return stopAll;
+    return () => {
+      clearTimeout(jumpTimer);
+      stopAll();
+    };
     // A cue replays one-shots; only the celebration loop needs restarting for it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, paused, reducedMotion, celebrateCue]);
