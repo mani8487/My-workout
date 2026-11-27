@@ -71,10 +71,12 @@ export const TRIP = {
  * a stretch (reach, hold, release), a walk (steps), a run (strides), squats (down, up).
  */
 export const CAMEO = {
+  /** The little wind-up before each one (anticipation). */
+  windUp: 150,
   stretch: { reach: 550, hold: 600, release: 600 },
   walk: { step: 400, steps: 4 },
   run: { stride: 260, strides: 6 },
-  squat: { down: 380, up: 320, reps: 3 },
+  squat: { down: 340, up: 300, reps: 3 },
   /** A short pause between queued cameos, and after a log lands before the first. */
   gap: 300,
   /** With Reduce Motion: how long the still cameo pose shows. */
@@ -83,16 +85,15 @@ export const CAMEO = {
 
 /** How long each cameo's motion lasts (before its final small settle). */
 export function cameoLength(kind: 'stretch' | 'walk' | 'run' | 'squat'): number {
-  'worklet';
   switch (kind) {
     case 'stretch':
-      return CAMEO.stretch.reach + CAMEO.stretch.hold + CAMEO.stretch.release;
+      return CAMEO.windUp + CAMEO.stretch.reach + CAMEO.stretch.hold + CAMEO.stretch.release;
     case 'walk':
-      return CAMEO.walk.step * CAMEO.walk.steps;
+      return CAMEO.windUp + CAMEO.walk.step * CAMEO.walk.steps;
     case 'run':
-      return CAMEO.run.stride * CAMEO.run.strides;
+      return CAMEO.windUp + CAMEO.run.stride * CAMEO.run.strides;
     case 'squat':
-      return (CAMEO.squat.down + CAMEO.squat.up) * CAMEO.squat.reps;
+      return CAMEO.windUp + (CAMEO.squat.down + CAMEO.squat.up) * CAMEO.squat.reps;
   }
 }
 

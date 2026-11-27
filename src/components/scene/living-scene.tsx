@@ -10,7 +10,7 @@
  * With Reduce Motion on, the room cross-fades between still states.
  */
 import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { useWindowDimensions, View } from 'react-native';
+import { AccessibilityInfo, useWindowDimensions, View } from 'react-native';
 import Animated, {
   cancelAnimation,
   ReduceMotion,
@@ -35,10 +35,18 @@ import { Curtains, Dust, Floor, Lamp, Plant, Rays, ROOM, RoomWindow, Sill, Veil,
 /** Share of the screen height the room may use. */
 const MAX_HEIGHT_SHARE = 0.34;
 /** Milo's square stage in room units, standing on the floor in the middle of the room. */
-const NO_CAMEOS: readonly CameoKind[] = [];
 /** How far (room units) the room drifts up as it leaves for a workout. */
 const ROOM_LIFT = 24;
 const MILO = { size: 200, centerX: 180, groundInStage: (208 / 240) * 200 };
+
+const NO_CAMEOS: readonly CameoKind[] = [];
+/** VoiceOver: what Milo does in each cameo (the room itself is one image to VoiceOver). */
+const CAMEO_WORDS: Record<CameoKind, string> = {
+  stretch: 'Milo stretches with you',
+  walk: 'Milo walks on the spot',
+  run: 'Milo does a little run',
+  squat: 'Milo does a few squats',
+};
 
 const lyingDown = (s: MiloState) => s === 'sleeping' || s === 'stirring';
 const upright = (m: Mood) => m === 'sitting' || m === 'content';
@@ -126,6 +134,8 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
     setQueue([]);
     setPlaying(null);
   };
+  // Leaving the screen (a tab, the background) or the Lab taking over Milo ends any cameos.
+  if ((!onScreen || miloOverride) && (playing !== null || queue.length > 0)) stopCameos();
 
   if (seen.departCue !== departCue || seen.arriveCue !== arriveCue) {
     setSeen({ departCue, arriveCue });
@@ -240,13 +250,15 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
   }, [target.mood, miloOverride, onScreen]);
   // The next cameo starts after a short pause, only while the room is on screen, Milo is home and
   // nothing else (the Lab) is driving him.
-  const free = onScreen && travel === 'none' && !miloOverride && playing === null;
+  // Never while he's in the middle of waking up: the wake move plays first.
+  const free = onScreen && travel === 'none' && !miloOverride && playing === null && milo !== 'waking';
   const next = queue[0];
   useEffect(() => {
     if (!free || !next) return;
     const t = setTimeout(() => {
       setPlaying(next);
       setQueue((q) => q.slice(1));
+      AccessibilityInfo.announceForAccessibility(CAMEO_WORDS[next]);
     }, CAMEO.gap);
     return () => clearTimeout(t);
   }, [free, next]);
@@ -254,7 +266,7 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
   const onSettled = (s: MiloState) => {
     if (s === 'waking') setMilo(moodRef.current);
     if (s === 'arriving') setTravel('none');
-    if (s.startsWith('cameo-')) setPlaying(null); // back to what he was doing; the next one follows
+    if (playing && s === `cameo-${playing}`) setPlaying(null); // back to what he was doing; the next one follows
   };
 
   const roomStyle = useAnimatedStyle(() => ({

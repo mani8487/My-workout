@@ -21,7 +21,6 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withDelay,
-  withRepeat,
   withSequence,
   withSpring,
   withTiming,
@@ -44,8 +43,12 @@ const { micro, transition } = DURATION;
 
 /** Cameo poses: how far each part moves (paw: share of the full lift; degrees; stage units). */
 const CAMEO_SHAPE = {
+  preStretch: { x: 1.02, y: 0.97 }, // the dip before a stretch
   stretch: { x: 0.95, y: 1.08 }, // tall and narrow
+  settle: { x: 0.99, y: 1.02 }, // just past standing, so the final spring has something to settle
   squat: { y: 0.86 }, // a deeper crouch than the jump's anticipation
+  dip: 0.06, // the paw dips before reaching up
+  perk: 8, // ears perk on the last squat
   tilt: 6, // head tipped back in the stretch
   sway: 3, // head sway while walking
   walkBob: 3,
@@ -295,10 +298,14 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
       to(sy, 1);
       to(near, 1);
       to(present, 1);
-      // Cameo leftovers (a head tilt, ears) ease home when anything else starts, e.g. a cameo cut short.
+    }
+    // Cameo leftovers (a head tilt, ears) ease home when anything else starts, e.g. a cameo cut short.
+    if (!state.startsWith('cameo-')) {
       to(headTurn, 0);
-      to(earTapL, 0);
-      to(earTapR, 0);
+      if (state !== 'departing') {
+        to(earTapL, 0);
+        to(earTapR, 0);
+      }
     }
 
     switch (state) {
@@ -490,61 +497,110 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
       case 'cameo-walk':
       case 'cameo-run':
       case 'cameo-squat': {
-        to(pose, 1);
         to(headLift, 0);
-        if (state !== 'cameo-stretch') fade(eyes, 0, micro.base); // eyes open for the active ones
         if (R) {
           // A still pose for the activity, then back.
+          to(pose, 1);
           if (state === 'cameo-stretch') {
             place(paw, 1);
             place(eyes, 1);
           } else if (state === 'cameo-squat') {
             place(sx, SHAPE.crouch.x);
-            place(sy, SHAPE.crouch.y);
-          } else place(paw, state === 'cameo-run' ? CAMEO_SHAPE.runPaw : CAMEO_SHAPE.walkPaw);
+            place(sy, CAMEO_SHAPE.squat.y);
+          } else if (state === 'cameo-run') {
+            place(paw, CAMEO_SHAPE.runPaw);
+            place(earTapL, -CAMEO_SHAPE.earsBack);
+            place(earTapR, CAMEO_SHAPE.earsBack);
+          } else place(paw, CAMEO_SHAPE.walkPaw);
           reducedTimer = setTimeout(() => settle(state), CAMEO.still);
           break;
         }
+        // Lying down? First a little hop up to sitting (pose blend, squash on landing), then the cameo.
+        const up = pose.get() < 0.99 ? ARC.hop.rise + ARC.hop.fall : 0;
+        if (up) {
+          pose.set(withTiming(1, { duration: up, easing: EASE.inOut }));
+          eyes.set(withTiming(0, { duration: micro.base, easing: EASE.out }));
+        }
+        const hop = up
+          ? [withTiming(-ARC.hop.height, { duration: ARC.hop.rise, easing: EASE.rise }), withTiming(0, { duration: ARC.hop.fall, easing: EASE.fall })]
+          : [];
+        const later = (anim: number) => (up ? withDelay(up, anim) : anim);
+        const t = (v: number, ms: number) => withTiming(v, { duration: ms, easing: EASE.inOut });
         const done = (finished?: boolean) => {
           'worklet';
           if (finished) scheduleOnRN(settle, state);
         };
-        const t = (v: number, ms: number) => withTiming(v, { duration: ms, easing: EASE.inOut });
+        const w = CAMEO.windUp;
+        if (state !== 'cameo-stretch') eyes.set(later(withTiming(0, { duration: micro.base, easing: EASE.out })));
+
         if (state === 'cameo-stretch') {
-          // Reach up, hold with eyes closed (head tipped back a touch), and let it all go.
+          // A small dip (anticipation), reach up tall with eyes closed and the head tipped back, hold,
+          // let go just past rest, and settle.
           const { reach, hold, release } = CAMEO.stretch;
-          paw.set(withSequence(t(1, reach), withDelay(hold, t(0, release))));
-          sx.set(withSequence(t(CAMEO_SHAPE.stretch.x, reach), withDelay(hold, t(1, release))));
-          sy.set(withSequence(t(CAMEO_SHAPE.stretch.y, reach), withDelay(hold, t(1, release)), withSpring(1, SPRING.snappy, done)));
-          eyes.set(withSequence(t(1, reach), withDelay(hold, t(0, release))));
-          headTurn.set(withSequence(t(-CAMEO_SHAPE.tilt, reach), withDelay(hold, t(0, release))));
+          paw.set(later(withSequence(t(-CAMEO_SHAPE.dip, w), t(1, reach), withDelay(hold, t(0, release)))));
+          sx.set(later(withSequence(t(CAMEO_SHAPE.preStretch.x, w), t(CAMEO_SHAPE.stretch.x, reach), withDelay(hold, t(CAMEO_SHAPE.settle.x, release)), withSpring(1, SPRING.snappy))));
+          sy.set(later(withSequence(t(CAMEO_SHAPE.preStretch.y, w), t(CAMEO_SHAPE.stretch.y, reach), withDelay(hold, t(CAMEO_SHAPE.settle.y, release)), withSpring(1, SPRING.snappy, done))));
+          eyes.set(later(withSequence(withDelay(w, t(1, reach)), withDelay(hold, t(0, release)))));
+          headTurn.set(later(withSequence(withDelay(w, t(-CAMEO_SHAPE.tilt, reach)), withDelay(hold, t(0, release)))));
+          if (up) jumpY.set(withSequence(...hop));
         } else if (state === 'cameo-walk') {
-          // Easy steps: a soft bob, the paw lifting each step, the head swaying with the rhythm.
+          // Weight shifts side to side with every step (head sway); the paw steps on every other one,
+          // a soft bob throughout, and the secondary motion trails the bob a touch.
           const { step, steps } = CAMEO.walk;
           const half = step / 2;
-          jumpY.set(withRepeat(withSequence(withTiming(-CAMEO_SHAPE.walkBob, { duration: half, easing: EASE.breathe }), withTiming(0, { duration: half, easing: EASE.breathe })), steps, false, done));
-          paw.set(withRepeat(withSequence(t(CAMEO_SHAPE.walkPaw, half), t(0, half)), steps));
-          headTurn.set(withSequence(withRepeat(withSequence(t(CAMEO_SHAPE.sway, step), t(-CAMEO_SHAPE.sway, step)), steps / 2), withSpring(0, SPRING.soft)));
+          const bob: number[] = [];
+          const sway: number[] = [t(-CAMEO_SHAPE.sway, w)];
+          const pawSteps: number[] = [withTiming(0, { duration: w })];
+          for (let i = 0; i < steps; i++) {
+            bob.push(withTiming(-CAMEO_SHAPE.walkBob, { duration: half, easing: EASE.breathe }), withTiming(0, { duration: half, easing: EASE.breathe }));
+            sway.push(t(i % 2 === 0 ? CAMEO_SHAPE.sway : -CAMEO_SHAPE.sway, step));
+            pawSteps.push(i % 2 === 0 ? withSequence(t(CAMEO_SHAPE.walkPaw, half), t(0, half)) : withTiming(0, { duration: step }));
+          }
+          jumpY.set(withSequence(...hop, withTiming(0, { duration: w }), ...bob.slice(0, -1), withTiming(0, { duration: half, easing: EASE.breathe }, done)));
+          headTurn.set(later(withSequence(...sway, withSpring(0, SPRING.soft))));
+          paw.set(later(withDelay(micro.fast / 3, withSequence(...pawSteps))));
         } else if (state === 'cameo-run') {
-          // Quick strides: a bigger bounce with squash and stretch, ears swept back, paw pumping.
+          // A crouch (anticipation), then strides: stretched as he leaves the ground, squashed as he lands,
+          // ears swept back, the paw pumping a beat behind; a squash-and-settle at the end.
           const { stride, strides } = CAMEO.run;
           const half = stride / 2;
-          jumpY.set(withRepeat(withSequence(withTiming(-CAMEO_SHAPE.runBob, { duration: half, easing: EASE.rise }), withTiming(0, { duration: half, easing: EASE.fall })), strides, false, done));
-          sy.set(withSequence(withRepeat(withSequence(t(SHAPE.takeoff.y, half), t(SHAPE.land.y, half)), strides), withSpring(1, SPRING.snappy)));
-          sx.set(withSequence(withRepeat(withSequence(t(SHAPE.takeoff.x, half), t(SHAPE.land.x, half)), strides), withSpring(1, SPRING.snappy)));
-          paw.set(withSequence(withRepeat(withSequence(t(CAMEO_SHAPE.runPaw, half), t(0, half)), strides), withSpring(0, SPRING.soft)));
-          const back = (deg: number) => withSequence(withTiming(deg, { duration: micro.fast, easing: EASE.out }), withDelay(cameoLength('run') - micro.fast, withSpring(0, SPRING.soft)));
+          const air: number[] = [];
+          const bodyY: number[] = [t(SHAPE.crouch.y, w)];
+          const bodyX: number[] = [t(SHAPE.crouch.x, w)];
+          const pump: number[] = [withTiming(0, { duration: w })];
+          for (let i = 0; i < strides; i++) {
+            air.push(withTiming(-CAMEO_SHAPE.runBob, { duration: half, easing: EASE.rise }), withTiming(0, { duration: half, easing: EASE.fall }));
+            bodyY.push(withTiming(SHAPE.takeoff.y, { duration: half, easing: EASE.out }), withTiming(SHAPE.land.y, { duration: half, easing: EASE.fall }));
+            bodyX.push(withTiming(SHAPE.takeoff.x, { duration: half, easing: EASE.out }), withTiming(SHAPE.land.x, { duration: half, easing: EASE.fall }));
+            pump.push(t(CAMEO_SHAPE.runPaw, half), t(0, half));
+          }
+          jumpY.set(withSequence(...hop, withTiming(0, { duration: w }), ...air));
+          sy.set(later(withSequence(...bodyY, withSpring(1, SPRING.snappy, done))));
+          sx.set(later(withSequence(...bodyX, withSpring(1, SPRING.snappy))));
+          paw.set(later(withDelay(micro.fast / 3, withSequence(...pump, withSpring(0, SPRING.soft)))));
+          const back = (deg: number) =>
+            later(withSequence(withTiming(deg, { duration: w, easing: EASE.out }), withDelay(cameoLength('run') - 2 * w, withSpring(0, SPRING.soft))));
           earTapL.set(back(-CAMEO_SHAPE.earsBack));
           earTapR.set(back(CAMEO_SHAPE.earsBack));
         } else {
-          // Slow squats: down (squash, paws reach forward for balance), up; ears perk on the last one.
-          const { down, up, reps } = CAMEO.squat;
-          sx.set(withSequence(withRepeat(withSequence(t(SHAPE.crouch.x, down), t(1, up)), reps), withSpring(1, SPRING.snappy)));
-          sy.set(withSequence(withRepeat(withSequence(t(CAMEO_SHAPE.squat.y, down), t(1, up)), reps), withSpring(1, SPRING.snappy, done)));
-          paw.set(withRepeat(withSequence(t(CAMEO_SHAPE.squatPaw, down), t(0, up)), reps));
-          const perk = (deg: number) => withDelay(cameoLength('squat') - up, withSequence(withTiming(deg, { duration: micro.fast, easing: EASE.out }), withSpring(0, SPRING.soft)));
-          earTapL.set(perk(8));
-          earTapR.set(perk(-8));
+          // A small rise (anticipation), then slow squats: down with the paw reaching forward for balance,
+          // up just past standing; the ears perk on the last one, then a settle.
+          const { down, up: rise, reps } = CAMEO.squat;
+          const bodyY: number[] = [t(CAMEO_SHAPE.settle.y, w)];
+          const bodyX: number[] = [t(CAMEO_SHAPE.settle.x, w)];
+          const reach: number[] = [withTiming(0, { duration: w })];
+          for (let i = 0; i < reps; i++) {
+            bodyY.push(t(CAMEO_SHAPE.squat.y, down), t(CAMEO_SHAPE.settle.y, rise));
+            bodyX.push(t(SHAPE.crouch.x, down), t(CAMEO_SHAPE.settle.x, rise));
+            reach.push(t(CAMEO_SHAPE.squatPaw, down), t(0, rise));
+          }
+          sy.set(later(withSequence(...bodyY, withSpring(1, SPRING.snappy, done))));
+          sx.set(later(withSequence(...bodyX, withSpring(1, SPRING.snappy))));
+          paw.set(later(withSequence(...reach)));
+          const perk = (deg: number) => later(withDelay(cameoLength('squat') - rise, withSequence(withTiming(deg, { duration: micro.fast, easing: EASE.out }), withSpring(0, SPRING.soft))));
+          earTapL.set(perk(CAMEO_SHAPE.perk));
+          earTapR.set(perk(-CAMEO_SHAPE.perk));
+          if (up) jumpY.set(withSequence(...hop));
         }
         break;
       }

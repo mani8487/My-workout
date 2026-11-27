@@ -61,8 +61,10 @@ test('the start transition fits the 600-800 ms window', () => {
 
 test('every cameo lasts 1.5–2.5 s, including its final settle', () => {
   for (const kind of ['stretch', 'walk', 'run', 'squat'] as const) {
-    const total = cameoLength(kind) + DURATION.transition.short; // the settle spring
+    const total = cameoLength(kind) + DURATION.transition.short; // the final settle spring (perceptual length)
     assert.ok(cameoLength(kind) >= 1500 && total <= 2500, `${kind}: ${cameoLength(kind)} + settle`);
   }
   assert.ok(CAMEO.still >= 1500 && CAMEO.still <= 2500);
+  // Walk alternates a paw step with a weight shift, so it needs an even number of steps.
+  assert.equal(CAMEO.walk.steps % 2, 0);
 });

@@ -30,6 +30,12 @@ describe('enqueueCameos', () => {
     assert.deepEqual(enqueueCameos([], ['squat'], 'squat'), []);
     assert.deepEqual(enqueueCameos([], ['squat', 'walk'], 'squat'), ['walk']);
   });
+  it('accepts the playing kind again once something else is waiting', () => {
+    assert.deepEqual(enqueueCameos(['run'], ['walk'], 'walk'), ['run', 'walk']);
+  });
+  it('the cap still drops new kinds after a skipped duplicate', () => {
+    assert.deepEqual(enqueueCameos(['walk', 'run'], ['run', 'squat', 'stretch'], null), ['walk', 'run', 'squat']);
+  });
   it('never lets the line grow past the limit', () => {
     const q = enqueueCameos([], ['walk', 'run', 'squat', 'stretch', 'walk'], null);
     assert.equal(q.length, MAX_QUEUED);
