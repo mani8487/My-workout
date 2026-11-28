@@ -89,7 +89,7 @@ type Props = {
   /** Bump to ask for a glance at his bowl (Home decides: behind pace, a few times a day)... */
   glanceCue?: number;
   /** ...called when he actually takes it (he's sitting, free, and motion is on), so Home can count it. */
-  onGlanced?: () => void;
+  onGlanced?: () => void | Promise<void>;
   /** Tapping the readout (opens the water pop-up). */
   onWaterPress?: () => void;
   /** Scene Lab: false while setting the level by hand, so a change is not played as a drink. */
@@ -311,7 +311,7 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
     glancedRef.current = onGlanced;
   }, [onGlanced]);
   useEffect(() => {
-    if (glance.shown) glancedRef.current?.();
+    if (glance.shown) Promise.resolve(glancedRef.current?.()).catch(() => {});
   }, [glance.shown]);
   const fillNow = fillLevel(drinks.ml, waterGoalMl);
   // One stable object per change, so Milo's renderer only re-renders when something about the water changed.
