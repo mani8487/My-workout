@@ -49,6 +49,32 @@ Floating "Zz", confetti and paw sparkles are drawn in code. The whole puppet
 (body, towel, head group, tail) also scales from its feet at the ground line
 when Milo leaps toward you or hops back in; no extra art is needed for that.
 
+## Water inside Milo (Home)
+
+When "Show water on Milo" is on, today's water fills Milo from the bottom up,
+like a glass. Nothing new needs drawing, but the art has to follow one rule:
+
+- **Fur shapes use the fur colour `#A9B2BE` as a plain fill** (one shape per
+  element, e.g. the head outline, the body outline, the left leg in
+  `body-sit`, the paw in `front-paw`, each ear). The app cuts each of these
+  layers into parts: that fur shape as fill only, then the water (clipped to
+  the shape), then the shape's outline and everything drawn after it
+  (stripes, white chest and muzzle, paws, face, inner ears). So the water
+  sits **between the base fur and the markings**, and the markings stay
+  crisp on top. Without water the parts add up to the original layer
+  exactly, and with no water at all the original single layers are drawn.
+- Layers that hold water: `head`, `ear-left`, `ear-right`, `body-sit`,
+  `body-lie`, `front-paw`. Never the tail, couch, collar, towel or bowl.
+- **Pose masks** (`bodyMask_sit`, `bodyMask_lie`): head + body + ears, no tail
+  or sofa. They are the fur shapes above, in the pose's placement. The level
+  rises over the pose's height (`FILL_RANGE` in
+  `src/components/mascot/water-geometry.ts`): sitting from the feet (y 208)
+  to above the ear tips; lying from the bottom of the curl (y 168) to above
+  the lying ear tips. Between poses the line blends with the pose, so the
+  level never jumps.
+- Water colour `#5CC8E0` at 47% with a lighter surface line `#DDF5FB`
+  (one colour for every drink).
+
 ## Palette (Mist & Mint)
 
 | Use | Colour |

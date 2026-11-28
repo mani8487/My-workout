@@ -130,6 +130,11 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX water_logs_logged_at ON water_logs (logged_at);
   `,
+
+  // ---- Upgrade 5: what each drink was (for history; the fill on Milo is one colour for all) ----
+  `
+  ALTER TABLE water_logs ADD COLUMN kind TEXT NOT NULL DEFAULT 'water';
+  `,
 ];
 
 export async function runMigrations(db: SQLiteDatabase) {

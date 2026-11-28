@@ -40,7 +40,9 @@ import { cameoFor, type CameoKind } from '@/logic/cameo';
 import { decodeShown, encodeShown, nextLine } from '@/logic/milo-voice';
 import { minutesText, moodOf, sceneTarget } from '@/logic/scene-state';
 import { useTodayKey } from '@/logic/use-today';
-import { TRIP } from '@/motion';
+import { TRIP, WATER } from '@/motion';
+import { waterPace } from '@/logic/hydration';
+import { mayNudge, readNudgeLog, WATER_NUDGE_KEY } from '@/logic/hydration-layers';
 import { countWorkoutsBetween, deleteQuickLog, getActiveMinutesBetween, getActivityTimesSince, getQuickLogsBetween, type QuickLog } from '@/db/quick-log';
 import { ACTIVE_GOAL_KEY, DEFAULT_ACTIVE_GOAL_MIN } from '@/logic/activity';
 import { Backdrop } from '@/components/screen';
@@ -307,6 +309,30 @@ export default function HomeScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [db, fresh, focused, todayKey, target?.stage, target?.water]);
 
+  // Behind on water: now and then (at most 3 a day, never in quiet hours) Milo glances at his bowl,
+  // a little while after Home appears, when he's up.
+  const [glanceCue, setGlanceCue] = useState(0);
+  const upright = target?.mood === 'sitting' || target?.mood === 'content';
+  const nudgeOn = focused && fresh && upright && !!water?.showOnMilo;
+  useEffect(() => {
+    if (!nudgeOn || !water) return;
+    const { ml, goal } = water;
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      const now = new Date();
+      const log = readNudgeLog(await getSetting(db, WATER_NUDGE_KEY), todayKey);
+      if (cancelled || !mayNudge(waterPace(ml, goal, now).status === 'behind', now, log)) return;
+      await setSetting(db, WATER_NUDGE_KEY, JSON.stringify({ day: todayKey, count: log.count + 1, lastAt: now.getTime() }));
+      if (!cancelled) setGlanceCue((c) => c + 1);
+    }, WATER.glanceAfter);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+    // Re-armed when Home comes back into view or the numbers change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [db, nudgeOn, todayKey, water?.ml, water?.goal]);
+
   const thisWeek = weekStartOf(new Date());
   const isCurrentWeek = isSameDay(weekStart, thisWeek);
 
@@ -530,6 +556,9 @@ export default function HomeScreen() {
               towel={data.workoutDone}
               cameoCue={cameo.cue}
               cameoKinds={cameo.kinds}
+              waterOnMilo={water.showOnMilo}
+              glanceCue={glanceCue}
+              onWaterPress={() => router.push('/water')}
             />
           )}
         </View>

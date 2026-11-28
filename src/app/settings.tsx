@@ -2,7 +2,7 @@
 import { useSQLiteContext } from 'expo-sqlite';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useState } from 'react';
-import { TextInput, View } from 'react-native';
+import { Switch, TextInput, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { Card } from '@/components/card';
@@ -13,6 +13,7 @@ import { getSetting, setSetting } from '@/db/settings';
 import { refreshWater } from '@/db/water';
 import { ACTIVE_GOAL_KEY, DEFAULT_ACTIVE_GOAL_MIN } from '@/logic/activity';
 import { BODY_WEIGHT_KEY, HEIGHT_KEY } from '@/logic/hydration';
+import { MILO_WATER_KEY } from '@/logic/hydration-layers';
 import { useTheme, type ThemePreference } from '@/theme/theme-context';
 import { radius, spacing, typography } from '@/theme/typography';
 
@@ -23,11 +24,13 @@ export default function SettingsScreen() {
   const [goal, setGoal] = useState(DEFAULT_ACTIVE_GOAL_MIN);
   const [weight, setWeight] = useState('');
   const [height, setHeight] = useState('');
+  const [waterOnMilo, setWaterOnMilo] = useState(true);
 
   useEffect(() => {
     getSetting(db, 'user_name').then((v) => setName(v ?? ''));
     getSetting(db, BODY_WEIGHT_KEY).then((v) => setWeight(v ?? ''));
     getSetting(db, HEIGHT_KEY).then((v) => setHeight(v ?? ''));
+    getSetting(db, MILO_WATER_KEY).then((v) => setWaterOnMilo(v !== '0'));
     getSetting(db, ACTIVE_GOAL_KEY).then((v) => setGoal(Number(v) > 0 ? Number(v) : DEFAULT_ACTIVE_GOAL_MIN));
   }, [db]);
 
@@ -140,6 +143,26 @@ export default function SettingsScreen() {
           <AppText variant="label" muted style={{ width: 28 }}>
             cm
           </AppText>
+        </View>
+      </Card>
+
+      <Card>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+          <View style={{ flex: 1, gap: spacing.xs }}>
+            <AppText variant="label">Show water on Milo</AppText>
+            <AppText variant="small" muted>
+              On Home, the water you drink today fills Milo up, with a small readout above him.
+            </AppText>
+          </View>
+          <Switch
+            value={waterOnMilo}
+            onValueChange={(on) => {
+              setWaterOnMilo(on);
+              setSetting(db, MILO_WATER_KEY, on ? null : '0').then(refreshWater);
+            }}
+            trackColor={{ true: colors.accent }}
+            accessibilityLabel="Show water on Milo"
+          />
         </View>
       </Card>
 

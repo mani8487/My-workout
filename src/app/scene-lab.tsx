@@ -34,7 +34,10 @@ const STATES: { state: MiloState | null; label: string }[] = [
   { state: 'reacting', label: 'Paw lift' },
   { state: 'celebrating', label: 'Celebrate' },
   { state: 'drinking', label: 'Drinking' },
+  { state: 'cameo-stretch', label: 'Stretch' },
 ];
+/** Fill levels to check Milo at (share of the water goal). */
+const FILLS = [0, 0.25, 0.5, 0.75, 1, 1.2];
 const GOALS = [0, 30, 60];
 const WATER_GOAL = 2000;
 const EMPTY_ROOM = { stage: 0, water: 0 };
@@ -106,6 +109,14 @@ function LabBody({ dark, setDark, motion, setMotion }: { dark: boolean; setDark:
   const [minutes, setMinutes] = useState(0);
   const [goal, setGoal] = useState(30);
   const [waterMl, setWaterMl] = useState(500);
+  // Water on Milo: set the level by hand (no pour), or log a drink (+250 ml pours and he reacts).
+  const [waterOnMilo, setWaterOnMilo] = useState(true);
+  const [pour, setPour] = useState(false);
+  const [glanceCue, setGlanceCue] = useState(0);
+  const setLevel = (ml: number) => {
+    setPour(false);
+    setWaterMl(ml);
+  };
   const [hour, setHour] = useState(() => Math.round(new Date().getHours() * 2) / 2);
   const [override, setOverride] = useState<MiloState | null>(null);
   const [cue, setCue] = useState(0);
@@ -170,6 +181,9 @@ function LabBody({ dark, setDark, motion, setMotion }: { dark: boolean; setDark:
             towel={towel}
             cameoCue={cameo.cue}
             cameoKinds={cameo.kinds}
+            waterOnMilo={waterOnMilo}
+            glanceCue={glanceCue}
+            pourOnRise={pour}
           />
         </View>
         <View style={{ alignItems: 'center', gap: 2 }}>
@@ -195,7 +209,24 @@ function LabBody({ dark, setDark, motion, setMotion }: { dark: boolean; setDark:
             }}
           />
         </Row>
-        <LabSlider label={`Water: ${waterMl} ml of ${WATER_GOAL}`} value={waterMl} min={0} max={3000} step={50} onChange={setWaterMl} />
+        <LabSlider label={`Water: ${waterMl} ml of ${WATER_GOAL} (${Math.round((waterMl / WATER_GOAL) * 100)}%)`} value={waterMl} min={0} max={3000} step={50} onChange={setLevel} />
+        <Row title="Water on Milo">
+          {FILLS.map((f) => (
+            <Chip key={f} label={`${Math.round(f * 100)}%`} on={waterMl === f * WATER_GOAL} onPress={() => setLevel(f * WATER_GOAL)} />
+          ))}
+          <Chip
+            label="+250 ml"
+            on={false}
+            hint="Logs a glass the way Home does: the pour, the slosh, and Milo's reaction"
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+              setPour(true);
+              setWaterMl((m) => Math.min(3000, m + 250));
+            }}
+          />
+          <Chip label="Glance at bowl" on={false} hint="The behind-pace reminder (Milo must be sitting)" onPress={() => setGlanceCue((c) => c + 1)} />
+          <Chip label={waterOnMilo ? 'Shown' : 'Hidden'} on={waterOnMilo} hint="The Show water on Milo setting" onPress={() => setWaterOnMilo((v) => !v)} />
+        </Row>
         <LabSlider label={`Time of day: ${clock(hour)}`} value={hour} min={0} max={23.5} step={0.5} onChange={setHour} />
 
         <Row title="Milo's line">

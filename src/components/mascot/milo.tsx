@@ -17,7 +17,7 @@ import { useMotionActive, useReducedMotion } from '@/motion';
 import { useTheme } from '@/theme/theme-context';
 
 import { ActiveMiloRenderer } from './renderer';
-import type { MiloState } from './types';
+import type { MiloState, MiloWater } from './types';
 
 const DESCRIPTION: Record<MiloState, string> = {
   sleeping: 'Milo the cat is asleep on his couch',
@@ -48,10 +48,12 @@ type Props = {
   keepCouch?: boolean;
   /** Wears his towel (after a workout today). */
   towel?: boolean;
+  /** Water inside him (Home). Leave out for the usual Milo. */
+  water?: MiloWater;
   style?: StyleProp<ViewStyle>;
 };
 
-export function Milo({ state, size = 160, cue = 0, onSettled, onPress, keepCouch = false, towel = false, style }: Props) {
+export function Milo({ state, size = 160, cue = 0, onSettled, onPress, keepCouch = false, towel = false, water, style }: Props) {
   const reducedMotion = useReducedMotion();
   const { isDark } = useTheme();
   const onScreen = useMotionActive();
@@ -85,6 +87,7 @@ export function Milo({ state, size = 160, cue = 0, onSettled, onPress, keepCouch
         isDark={isDark}
         keepCouch={keepCouch}
         towel={towel}
+        water={water}
         onSettled={handleSettled}
       />
     </Pressable>

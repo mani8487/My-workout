@@ -13,6 +13,7 @@ import { getSetting, setSetting } from '@/db/settings';
 import { dayKeyOf } from '@/logic/day';
 import { useTodayKey } from '@/logic/use-today';
 import { BODY_WEIGHT_KEY, effectiveWeightKg, HEIGHT_KEY, LAST_WATER_KEY, waterGoalMl } from '@/logic/hydration';
+import { DEFAULT_DRINK, MILO_WATER_KEY, totalHydration, type DrinkKind } from '@/logic/hydration-layers';
 
 export type WaterLog = { id: number; ml: number; loggedAt: number };
 
@@ -22,8 +23,8 @@ function todayRange() {
   return [d.getTime(), d.getTime() + 86_400_000] as const;
 }
 
-export async function addWater(db: SQLiteDatabase, ml: number): Promise<number> {
-  const res = await db.runAsync('INSERT INTO water_logs (ml, logged_at) VALUES (?, ?)', Math.round(ml), Date.now());
+export async function addWater(db: SQLiteDatabase, ml: number, kind: DrinkKind = DEFAULT_DRINK): Promise<number> {
+  const res = await db.runAsync('INSERT INTO water_logs (ml, kind, logged_at) VALUES (?, ?, ?)', Math.round(ml), kind, Date.now());
   await setSetting(db, LAST_WATER_KEY, String(Math.round(ml)));
   emit();
   return res.lastInsertRowId;
@@ -45,17 +46,19 @@ export async function undoLastWater(db: SQLiteDatabase): Promise<number | null> 
 
 export async function getWaterToday(db: SQLiteDatabase) {
   const [from, to] = todayRange();
-  const [sum, weight, exercise, last, height] = await Promise.all([
-    db.getFirstAsync<{ ml: number | null }>('SELECT SUM(ml) AS ml FROM water_logs WHERE logged_at >= ? AND logged_at < ?', from, to),
+  const [drinks, weight, exercise, last, height, onMilo] = await Promise.all([
+    db.getAllAsync<{ ml: number; kind: string }>('SELECT SUM(ml) AS ml, kind FROM water_logs WHERE logged_at >= ? AND logged_at < ? GROUP BY kind', from, to),
     getSetting(db, BODY_WEIGHT_KEY),
     getActiveMinutesBetween(db, from, to),
     getSetting(db, LAST_WATER_KEY),
     getSetting(db, HEIGHT_KEY),
+    getSetting(db, MILO_WATER_KEY),
   ]);
   const heightCm = Number(height) > 0 ? Number(height) : null;
   const weightKg = Number(weight) > 0 ? Number(weight) : null;
   return {
-    ml: sum?.ml ?? 0,
+    /** Today's hydration: each drink's ml × its factor (see logic/hydration-layers.ts). */
+    ml: Math.round(totalHydration(drinks)),
     goal: waterGoalMl(weightKg, exercise, heightCm),
     weightKg,
     heightCm,
@@ -63,6 +66,8 @@ export async function getWaterToday(db: SQLiteDatabase) {
     goalWeightKg: weightKg ? Math.round(effectiveWeightKg(weightKg, heightCm) * 10) / 10 : null,
     exerciseMin: Math.round(exercise),
     lastMl: Number(last) > 0 ? Number(last) : 250,
+    /** Settings → "Show water on Milo" (on unless turned off). */
+    showOnMilo: onMilo !== '0',
     /** The local day these numbers are for. */
     day: dayKeyOf(new Date(from)),
   };

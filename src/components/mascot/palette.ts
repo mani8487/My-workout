@@ -15,7 +15,13 @@ export const MILO_ART = {
   mintDeep: '#8FCDB3',
   wood: '#B08D6E',
   aqua: '#55CBE3',
+  /** The water inside Milo (one colour for every drink), its opacity, and the lighter surface line. */
+  liquid: '#5CC8E0',
+  liquidSurface: '#DDF5FB',
 } as const;
+
+/** How strongly the water tints his fur: enough to read the level, light enough that his markings stay clear. */
+export const LIQUID_OPACITY = 0.47;
 
 /** Code-drawn extras, tuned separately for light and dark backgrounds. */
 export const MILO_FX = {

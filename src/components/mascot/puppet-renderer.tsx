@@ -34,6 +34,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 import { AMBIENT, ARC, CAMEO, CELEBRATE, DURATION, EASE, LEAVE, SHAPE, SPRING, WAKE, breathe, cameoLength, floatLoop, loopWithGaps, pick } from '@/motion';
 
 import { GROUND_Y, LAYERS, LIE_POSE, NECK, STAGE, TAIL_BASE, type LayerName } from './layers';
+import { Tongue, useWaterMotion, WaterLayerArt, WaterSparkles, type WaterCtx } from './milo-water';
 import { MILO_FX } from './palette';
 import { PLACEHOLDER_ART } from './placeholder-art';
 import type { MiloRendererProps, MiloState } from './types';
@@ -129,8 +130,8 @@ const Art = memo(function Art({ name, k }: { name: LayerName; k: number }) {
   return <SvgXml xml={PLACEHOLDER_ART[name]} width={b.w * k} height={b.h * k} />;
 });
 
-/** One puppet piece, placed on the stage and turning around its own pivot. */
-function Layer({ name, k, style }: { name: LayerName; k: number; style?: ViewStyle | ReturnType<typeof useAnimatedStyle> }) {
+/** One puppet piece, placed on the stage and turning around its own pivot. With `water`, its art is drawn with water inside. */
+function Layer({ name, k, style, water }: { name: LayerName; k: number; style?: ViewStyle | ReturnType<typeof useAnimatedStyle>; water?: WaterCtx }) {
   const b = LAYERS[name];
   return (
     <Animated.View
@@ -146,7 +147,7 @@ function Layer({ name, k, style }: { name: LayerName; k: number; style?: ViewSty
         },
         style,
       ]}>
-      <Art name={name} k={k} />
+      {water ? <WaterLayerArt name={name} k={k} w={water} /> : <Art name={name} k={k} />}
     </Animated.View>
   );
 }
@@ -238,7 +239,7 @@ function Z({ progress, on, k, color }: { progress: SharedValue<number>; on: Shar
 
 // ---------- the renderer ----------
 
-export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, tapSignal, paused, reducedMotion, isDark, keepCouch = false, towel = false, onSettled }: MiloRendererProps) {
+export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, tapSignal, paused, reducedMotion, isDark, keepCouch = false, towel = false, water, onSettled }: MiloRendererProps) {
   const k = size / STAGE;
   const lying = state === 'sleeping' || state === 'stirring' || state === 'waking';
 
@@ -272,6 +273,9 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
   const near = useSharedValue(1); // scale toward the viewer while leaping off or back in
   const present = useSharedValue(1); // fades him in when he arrives from below the room
   const towelOn = useSharedValue(towel ? 1 : 0);
+  // Water inside him (Home): its own values, added on top of his motion; all at rest when it's off.
+  const wm = useWaterMotion(water, state, reducedMotion, { breath, breathDepth, pose, headLift, paw });
+  const wet = wm.wet ? wm.ctx : undefined;
 
   // Cancel every animation when Milo leaves the screen for good.
   const allRef = useRef([pose, headLift, headTurn, dip, lap, breath, breathDepth, sx, sy, jumpY, followY, tailSway, earL, earR, earTapL, earTapR, stageOpacity, eyes, paw, bowl, z1, z2, z3, zzOn, confetti, sparks, near, present, towelOn]);
@@ -838,7 +842,7 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
     transform: [{ scaleX: sx.get() }, { scaleY: sy.get() * (1 + breath.get() * amp(1)) * (1 - dip.get() * 0.08) }],
   }));
   const couchStyle = useAnimatedStyle(() => ({ opacity: keepCouch ? 1 : 1 - pose.get() }));
-  const bowlStyle = useAnimatedStyle(() => ({ opacity: bowl.get() }));
+  const bowlStyle = useAnimatedStyle(() => ({ opacity: Math.max(bowl.get(), wm.bowl.get()) }));
 
   const shadowStyle = useAnimatedStyle(() => {
     const q = pose.get();
@@ -855,7 +859,7 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
       transform: [
         { translateX: T.dx * (1 - q) * k },
         { translateY: T.dy * (1 - q) * k },
-        { rotate: `${T.rotate * (1 - q) + tailSway.get() - lag() * FOLLOW.tail}deg` },
+        { rotate: `${T.rotate * (1 - q) + tailSway.get() - lag() * FOLLOW.tail + wm.tailFlick.get()}deg` },
       ],
     };
   });
@@ -883,17 +887,19 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
       (H.dy - lift * 12) * (1 - q) + // lying, or lifting the head while waking
       dip.get() * 44 + lap.get() * 5 + // drinking
       (1 - sy.get()) * 100 * q - // ride the body's squash and stretch
-      breath.get() * 2.5 * breathDepth.get() * q;
-    const rot = H.rotate * (1 - lift) * (1 - q) + headTurn.get();
+      breath.get() * 2.5 * breathDepth.get() * q +
+      wm.lick.get() * 4 + wm.glance.get() * 7; // water: the lap, and a glance down at the bowl
+    const rot = H.rotate * (1 - lift) * (1 - q) + headTurn.get() + wm.glance.get() * 5;
     const scale = H.scale + (1 - H.scale) * q;
     return { transform: [{ translateX: dx * k }, { translateY: dy * k }, { rotate: `${rot}deg` }, { scale }] };
   });
 
   // Ears fold outward while the body rises and swing back as it lands.
-  const earLStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${earL.get() + earTapL.get() + lag() * FOLLOW.ear}deg` }] }));
-  const earRStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${earR.get() + earTapR.get() - lag() * FOLLOW.ear}deg` }] }));
-  const eyesOpenStyle = useAnimatedStyle(() => ({ opacity: 1 - eyes.get() }));
-  const eyesClosedStyle = useAnimatedStyle(() => ({ opacity: eyes.get() }));
+  const earLStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${earL.get() + earTapL.get() + lag() * FOLLOW.ear + wm.earL.get()}deg` }] }));
+  const earRStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${earR.get() + earTapR.get() - lag() * FOLLOW.ear + wm.earR.get()}deg` }] }));
+  // A happy blink after a drink closes the eyes on top of whatever they are doing.
+  const eyesOpenStyle = useAnimatedStyle(() => ({ opacity: 1 - Math.max(eyes.get(), wm.happy.get()) }));
+  const eyesClosedStyle = useAnimatedStyle(() => ({ opacity: Math.max(eyes.get(), wm.happy.get()) }));
 
   const stage: ViewStyle = { ...fill, width: size, height: size };
   const fx = isDark ? MILO_FX.dark : MILO_FX.light;
@@ -921,18 +927,20 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
         <Animated.View style={[stage, { transformOrigin: [TAIL_BASE.x * k, TAIL_BASE.y * k, 0] }, tailStyle]}>
           <Layer name="tail" k={k} />
         </Animated.View>
-        <Layer name="body-lie" k={k} style={bodyLieStyle} />
-        <Layer name="body-sit" k={k} style={bodySitStyle} />
-        <Layer name="front-paw" k={k} style={pawStyle} />
+        <Layer name="body-lie" k={k} style={bodyLieStyle} water={wet} />
+        <Layer name="body-sit" k={k} style={bodySitStyle} water={wet} />
+        <Layer name="front-paw" k={k} style={pawStyle} water={wet} />
         <Layer name="towel" k={k} style={towelStyle} />
         <Animated.View style={[stage, { transformOrigin: [NECK.x * k, NECK.y * k, 0] }, headStyle]}>
-          <Layer name="ear-left" k={k} style={earLStyle} />
-          <Layer name="ear-right" k={k} style={earRStyle} />
+          <Layer name="ear-left" k={k} style={earLStyle} water={wet} />
+          <Layer name="ear-right" k={k} style={earRStyle} water={wet} />
           <Layer name="collar" k={k} />
-          <Layer name="head" k={k} />
+          <Layer name="head" k={k} water={wet} />
+          {water && <Tongue lick={wm.lick} k={k} />}
           <Layer name="eyes-open" k={k} style={eyesOpenStyle} />
           <Layer name="eyes-closed" k={k} style={eyesClosedStyle} />
         </Animated.View>
+        {water && <WaterSparkles t={wm.sparkle} k={k} />}
       </Animated.View>
 
       <Layer name="bowl" k={k} style={bowlStyle} />

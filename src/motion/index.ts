@@ -10,5 +10,5 @@
 export { breathe, floatLoop, loopWithGaps } from './ambient';
 export { EASE, SPRING } from './curves';
 export { MotionRoot, ReducedMotionOverride, useReducedMotion } from './reduced-motion';
-export { AMBIENT, ARC, CAMEO, CELEBRATE, DURATION, LEAVE, SHAPE, TRIP, WAKE, cameoLength, pick, type Range } from './tokens';
+export { AMBIENT, ARC, CAMEO, CELEBRATE, DURATION, LEAVE, SHAPE, TRIP, WAKE, WATER, cameoLength, pick, type Range } from './tokens';
 export { useMotionActive } from './use-motion-active';

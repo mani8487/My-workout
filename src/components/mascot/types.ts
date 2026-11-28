@@ -25,6 +25,20 @@ export type MiloState =
   | 'cameo-run' // quick strides, ears back
   | 'cameo-squat'; // three slow squats
 
+/** Water on Milo (Home): the fill inside him and the moments around it. Leave it out and he is drawn as always. */
+export type MiloWater = {
+  /** Fill level: 0 empty, 1 at the goal, up to 1.2. */
+  level: number;
+  /** Where the level starts when Milo first appears (what you last saw today). */
+  from?: number;
+  /** Bump with each drink: the pour, slosh and bubbles, and his reaction when awake. */
+  drinkCue: number;
+  /** Bump when the goal is reached: the shimmer and sparkles. */
+  goalCue: number;
+  /** Bump for a glance at his bowl (behind pace). */
+  glanceCue: number;
+};
+
 export type MiloRendererProps = {
   state: MiloState;
   /** Width and height in points. Milo is drawn on a square stage. */
@@ -43,6 +57,8 @@ export type MiloRendererProps = {
   keepCouch?: boolean;
   /** Wears his towel (after a workout today). */
   towel?: boolean;
+  /** Water inside him (Home, when "Show water on Milo" is on). */
+  water?: MiloWater;
   /** Called when a one-shot state (waking, reacting) has finished. */
   onSettled: (state: MiloState) => void;
 };

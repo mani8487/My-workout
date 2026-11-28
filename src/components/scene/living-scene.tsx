@@ -23,14 +23,16 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { Milo, type MiloState } from '@/components/mascot';
-import { CAMEO, DURATION, EASE, SPRING, TRIP, useMotionActive, useReducedMotion } from '@/motion';
+import { Milo, type MiloState, type MiloWater } from '@/components/mascot';
+import { CAMEO, DURATION, EASE, SPRING, TRIP, WATER, useMotionActive, useReducedMotion } from '@/motion';
 import { enqueueCameos, type CameoKind } from '@/logic/cameo';
+import { fillLevel } from '@/logic/hydration-layers';
 import { daylight, describeScene, dimness, moodOfStage, sceneTarget, warmth, type Mood } from '@/logic/scene-state';
 import { useTheme } from '@/theme/theme-context';
 
 import { roomPalette } from './palette';
 import { Curtains, Dust, Floor, Lamp, Plant, Rays, ROOM, RoomWindow, Sill, Veil, WaterGlass } from './room-parts';
+import { WaterReadout } from './water-readout';
 
 /** Share of the screen height the room may use. */
 const MAX_HEIGHT_SHARE = 0.34;
@@ -82,9 +84,17 @@ type Props = {
   /** Milo wears his towel (a workout is done today). */
   towel?: boolean;
   miloCue?: number;
+  /** Settings → "Show water on Milo": today's water fills him up, with a small readout above him. */
+  waterOnMilo?: boolean;
+  /** Bump for a glance at his bowl (Home decides: behind pace, a few times a day). */
+  glanceCue?: number;
+  /** Tapping the readout (opens the water pop-up). */
+  onWaterPress?: () => void;
+  /** Scene Lab: false while setting the level by hand, so a change is not played as a drink. */
+  pourOnRise?: boolean;
 };
 
-export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinutes, waterMl, waterGoalMl, hour, maxHeight, from, miloOverride, miloCue = 0, departCue = 0, onDeparted, onAbandoned, arriveCue = 0, towel = false, cameoCue = 0, cameoKinds = NO_CAMEOS }: Props) {
+export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinutes, waterMl, waterGoalMl, hour, maxHeight, from, miloOverride, miloCue = 0, departCue = 0, onDeparted, onAbandoned, arriveCue = 0, towel = false, cameoCue = 0, cameoKinds = NO_CAMEOS, waterOnMilo = false, glanceCue = 0, onWaterPress, pourOnRise = true }: Props) {
   const { width, height } = useWindowDimensions();
   const { isDark, colors } = useTheme();
   const palette = roomPalette(isDark);
@@ -264,10 +274,38 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
     return () => clearTimeout(t);
   }, [free, next]);
 
+  // ----- water on Milo: held while the room is covered, like the room's own numbers -----
+  // Each rise is one drink (pour, slosh, his reaction); reaching the goal adds a shimmer and his paw lift.
+  const [drinks, setDrinks] = useState({ ml: waterMl, drink: 0, goal: 0 });
+  if (onScreen && drinks.ml !== waterMl) {
+    const rose = pourOnRise && waterMl > drinks.ml;
+    const reached = rose && fillLevel(drinks.ml, waterGoalMl) < 1 && fillLevel(waterMl, waterGoalMl) >= 1;
+    setDrinks({ ml: waterMl, drink: drinks.drink + (rose ? 1 : 0), goal: drinks.goal + (reached ? 1 : 0) });
+  }
+  const [goalPaw, setGoalPaw] = useState(false);
+  const canWave = useRef(false);
+  useEffect(() => {
+    canWave.current = free && (milo === 'sitting' || milo === 'content');
+  });
+  useEffect(() => {
+    if (!drinks.goal || reduced) return;
+    // After the shimmer: his happy paw lift, if he's up and nothing else is going on.
+    const t = setTimeout(() => {
+      if (canWave.current) setGoalPaw(true);
+    }, WATER.pourLand + SPRING.gentle.duration + WATER.goalPose);
+    return () => clearTimeout(t);
+  }, [drinks.goal, reduced]);
+  // Anything else that starts (a cameo, a trip, the Lab, leaving the screen) ends it.
+  if (goalPaw && (playing !== null || travel !== 'none' || miloOverride || !onScreen)) setGoalPaw(false);
+  const water: MiloWater | undefined = waterOnMilo
+    ? { level: fillLevel(drinks.ml, waterGoalMl), from: start.water, drinkCue: drinks.drink, goalCue: drinks.goal, glanceCue }
+    : undefined;
+
   const onSettled = (s: MiloState) => {
     if (s === 'waking') setMilo(moodRef.current);
     if (s === 'arriving') setTravel('none');
     if (playing && s === `cameo-${playing}`) setPlaying(null); // back to what he was doing; the next one follows
+    if (goalPaw && s === 'reacting') setGoalPaw(false);
   };
 
   const roomStyle = useAnimatedStyle(() => ({
@@ -276,9 +314,10 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
   }));
   const stageW = ROOM.w * k;
   const stageStyle = { position: 'absolute' as const, left: (width - stageW) / 2, top: 0, width: stageW, height: ROOM.h * k };
-  const shown: MiloState = miloOverride ?? (travel !== 'none' ? travel : playing ? `cameo-${playing}` : milo);
+  const shown: MiloState = miloOverride ?? (travel !== 'none' ? travel : playing ? `cameo-${playing}` : goalPaw ? 'reacting' : milo);
 
   return (
+    <>
     <Animated.View
       // While the room is away (off to a workout) it isn't read out.
       accessible={travel !== 'departing'}
@@ -307,6 +346,7 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
           onPress={playing ? stopCameos : undefined}
           keepCouch
           towel={towel}
+          water={water}
           size={MILO.size * k}
           style={{ position: 'absolute', left: (MILO.centerX - MILO.size / 2) * k, top: (ROOM.floorY - MILO.groundInStage) * k }}
         />
@@ -318,5 +358,9 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
         <Dust k={k} live={live} reduced={reduced} stage={stage} palette={palette} />
       </View>
     </Animated.View>
+    {water && drinks.ml > 0 && (
+      <WaterReadout ml={drinks.ml} goal={waterGoalMl} k={k} away={trip} fade={fade} lift={ROOM_LIFT} onPress={onWaterPress} />
+    )}
+    </>
   );
 });

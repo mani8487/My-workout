@@ -104,6 +104,35 @@ export const CELEBRATE = {
   land: micro.fast + ARC.jump.rise + ARC.jump.fall,
 } as const;
 
+/**
+ * Water on Milo (Home), in ms from the moment a drink lands: the pour stream,
+ * the level rising, the slosh dying down, bubbles, and Milo's reaction
+ * (ears, a happy blink, a tail flick, a quick lap and lick), staggered.
+ */
+export const WATER = {
+  /** The stream falls from above him into the water (and its tail follows it in). */
+  pour: 550,
+  /** The stream reaches the surface: the level starts rising and the surface starts to slosh. */
+  pourLand: micro.fast,
+  /** The slosh dies away over this long. */
+  slosh: 1500,
+  /** Bubbles drift up through the water. */
+  bubbles: 1400,
+  /** The shimmer that sweeps across him when the goal is reached... */
+  shimmer: 900,
+  /** ...and then his happy paw lift. */
+  goalPose: 700,
+  /** Reaction beats (awake only): ears perk as the water rises, a happy blink, the tail, the lap. */
+  ears: micro.fast + 60,
+  blink: micro.slow,
+  blinkHold: transition.short,
+  tail: 400,
+  lap: 750,
+  /** Glancing at his bowl (behind pace): how long he looks, and the wait after Home appears. */
+  glanceHold: 1400,
+  glanceAfter: 4000,
+} as const;
+
 /** A random range in ms. Ambient motion picks a new value every cycle. */
 export type Range = { readonly min: number; readonly max: number };
 
