@@ -97,12 +97,15 @@ export function RoomReadouts({ water, steps, k, away, fade, lift }: Props) {
   const stepsLeft = water ? centre - waterW / 2 - spacing.xs - stepsW : centre - stepsW / 2;
   // The steps pill's spot: placed directly once both pills are measured (hidden until then), and
   // gliding after that when the water pill comes or goes. -1: not placed yet.
-  const placed = !!steps && stepsW > 0 && (!water || waterW > 0);
+  // (A water pill that has just appeared and isn't measured yet: the steps pill stays put until it is.)
+  const measured = !!steps && stepsW > 0;
+  const waiting = !!water && waterW === 0;
   const stepsX = useSharedValue(-1);
   useEffect(() => {
-    if (!placed) stepsX.set(-1);
+    if (!measured) stepsX.set(-1);
+    else if (waiting) return;
     else stepsX.set(stepsX.get() < 0 ? stepsLeft : withTiming(stepsLeft, { duration: DURATION.transition.short, easing: EASE.inOut }));
-  }, [placed, stepsLeft, stepsX]);
+  }, [measured, waiting, stepsLeft, stepsX]);
   const stepsStyle = useAnimatedStyle(() => ({ left: Math.max(0, stepsX.get()), opacity: stepsX.get() < 0 ? 0 : 1 }));
   return (
     <Animated.View pointerEvents="box-none" style={[{ position: 'absolute', left: 0, right: 0, bottom: (ROOM.h - AT.y) * k - MIN_TAP / 2, height: MIN_TAP }, style]}>
