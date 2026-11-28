@@ -86,15 +86,17 @@ type Props = {
   miloCue?: number;
   /** Settings → "Show water on Milo": today's water fills him up, with a small readout above him. */
   waterOnMilo?: boolean;
-  /** Bump for a glance at his bowl (Home decides: behind pace, a few times a day). */
+  /** Bump to ask for a glance at his bowl (Home decides: behind pace, a few times a day)... */
   glanceCue?: number;
+  /** ...called when he actually takes it (he's sitting, free, and motion is on), so Home can count it. */
+  onGlanced?: () => void;
   /** Tapping the readout (opens the water pop-up). */
   onWaterPress?: () => void;
   /** Scene Lab: false while setting the level by hand, so a change is not played as a drink. */
   pourOnRise?: boolean;
 };
 
-export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinutes, waterMl, waterGoalMl, hour, maxHeight, from, miloOverride, miloCue = 0, departCue = 0, onDeparted, onAbandoned, arriveCue = 0, towel = false, cameoCue = 0, cameoKinds = NO_CAMEOS, waterOnMilo = false, glanceCue = 0, onWaterPress, pourOnRise = true }: Props) {
+export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinutes, waterMl, waterGoalMl, hour, maxHeight, from, miloOverride, miloCue = 0, departCue = 0, onDeparted, onAbandoned, arriveCue = 0, towel = false, cameoCue = 0, cameoKinds = NO_CAMEOS, waterOnMilo = false, glanceCue = 0, onGlanced, onWaterPress, pourOnRise = true }: Props) {
   const { width, height } = useWindowDimensions();
   const { isDark, colors } = useTheme();
   const palette = roomPalette(isDark);
@@ -298,11 +300,24 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
   }, [drinks.goal, reduced]);
   // Anything else that starts (a cameo, a trip, the Lab, leaving the screen) ends it.
   if (goalPaw && (playing !== null || travel !== 'none' || miloOverride || !onScreen)) setGoalPaw(false);
+  // A glance is only passed on when he can take it; otherwise the request is dropped (and not counted).
+  const [glance, setGlance] = useState({ asked: glanceCue, shown: 0 });
+  if (glance.asked !== glanceCue) {
+    const ok = waterOnMilo && !reduced && free && !goalPaw && milo === 'sitting';
+    setGlance({ asked: glanceCue, shown: glance.shown + (ok ? 1 : 0) });
+  }
+  const glancedRef = useRef(onGlanced);
+  useEffect(() => {
+    glancedRef.current = onGlanced;
+  }, [onGlanced]);
+  useEffect(() => {
+    if (glance.shown) glancedRef.current?.();
+  }, [glance.shown]);
   const fillNow = fillLevel(drinks.ml, waterGoalMl);
   // One stable object per change, so Milo's renderer only re-renders when something about the water changed.
   const water = useMemo<MiloWater | undefined>(
-    () => (waterOnMilo ? { level: fillNow, from: start.water, drinkCue: drinks.drink, goalCue: drinks.goal, glanceCue } : undefined),
-    [waterOnMilo, fillNow, start.water, drinks.drink, drinks.goal, glanceCue],
+    () => (waterOnMilo ? { level: fillNow, from: start.water, drinkCue: drinks.drink, goalCue: drinks.goal, glanceCue: glance.shown } : undefined),
+    [waterOnMilo, fillNow, start.water, drinks.drink, drinks.goal, glance.shown],
   );
 
   const onSettled = (s: MiloState) => {

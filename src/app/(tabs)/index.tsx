@@ -312,6 +312,10 @@ export default function HomeScreen() {
   // Behind on water: now and then (at most 3 a day, never in quiet hours) Milo glances at his bowl,
   // a little while after Home appears, when he's sitting up (not with Reduce Motion: no reactions then).
   const [glanceCue, setGlanceCue] = useState(0);
+  const countGlance = useCallback(async () => {
+    const log = readNudgeLog(await getSetting(db, WATER_NUDGE_KEY), todayKey);
+    await setSetting(db, WATER_NUDGE_KEY, JSON.stringify({ day: todayKey, count: log.count + 1, lastAt: Date.now() }));
+  }, [db, todayKey]);
   const reduced = useReducedMotion();
   const nudgeOn = focused && fresh && target?.mood === 'sitting' && !reduced && !!water?.showOnMilo;
   useEffect(() => {
@@ -322,8 +326,7 @@ export default function HomeScreen() {
       const now = new Date();
       const log = readNudgeLog(await getSetting(db, WATER_NUDGE_KEY), todayKey);
       if (cancelled || !mayNudge(waterPace(ml, goal, now).status === 'behind', now, log)) return;
-      await setSetting(db, WATER_NUDGE_KEY, JSON.stringify({ day: todayKey, count: log.count + 1, lastAt: now.getTime() }));
-      if (!cancelled) setGlanceCue((c) => c + 1);
+      setGlanceCue((c) => c + 1); // counted once Milo actually glances (onGlanced)
     }, WATER.glanceAfter);
     return () => {
       cancelled = true;
@@ -558,6 +561,7 @@ export default function HomeScreen() {
               cameoKinds={cameo.kinds}
               waterOnMilo={water.showOnMilo}
               glanceCue={glanceCue}
+              onGlanced={countGlance}
               onWaterPress={() => router.push('/water')}
             />
           )}

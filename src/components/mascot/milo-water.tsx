@@ -56,6 +56,8 @@ export type WaterCtx = {
   bubbles: SharedValue<number>;
   shimmer: SharedValue<number>;
   place: SharedValue<WaterPose>;
+  /** The same, without the head and ears: body and paw layers don't redraw when he flicks an ear. */
+  bodyPlace: SharedValue<WaterPose>;
   reduced: boolean;
 };
 
@@ -151,8 +153,13 @@ export function useWaterMotion(water: MiloWater | undefined, state: MiloState, r
       pour.set(withTiming(1, { duration: WATER.pour, easing: EASE.breathe }));
     }
     const slosh = !busy(slosh1) ? slosh1 : !busy(slosh2) ? slosh2 : slosh1.get() > slosh2.get() ? slosh1 : slosh2;
-    slosh.set(0);
-    slosh.set(withDelay(WATER.pourLand, withTiming(1, { duration: WATER.slosh, easing: EASE.breathe })));
+    if (busy(slosh)) {
+      // Both still moving (a third quick drink): ease the older one back to its swell instead of a jump.
+      slosh.set(withSequence(withTiming(0.1, { duration: micro.fast, easing: EASE.out }), withTiming(1, { duration: WATER.slosh, easing: EASE.breathe })));
+    } else {
+      slosh.set(0);
+      slosh.set(withDelay(WATER.pourLand, withTiming(1, { duration: WATER.slosh, easing: EASE.breathe })));
+    }
     if (!busy(bubbles)) {
       bubbles.set(0);
       bubbles.set(withDelay(WATER.pourLand + micro.fast, withTiming(1, { duration: WATER.bubbles, easing: EASE.breathe })));
@@ -246,11 +253,11 @@ export function useWaterMotion(water: MiloWater | undefined, state: MiloState, r
 }
 
 /** What the water layers read, once there is water (undefined before: Milo draws his usual layers). */
-export function useWaterCtx(wm: ReturnType<typeof useWaterMotion>, place: SharedValue<WaterPose>, reduced: boolean): WaterCtx | undefined {
+export function useWaterCtx(wm: ReturnType<typeof useWaterMotion>, place: SharedValue<WaterPose>, bodyPlace: SharedValue<WaterPose>, reduced: boolean): WaterCtx | undefined {
   const { wet, level, slosh1, slosh2, pour, bubbles, shimmer } = wm;
   return useMemo(
-    () => (wet ? { level, slosh1, slosh2, pour, bubbles, shimmer, place, reduced } : undefined),
-    [wet, level, slosh1, slosh2, pour, bubbles, shimmer, place, reduced],
+    () => (wet ? { level, slosh1, slosh2, pour, bubbles, shimmer, place, bodyPlace, reduced } : undefined),
+    [wet, level, slosh1, slosh2, pour, bubbles, shimmer, place, bodyPlace, reduced],
   );
 }
 
@@ -270,7 +277,7 @@ function FurClip({ shape }: { shape: FurShape }) {
 function Bubble({ name, i, w }: { name: LayerName; i: number; w: WaterCtx }) {
   const frame = FRAME_OF[name] ?? 'body';
   const props = useAnimatedProps(() => {
-    const b = bubbleAt(name, frame, w.place.get(), w.level.get(), i, w.bubbles.get());
+    const b = bubbleAt(name, frame, w.bodyPlace.get(), w.level.get(), i, w.bubbles.get());
     return { cx: b.cx, cy: b.cy, rx: b.r, ry: b.r, opacity: b.opacity };
   });
   return <AnimatedEllipse animatedProps={props} fill={MILO_ART.liquidSurface} fillOpacity={0.55} stroke={MILO_ART.liquidSurface} strokeWidth={0.8} />;
@@ -283,15 +290,16 @@ function Liquid({ name, shape, main, k, w }: { name: LayerName; shape: FurShape;
   const clipId = `fur${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
   // Rebuilt only when the level, the pose or one of his moves, or a slosh changes; never while he just breathes.
   // A body layer that is faded out (lying while he sits, or the other way round) skips the work.
+  const place = frame === 'head' ? w.place : w.bodyPlace;
   const paths = useDerivedValue(() => {
-    const p = w.place.get();
+    const p = place.get();
     if ((name === 'body-lie' && p.q > 0.999) || (name !== 'body-lie' && frame !== 'head' && p.q < 0.001)) return { body: EMPTY_PATH, surface: EMPTY_PATH };
     return waterPaths(name, frame, p, w.level.get(), w.slosh1.get(), w.slosh2.get());
   });
   const bodyProps = useAnimatedProps(() => ({ d: paths.get().body }));
   const surfaceProps = useAnimatedProps(() => ({ d: paths.get().surface }));
-  const pourProps = useAnimatedProps(() => ({ d: w.reduced ? EMPTY_PATH : pourPath(name, frame, w.place.get(), w.level.get(), w.pour.get()) }));
-  const shimmerProps = useAnimatedProps(() => ({ d: w.reduced ? EMPTY_PATH : shimmerPath(name, frame, w.place.get(), w.shimmer.get()) }));
+  const pourProps = useAnimatedProps(() => ({ d: w.reduced ? EMPTY_PATH : pourPath(name, frame, place.get(), w.level.get(), w.pour.get()) }));
+  const shimmerProps = useAnimatedProps(() => ({ d: w.reduced ? EMPTY_PATH : shimmerPath(name, frame, place.get(), w.shimmer.get()) }));
   const bubbly = main && !w.reduced && (name === 'body-sit' || name === 'body-lie');
   return (
     <Svg width={b.w * k} height={b.h * k} viewBox={`0 0 ${b.w} ${b.h}`} style={fill}>
@@ -402,22 +410,25 @@ export function WaterSparkles({ t, k, place }: { t: SharedValue<number>; k: numb
   );
 }
 
-/** Stage units: the stream's view spans the stage height; transforms show just the falling part. */
-const STREAM = { h: 240, w: 4.5 };
+const STREAM_W = 4.5;
+/** The stream fades in over its first few stage units, so it doesn't appear from nowhere. */
+const STREAM_FADE = 14;
 
 /**
  * The visible part of the pour: a thin stream falling from above onto the top of his head (inside him
  * it carries on only faintly, behind his muzzle and chest). Moves with him (it lives in his rig).
  */
 export function PourStream({ ctx, k }: { ctx: WaterCtx; k: number }) {
+  // Height (not a scale) carries the length, so the ends stay round. Only during a pour (about half a second).
   const style = useAnimatedStyle(() => {
-    const s = pourSegment(ctx.level.get(), ctx.place.get().q, ctx.pour.get());
+    const s = pourSegment(ctx.level.get(), ctx.bodyPlace.get().q, ctx.pour.get());
     const bottom = Math.min(s.head, s.headTop + 3);
     const len = bottom - s.tail;
-    if (s.w <= 0 || len <= 0.5) return { opacity: 0, transform: [{ translateX: 0 }, { translateY: 0 }, { scaleX: 1 }, { scaleY: 0.001 }] };
+    if (s.w <= 0 || len <= 0.5) return { opacity: 0, height: 0, transform: [{ translateX: 0 }, { translateY: 0 }, { scaleX: 1 }] };
     return {
-      opacity: 0.8,
-      transform: [{ translateX: (s.x - 120) * k }, { translateY: s.tail * k }, { scaleX: s.w / STREAM.w }, { scaleY: len / STREAM.h }],
+      opacity: 0.8 * Math.min(1, len / STREAM_FADE),
+      height: len * k,
+      transform: [{ translateX: (s.x - 120) * k }, { translateY: s.tail * k }, { scaleX: s.w / STREAM_W }],
     };
   });
   return (
@@ -426,13 +437,11 @@ export function PourStream({ ctx, k }: { ctx: WaterCtx; k: number }) {
       style={[
         {
           position: 'absolute',
-          left: (120 - STREAM.w / 2) * k,
+          left: (120 - STREAM_W / 2) * k,
           top: 0,
-          width: STREAM.w * k,
-          height: STREAM.h * k,
-          borderRadius: (STREAM.w / 2) * k,
+          width: STREAM_W * k,
+          borderRadius: (STREAM_W / 2) * k,
           backgroundColor: MILO_ART.liquid,
-          transformOrigin: 'top',
         },
         style,
       ]}

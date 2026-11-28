@@ -124,6 +124,9 @@ function celebrateJump({ sx, sy, paw, eyes, confetti, jumpY }: CelebrateValues) 
   );
 }
 
+/** The body and paw water ignore the head placement. */
+const NO_HEAD = { dx: 0, dy: 0, rot: 0, scale: 1 };
+
 /** How far the ears and tail trail the body (degrees per stage point of lag). */
 const FOLLOW = { ear: 0.45, tail: 0.5 };
 
@@ -837,7 +840,9 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
     r: earR.get() + earTapR.get() - lag() * FOLLOW.ear + wm.earR.get(),
   }));
   const place = useDerivedValue(() => ({ q: pose.get(), paw: paw.get(), head: headPlace.get(), earL: earTurn.get().l, earR: earTurn.get().r }));
-  const wet: WaterCtx | undefined = useWaterCtx(wm, place, reducedMotion);
+  // Body and paw water only follow the pose and the paw (the head and ears don't move them).
+  const bodyPlace = useDerivedValue(() => ({ q: pose.get(), paw: paw.get(), head: NO_HEAD, earL: 0, earR: 0 }));
+  const wet: WaterCtx | undefined = useWaterCtx(wm, place, bodyPlace, reducedMotion);
 
   const stageStyle = useAnimatedStyle(() => ({ opacity: stageOpacity.get() }));
   const rigStyle = useAnimatedStyle(() => ({
@@ -943,7 +948,7 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
           <Layer name="eyes-open" k={k} style={eyesOpenStyle} />
           <Layer name="eyes-closed" k={k} style={eyesClosedStyle} />
         </Animated.View>
-        {wet && <WaterSparkles t={wm.sparkle} k={k} place={place} />}
+        {wet && <WaterSparkles t={wm.sparkle} k={k} place={bodyPlace} />}
         {wet && !reducedMotion && <PourStream ctx={wet} k={k} />}
       </Animated.View>
 

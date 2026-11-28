@@ -224,7 +224,7 @@ function LabBody({ dark, setDark, motion, setMotion }: { dark: boolean; setDark:
               setWaterMl((m) => Math.min(3000, m + 250));
             }}
           />
-          <Chip label="Glance at bowl" on={false} hint="The behind-pace reminder (Milo must be sitting)" onPress={() => setGlanceCue((c) => c + 1)} />
+          <Chip label="Glance at bowl" on={false} hint="The behind-pace reminder. Milo must be sitting on Auto (10 or more active minutes), not in a picked state" onPress={() => setGlanceCue((c) => c + 1)} />
           <Chip label={waterOnMilo ? 'Shown' : 'Hidden'} on={waterOnMilo} hint="The Show water on Milo setting" onPress={() => setWaterOnMilo((v) => !v)} />
         </Row>
         <LabSlider label={`Time of day: ${clock(hour)}`} value={hour} min={0} max={23.5} step={0.5} onChange={setHour} />

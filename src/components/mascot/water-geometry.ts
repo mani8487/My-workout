@@ -207,17 +207,26 @@ export function waterPaths(name: LayerName, frame: WaterFrame, p: WaterPose, lev
  * surface, then its tail follows it in. Returns where it is: x, the top and bottom of the stream, and
  * how far down his head starts (the stream shows above that, and only faintly inside him).
  */
-export function pourSegment(level: number, q: number, t: number): { x: number; tail: number; head: number; headTop: number; w: number } {
+export function pourSegment(level: number, q: number, t: number): { x: number; tail: number; head: number; inner: number; headTop: number; w: number } {
   'worklet';
   const x = POUR.lie.x + (POUR.sit.x - POUR.lie.x) * q;
   const headTop = POUR.lie.head + (POUR.sit.head - POUR.lie.head) * q;
-  if (t <= 0 || t >= 1) return { x, tail: 0, head: 0, headTop, w: 0 };
+  if (t <= 0 || t >= 1) return { x, tail: 0, head: 0, inner: 0, headTop, w: 0 };
   const line = waterLine(level, q) + 2;
+  // Outside, the stream always lands on his head (when he's nearly full, the water line is above it).
+  const land = Math.max(line, headTop + 3);
   const fall = Math.min(1, t / 0.35);
-  const head = POUR.top + (line - POUR.top) * (1 - (1 - fall) * (1 - fall)); // speeds up as it falls
+  const reach = 1 - (1 - fall) * (1 - fall); // speeds up as it falls
   const tailT = Math.max(0, (t - 0.65) / 0.35);
-  const tail = POUR.top + (line - POUR.top) * tailT * tailT;
-  return { x, tail, head, headTop, w: POUR.w * (1 - 0.4 * tailT) };
+  const tail = POUR.top + (land - POUR.top) * tailT * tailT;
+  return {
+    x,
+    tail,
+    head: POUR.top + (land - POUR.top) * reach,
+    inner: POUR.top + (line - POUR.top) * reach, // inside him it goes on down to the surface
+    headTop,
+    w: POUR.w * (1 - 0.4 * tailT),
+  };
 }
 
 /** The part of the pour inside a layer (clipped by its fur): faint, mostly behind the muzzle and chest. */
@@ -225,12 +234,12 @@ export function pourPath(name: LayerName, frame: WaterFrame, p: WaterPose, level
   'worklet';
   const s = pourSegment(level, p.q, t);
   const top = Math.max(s.tail, s.headTop - 4);
-  if (s.w <= 0 || s.head - top < 1) return EMPTY_PATH;
+  if (s.w <= 0 || s.inner - top < 1) return EMPTY_PATH;
   return polygon(name, frame, p, [
     [s.x - s.w / 2, top],
     [s.x + s.w / 2, top],
-    [s.x + s.w / 2, s.head],
-    [s.x - s.w / 2, s.head],
+    [s.x + s.w / 2, s.inner],
+    [s.x - s.w / 2, s.inner],
   ]);
 }
 
