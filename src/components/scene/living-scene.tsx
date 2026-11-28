@@ -1,9 +1,9 @@
 /**
  * <LivingScene />: the Living Home room. The room itself shows today's
  * progress (see logic/scene-state.ts): light, curtains, lamp, dust and Milo's
- * mood follow active minutes; the glass on the sill follows water.
+ * mood follow active minutes; water shows inside Milo.
  *
- * Changes never snap: `stage` and `level` spring from the old value to the new
+ * Changes never snap: `stage` springs from the old value to the new
  * one on the UI thread. On mount, the room catches up from `from` (what was on
  * screen last time today) to now. Milo wakes with his full waking move when
  * the room passes "awake", and lies back down if it goes the other way.
@@ -31,7 +31,7 @@ import { daylight, describeScene, dimness, moodOfStage, sceneTarget, warmth, typ
 import { useTheme } from '@/theme/theme-context';
 
 import { roomPalette } from './palette';
-import { Curtains, Dust, Floor, Lamp, Plant, Rays, ROOM, RoomWindow, Sill, Veil, WaterGlass } from './room-parts';
+import { Curtains, Dust, Floor, Lamp, Plant, Rays, ROOM, RoomWindow, Sill, Veil } from './room-parts';
 import { WaterReadout } from './water-readout';
 
 /** Share of the screen height the room may use. */
@@ -98,7 +98,7 @@ type Props = {
 
 export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinutes, waterMl, waterGoalMl, hour, maxHeight, from, miloOverride, miloCue = 0, departCue = 0, onDeparted, onAbandoned, arriveCue = 0, towel = false, cameoCue = 0, cameoKinds = NO_CAMEOS, waterOnMilo = false, glanceCue = 0, onGlanced, onWaterPress, pourOnRise = true }: Props) {
   const { width, height } = useWindowDimensions();
-  const { isDark, colors } = useTheme();
+  const { isDark } = useTheme();
   const palette = roomPalette(isDark);
   const reduced = useReducedMotion();
   const onScreen = useMotionActive();
@@ -121,13 +121,12 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
   const [start] = useState(() => from ?? { stage: target.stage, water: target.water });
 
   const stage = useSharedValue(start.stage);
-  const level = useSharedValue(start.water);
   const day = useSharedValue(daylight(hour));
   const fade = useSharedValue(1); // Reduce Motion: the room dips to swap states unseen
   const cool = useDerivedValue(() => dimness(stage.get()));
   const warm = useDerivedValue(() => warmth(stage.get()));
   const trip = useSharedValue(0); // 0 = the room is here, 1 = it has eased up and out (off to a workout)
-  useEffect(() => () => [stage, level, day, fade, fit, trip].forEach((v) => cancelAnimation(v)), [stage, level, day, fade, fit, trip]);
+  useEffect(() => () => [stage, day, fade, fit, trip].forEach((v) => cancelAnimation(v)), [stage, day, fade, fit, trip]);
 
   // ----- leaving for a workout, and coming back -----
   type Travel = 'none' | 'departing' | 'arriving';
@@ -216,7 +215,7 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
     const catchUp = first.current;
     first.current = false;
     if (reduced) {
-      if (Math.abs(stage.get() - target.stage) < 0.001 && Math.abs(level.get() - target.water) < 0.001) return;
+      if (Math.abs(stage.get() - target.stage) < 0.001) return;
       // These fades are the Reduce Motion alternative, so they always play (ReduceMotion.Never).
       fade.set(
         withSequence(
@@ -227,19 +226,16 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
       );
       const swap = (to: number) => withDelay(DURATION.micro.fast, withTiming(to, { duration: 0, reduceMotion: NEVER }), NEVER);
       stage.set(swap(target.stage));
-      level.set(swap(target.water));
       return;
     }
     if (catchUp) {
       // Coming back: a short, calm catch-up from what you last saw.
       const ease = { duration: DURATION.transition.long, easing: EASE.inOut };
       stage.set(withDelay(DURATION.micro.slow, withTiming(target.stage, ease)));
-      level.set(withDelay(DURATION.micro.slow + DURATION.micro.fast, withTiming(target.water, ease)));
     } else {
       stage.set(withSpring(target.stage, SPRING.gentle));
-      level.set(withDelay(DURATION.micro.fast, withSpring(target.water, SPRING.gentle)));
     }
-  }, [target.stage, target.water, reduced, onScreen, stage, level, fade]);
+  }, [target.stage, reduced, onScreen, stage, fade]);
 
   useEffect(() => {
     day.set(withTiming(daylight(hour), { duration: DURATION.transition.long, easing: EASE.inOut }));
@@ -354,7 +350,6 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
         <RoomWindow k={k} day={day} palette={palette} />
         <Curtains k={k} live={live} stage={stage} palette={palette} />
         <Sill k={k} palette={palette} />
-        <WaterGlass k={k} level={level} water={colors.water} palette={palette} />
         <Plant k={k} live={live} palette={palette} />
         <Lamp k={k} live={live} stage={stage} day={day} palette={palette} />
         <Milo

@@ -21,7 +21,6 @@ import { clearOf, type RoomPalette } from './palette';
 export const ROOM = { w: 360, h: 240, floorY: 226 } as const;
 const WIN = { x: 34, y: 14, w: 100, h: 104 } as const;
 const SILL = { x: WIN.x - 8, y: WIN.y + WIN.h, w: WIN.w + 16, h: 6 } as const;
-const GLASS = { x: WIN.x + WIN.w - 24, w: 18, h: 26 } as const;
 const LAMP = { x: 304, w: 44 } as const;
 const PLANT = { x: 4, w: 56, h: 80 } as const;
 
@@ -144,33 +143,6 @@ export const Curtains = memo(function Curtains(props: Live & { stage: SharedValu
         style={[box(WIN.x - 14, WIN.y - 9, WIN.w + 28, 4, props.k), { backgroundColor: props.palette.rod, borderRadius: 2 * props.k }]}
       />
     </>
-  );
-});
-
-// ---------- water glass on the sill ----------
-
-export const WaterGlass = memo(function WaterGlass({ k, level, water, palette }: { k: number; level: SharedValue<number>; water: string; palette: RoomPalette }) {
-  const inner = GLASS.h - 3;
-  const fill = useAnimatedStyle(() => ({ transform: [{ translateY: (1 - level.get()) * inner * k }] }));
-  return (
-    <View
-      pointerEvents="none"
-      style={[
-        box(GLASS.x, SILL.y - GLASS.h, GLASS.w, GLASS.h, k),
-        {
-          overflow: 'hidden',
-          backgroundColor: palette.glass,
-          borderWidth: 1.5 * k,
-          borderTopWidth: 0,
-          borderColor: palette.glassEdge,
-          borderBottomLeftRadius: 4 * k,
-          borderBottomRightRadius: 4 * k,
-        },
-      ]}>
-      <Animated.View style={[{ position: 'absolute', left: 0, right: 0, bottom: 0, height: inner * k, backgroundColor: water, opacity: 0.85 }, fill]}>
-        <View style={{ height: 1.5 * k, backgroundColor: palette.glass }} />
-      </Animated.View>
-    </View>
   );
 });
 

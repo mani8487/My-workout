@@ -23,8 +23,6 @@ export type RoomPalette = {
   leafDeep: string;
   pot: string;
   potRim: string;
-  glass: string;
-  glassEdge: string;
   dust: string;
 };
 
@@ -48,8 +46,6 @@ const light: RoomPalette = {
   leafDeep: '#5F9C7E',
   pot: '#D8B49B',
   potRim: '#C79F84',
-  glass: 'rgba(255,255,255,0.6)',
-  glassEdge: '#9DAEC1',
   dust: '#FFF1CC',
 };
 
@@ -73,8 +69,6 @@ const dark: RoomPalette = {
   leafDeep: '#467A62',
   pot: '#8E705E',
   potRim: '#7A5E4E',
-  glass: 'rgba(255,255,255,0.1)',
-  glassEdge: '#5D6E83',
   dust: '#FFE6B8',
 };
 
