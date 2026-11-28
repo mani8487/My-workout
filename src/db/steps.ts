@@ -112,11 +112,16 @@ function publish(d: StepsToday) {
   current = d;
   listeners.forEach((l) => l(d));
 }
-/** A fresh read never shows fewer steps than were already shown today (the sensor's history can lag live counts). */
-function publishLoaded(d: StepsToday) {
+/**
+ * A fresh read never shows fewer steps, or less energy, than were already shown today (the sensor's
+ * history can lag live counts); a higher energy kept this way is saved too.
+ */
+function publishLoaded(d: StepsToday, db: SQLiteDatabase) {
   const c = current;
-  if (c && c.day === d.day && c.status === 'ok' && d.status === 'ok') publish({ ...d, steps: Math.max(d.steps, c.steps), energy: Math.max(d.energy, c.energy) });
-  else publish(d);
+  if (!c || c.day !== d.day || c.status !== 'ok' || d.status !== 'ok') return publish(d);
+  const energy = Math.max(d.energy, c.energy);
+  if (energy > d.energy) setSetting(db, ENERGY_KEY, JSON.stringify({ day: d.day, value: energy })).catch(() => {});
+  publish({ ...d, steps: Math.max(d.steps, c.steps), energy });
 }
 
 let loading: Promise<void> | null = null;
@@ -128,7 +133,7 @@ function reload(db: SQLiteDatabase) {
     return;
   }
   loading = loadSteps(db)
-    .then(publishLoaded)
+    .then((d) => publishLoaded(d, db))
     .catch(() => {})
     .finally(() => {
       loading = null;

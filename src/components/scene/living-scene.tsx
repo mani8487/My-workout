@@ -352,7 +352,8 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
   // It waits while something else has Milo (a trip back from a workout, a cameo, the Lab, waking up, the
   // screen covered); once it has started, any of those ends it.
   const replayBlocked = !onScreen || travel !== 'none' || !!miloOverride || playing !== null || reduced;
-  if (steps && steps.replay.length > 0 && steps.replay !== taken && !replay && !replayBlocked) {
+  const replayWaiting = !!steps && steps.replay.length > 0 && steps.replay !== taken;
+  if (replayWaiting && !replay && !replayBlocked) {
     setTaken(steps.replay);
     setReplay({ parts: steps.replay, at: -1 });
   }
@@ -393,7 +394,8 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
     setMilestoneSeen(steps.milestoneCue);
     if (!reduced) setCheerAsked(true);
   }
-  if (cheerAsked && strideFree && !replay && gaitAsked === 0 && !goalPaw) {
+  // (A replay waiting to be handed over plays first.)
+  if (cheerAsked && strideFree && !replay && !replayWaiting && gaitAsked === 0 && !goalPaw) {
     setCheerAsked(false);
     // Straight from his stride (he's up already), or when he's sitting; never by melting up from his
     // couch (asleep, the badge on the readout is the news).

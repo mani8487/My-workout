@@ -8,15 +8,15 @@
  * itself when there's no water yet) and glides when the water pill comes or goes.
  */
 import { SymbolView, type SFSymbol } from 'expo-symbols';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useWindowDimensions, View } from 'react-native';
-import Animated, { FadeIn, FadeOut, LinearTransition, useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut, useAnimatedStyle, useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated';
 
 import { AppText } from '@/components/app-text';
 import { PressableScale } from '@/components/pressable-scale';
 import { MILO_ART } from '@/components/mascot/palette';
 import { badgeLabel, fmtSteps } from '@/logic/milo-steps';
-import { DURATION } from '@/motion';
+import { DURATION, EASE } from '@/motion';
 import { useTheme } from '@/theme/theme-context';
 import { MIN_TAP, radius, spacing } from '@/theme/typography';
 
@@ -95,13 +95,19 @@ export function RoomReadouts({ water, steps, k, away, fade, lift }: Props) {
   }));
   const centre = (width - ROOM.w * k) / 2 + AT.x * k;
   const stepsLeft = water ? centre - waterW / 2 - spacing.xs - stepsW : centre - stepsW / 2;
+  // The steps pill's spot: placed directly once both pills are measured (hidden until then), and
+  // gliding after that when the water pill comes or goes. -1: not placed yet.
+  const placed = !!steps && stepsW > 0 && (!water || waterW > 0);
+  const stepsX = useSharedValue(-1);
+  useEffect(() => {
+    if (!placed) stepsX.set(-1);
+    else stepsX.set(stepsX.get() < 0 ? stepsLeft : withTiming(stepsLeft, { duration: DURATION.transition.short, easing: EASE.inOut }));
+  }, [placed, stepsLeft, stepsX]);
+  const stepsStyle = useAnimatedStyle(() => ({ left: Math.max(0, stepsX.get()), opacity: stepsX.get() < 0 ? 0 : 1 }));
   return (
     <Animated.View pointerEvents="box-none" style={[{ position: 'absolute', left: 0, right: 0, bottom: (ROOM.h - AT.y) * k - MIN_TAP / 2, height: MIN_TAP }, style]}>
       {steps && (
-        <Animated.View
-          layout={LinearTransition.duration(DURATION.transition.short)}
-          // Shown once measured, so it never flashes in the wrong spot.
-          style={{ position: 'absolute', bottom: 0, left: stepsLeft, opacity: stepsW > 0 && (!water || waterW > 0) ? 1 : 0 }}>
+        <Animated.View style={[{ position: 'absolute', bottom: 0 }, stepsStyle]}>
           <Pill
           icon="figure.walk"
           tint={colors.accent}
