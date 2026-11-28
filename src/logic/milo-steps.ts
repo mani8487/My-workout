@@ -50,6 +50,21 @@ export function gaitOf(spm: number): Gait {
   return spm >= CADENCE.runFrom ? 'run' : 'walk';
 }
 
+/**
+ * Live gait bands. The live cadence wobbles by about 10 steps a minute, so a gait
+ * starts at one value and only ends below a lower one: a brisk walk near 130
+ * doesn't flip between trot and run every few seconds.
+ */
+export const LIVE_GAIT = { walkOn: CADENCE.walkFrom, walkOff: 15, runOn: 135, runOff: 125 } as const;
+
+/** The next live gait for a new cadence reading, given the current one. */
+export function nextGait(prev: Gait, spm: number): Gait {
+  if (!(spm >= 0)) return 'idle';
+  const G = LIVE_GAIT;
+  if (spm >= (prev === 'run' ? G.runOff : G.runOn)) return 'run';
+  return spm >= (prev === 'idle' ? G.walkOn : G.walkOff) ? 'walk' : 'idle';
+}
+
 /** Milo's renderer reads gaits as numbers: 0 idle, 1 trot, 2 run. */
 export function gaitLevel(g: Gait): number {
   return g === 'idle' ? 0 : g === 'walk' ? 1 : 2;

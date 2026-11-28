@@ -82,6 +82,8 @@ const ROOM_MIN_HEIGHT = 170;
 const STREAK_LOOKBACK_DAYS = 120;
 /** Settings key: the id of Milo's last line, so the next visit never repeats it. */
 const MILO_LINE_KEY = 'milo_last_line';
+/** Milo Steps: while you walk with Home open, what Home has shown is saved at most this often. */
+const SEEN_SAVE_MS = 60_000;
 
 type HomeData = {
   name: string | null;
@@ -127,7 +129,7 @@ export default function HomeScreen() {
   // Milo Steps: today's steps (null until read, or for another day), and the live cadence while Home is in view.
   const stepsToday = useStepsToday();
   const steps = stepsToday?.status === 'ok' ? stepsToday : null;
-  const cadence = useLiveSteps(useMotionActive() && !!steps);
+  const liveGait = useLiveSteps(useMotionActive() && !!steps);
 
   // A new day (midnight, or the app waking on a new day): move "today" along with it.
   const prevToday = useRef(todayKey);
@@ -359,10 +361,16 @@ export default function HomeScreen() {
 
   // Milo Steps: after each fresh read (opening Home, coming back to the app), replay what you did since you
   // last looked; on any rise, celebrate milestones crossed. What Home has shown is remembered (STEPS_SEEN_KEY).
-  const [stepsReplay, setStepsReplay] = useState<{ cue: number; plan: readonly ReplayPart[]; line: string | null }>({ cue: 0, plan: [], line: null });
+  const [stepsReplay, setStepsReplay] = useState<{ plan: readonly ReplayPart[]; line: string | null }>({ plan: [], line: null });
   const [milestoneCue, setMilestoneCue] = useState(0);
   const seenSteps = useRef<StepsSeen | null | undefined>(undefined); // undefined: not read yet
   const replayedFor = useRef(0);
+  const seenSavedAt = useRef(0);
+  const saveSeen = useCallback(() => {
+    if (!seenSteps.current) return;
+    seenSavedAt.current = Date.now();
+    setSetting(db, STEPS_SEEN_KEY, JSON.stringify(seenSteps.current)).catch(() => {});
+  }, [db]);
   useEffect(() => {
     if (!focused || !steps) return;
     let cancelled = false;
@@ -374,18 +382,23 @@ export default function HomeScreen() {
       if (cancelled) return;
       const seen = seenSteps.current?.day === steps.day ? seenSteps.current : null;
       const before = seen?.steps ?? 0;
-      if (replayedFor.current !== steps.loadedAt) {
+      const freshRead = replayedFor.current !== steps.loadedAt;
+      // Old numbers shown again (Home back in view before the new read lands): nothing to do yet.
+      if (!freshRead && steps.steps <= before) return;
+      if (freshRead) {
         replayedFor.current = steps.loadedAt;
         const dayStart = new Date();
         dayStart.setHours(0, 0, 0, 0);
         const since = steps.slices.slice(sliceIndex(seen?.at ?? dayStart.getTime(), dayStart.getTime()));
         const plan = replayPlan(since);
         if (steps.steps - before >= REPLAY.minSteps && plan.length > 0)
-          setStepsReplay((r) => ({ cue: r.cue + 1, plan, line: replayLine(steps.steps - before, since) }));
+          setStepsReplay({ plan, line: replayLine(steps.steps - before, since) });
       }
       if (milestonesCrossed(before, steps.steps).length > 0) setMilestoneCue((c) => c + 1);
-      seenSteps.current = { day: steps.day, steps: steps.steps, at: Date.now() };
-      setSetting(db, STEPS_SEEN_KEY, JSON.stringify(seenSteps.current)).catch(() => {});
+      // Seen up to when these numbers were read (a fresh read), or now (live steps); never fewer steps.
+      seenSteps.current = { day: steps.day, steps: Math.max(before, steps.steps), at: freshRead ? steps.loadedAt : Date.now() };
+      // Saved on each fresh read, and at most once a minute while walking (and when Home leaves view).
+      if (freshRead || Date.now() - seenSavedAt.current > SEEN_SAVE_MS) saveSeen();
     })();
     return () => {
       cancelled = true;
@@ -393,24 +406,27 @@ export default function HomeScreen() {
     // Runs for each new count and each fresh read while Home is in view.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [db, focused, steps?.steps, steps?.loadedAt, steps?.day]);
-  // The replay's line shows for this visit only.
+  // The replay's line shows for this visit only; what Home showed is saved as it leaves view.
   useFocusEffect(
     useCallback(
       () => () => {
         setStepsReplay((r) => (r.line ? { ...r, line: null } : r));
+        saveSeen();
       },
-      [],
+      [saveSeen],
     ),
   );
+  // Once the replay starts, it's done (a rebuilt room doesn't play it again).
+  const replayed = useCallback(() => setStepsReplay((r) => ({ ...r, plan: [] })), []);
   const openSteps = useCallback(() => router.push('/steps'), []);
   const sceneSteps: SceneSteps | undefined = steps
     ? {
         count: steps.steps,
-        cadence,
+        gait: liveGait,
         energy: steps.energy,
         badge: badgeOf(steps.steps),
-        replayCue: stepsReplay.cue,
         replay: stepsReplay.plan,
+        onReplayed: replayed,
         milestoneCue,
         onPress: openSteps,
       }

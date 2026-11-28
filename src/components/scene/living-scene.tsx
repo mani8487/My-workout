@@ -31,7 +31,7 @@ import { Milo, type MiloState, type MiloWater } from '@/components/mascot';
 import { CAMEO, DURATION, EASE, SPRING, STRIDE, TRIP, WATER, useMotionActive, useReducedMotion } from '@/motion';
 import { enqueueCameos, type CameoKind } from '@/logic/cameo';
 import { fillLevel } from '@/logic/hydration-layers';
-import { gaitLevel, gaitOf, type ReplayPart } from '@/logic/milo-steps';
+import { gaitLevel, type ReplayPart } from '@/logic/milo-steps';
 import { daylight, describeScene, dimness, moodOfStage, sceneTarget, warmth, type Mood } from '@/logic/scene-state';
 import { useTheme } from '@/theme/theme-context';
 
@@ -60,15 +60,16 @@ const CAMEO_WORDS: Record<CameoKind, string> = {
 export type SceneSteps = {
   /** Today's steps (the readout). */
   count: number;
-  /** Live steps per minute (0 when you're still). */
-  cadence: number;
+  /** Your live gait: 0 still, 1 walking, 2 running. */
+  gait: number;
   /** 0–100: livelier idle moves. */
   energy: number;
   /** The highest milestone reached today (the readout's badge). */
   badge: number | null;
-  /** Bump to play a replay of `replay` (what you did since you last looked). */
-  replayCue: number;
+  /** A replay waiting to play (what you did since you last looked); empty for none. It plays once
+   *  Milo is free, and `onReplayed` is called as it starts (pass a new array for the next one). */
   replay: readonly ReplayPart[];
+  onReplayed?: () => void;
   /** Bump when a step milestone is crossed: a short celebration. */
   milestoneCue: number;
   /** Tapping the readout (opens the steps sheet). */
@@ -346,16 +347,27 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
   // The replay: trot, then run, matching the day, then settle. Tap Milo to skip it.
   type Replay = { parts: readonly ReplayPart[]; at: number }; // at: the part playing (-1: waiting to start)
   const [replay, setReplay] = useState<Replay | null>(null);
-  const [replaySeen, setReplaySeen] = useState(steps?.replayCue ?? 0);
+  const [taken, setTaken] = useState<readonly ReplayPart[] | null>(null);
   const strideFree = free && !reduced;
-  // Anything else that starts (a cameo, a trip, the Lab, leaving the screen, Reduce Motion) ends it;
-  // while he's still waking up it just waits.
+  // It waits while something else has Milo (a trip back from a workout, a cameo, the Lab, waking up, the
+  // screen covered); once it has started, any of those ends it.
   const replayBlocked = !onScreen || travel !== 'none' || !!miloOverride || playing !== null || reduced;
-  if (steps && replaySeen !== steps.replayCue) {
-    setReplaySeen(steps.replayCue);
-    if (!replayBlocked && steps.replay.length > 0) setReplay({ parts: steps.replay, at: -1 });
+  if (steps && steps.replay.length > 0 && steps.replay !== taken && !replay && !replayBlocked) {
+    setTaken(steps.replay);
+    setReplay({ parts: steps.replay, at: -1 });
   }
-  if (replay && replayBlocked) setReplay(null);
+  if (replay && replayBlocked) {
+    setReplay(null);
+    if (replay.at < 0) setTaken(null); // not started yet: it plays when he's free again
+  }
+  const replayedRef = useRef(steps?.onReplayed);
+  useEffect(() => {
+    replayedRef.current = steps?.onReplayed;
+  });
+  const replayStarted = replay !== null && replay.at === 0;
+  useEffect(() => {
+    if (replayStarted) replayedRef.current?.();
+  }, [replayStarted]);
   useEffect(() => {
     if (!replay || !strideFree) return;
     const wait = replay.at < 0 ? STRIDE.replayAfter : replay.parts[replay.at].ms;
@@ -364,7 +376,7 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
   }, [replay, strideFree]);
   const replayGait = replay && replay.at >= 0 ? gaitLevel(replay.parts[replay.at].gait) : 0;
   // The gait he's asked for: the replay's, or yours right now.
-  const gaitAsked = !steps || !strideFree ? 0 : replay ? replayGait : gaitLevel(gaitOf(steps.cadence));
+  const gaitAsked = !steps || !strideFree ? 0 : replay ? replayGait : steps.gait;
   // He keeps striding a beat after you stop, while the stride eases out, then goes back to what he was doing.
   const [striding, setStriding] = useState(false);
   if (gaitAsked > 0 && !striding) setStriding(true);
@@ -381,9 +393,14 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
     setMilestoneSeen(steps.milestoneCue);
     if (!reduced) setCheerAsked(true);
   }
-  if (cheerAsked && strideFree && !replay && !striding && !goalPaw) {
+  if (cheerAsked && strideFree && !replay && gaitAsked === 0 && !goalPaw) {
     setCheerAsked(false);
-    setCheer(true);
+    // Straight from his stride (he's up already), or when he's sitting; never by melting up from his
+    // couch (asleep, the badge on the readout is the news).
+    if (striding || !lyingDown(milo)) {
+      setCheer(true);
+      setStriding(false);
+    }
   }
   if (cheer && !strideFree) setCheer(false);
   useEffect(() => {

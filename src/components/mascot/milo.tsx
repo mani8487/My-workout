@@ -34,7 +34,7 @@ const DESCRIPTION: Record<MiloState, string> = {
   'cameo-walk': 'Milo the cat walks on the spot',
   'cameo-run': 'Milo the cat runs on the spot',
   'cameo-squat': 'Milo the cat does squats',
-  striding: 'Milo the cat trots along with you',
+  striding: 'Milo the cat trots or runs along with you',
 };
 
 type Props = {

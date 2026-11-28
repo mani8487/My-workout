@@ -22,9 +22,12 @@ import {
   cadenceOf,
   energyOf,
   energyToday,
+  gaitLevel,
+  nextGait,
   readSlices,
   sliceIndex,
   trimSamples,
+  type Gait,
   type StepSample,
 } from '@/logic/milo-steps';
 import { useTodayKey } from '@/logic/use-today';
@@ -70,7 +73,7 @@ const empty = (enabled: boolean, status: StepsStatus, day: string, activeMinutes
 });
 
 /** Reads today: the total, the 5-minute slices (only the ones not cached yet), and the energy. */
-async function loadSteps(db: SQLiteDatabase, ask: boolean): Promise<StepsToday> {
+async function loadSteps(db: SQLiteDatabase): Promise<StepsToday> {
   const now = new Date();
   const from = dayStartOf(now);
   const day = dayKeyOf(new Date(from));
@@ -78,8 +81,8 @@ async function loadSteps(db: SQLiteDatabase, ask: boolean): Promise<StepsToday> 
   const activeMinutes = await getActiveMinutesBetween(db, from, from + 86_400_000);
   if (!(await stepSource.isAvailable())) return empty(true, 'unavailable', day, activeMinutes);
   let perm = await stepSource.permission().catch(() => 'denied' as const);
-  if (perm === 'undetermined' && ask) perm = await stepSource.requestPermission().catch(() => 'denied' as const);
-  if (perm !== 'granted') return empty(true, perm === 'undetermined' ? 'denied' : perm, day, activeMinutes);
+  if (perm === 'undetermined') perm = await stepSource.requestPermission().catch(() => 'denied' as const);
+  if (perm !== 'granted') return empty(true, 'denied', day, activeMinutes);
 
   // Slices: keep the cached ones, re-read the last (it was still filling), read the rest.
   const cached = readSlices(await getSetting(db, STEPS_SLICES_KEY), day);
@@ -109,30 +112,36 @@ function publish(d: StepsToday) {
   current = d;
   listeners.forEach((l) => l(d));
 }
+/** A fresh read never shows fewer steps than were already shown today (the sensor's history can lag live counts). */
+function publishLoaded(d: StepsToday) {
+  const c = current;
+  if (c && c.day === d.day && c.status === 'ok' && d.status === 'ok') publish({ ...d, steps: Math.max(d.steps, c.steps), energy: Math.max(d.energy, c.energy) });
+  else publish(d);
+}
 
 let loading: Promise<void> | null = null;
 let again = false;
 /** Loads (one at a time; a request during a load runs once more after it). */
-function reload(db: SQLiteDatabase, ask: boolean) {
+function reload(db: SQLiteDatabase) {
   if (loading) {
     again = true;
     return;
   }
-  loading = loadSteps(db, ask)
-    .then(publish)
+  loading = loadSteps(db)
+    .then(publishLoaded)
     .catch(() => {})
     .finally(() => {
       loading = null;
       if (again) {
         again = false;
-        reload(db, ask);
+        reload(db);
       }
     });
 }
 
 /** Ask every steps view to reload (e.g. after the setting changes). */
 export function refreshSteps(db: SQLiteDatabase) {
-  reload(db, true);
+  reload(db);
 }
 
 /** Live steps arriving while Home is open: added to today's total (and the energy follows). */
@@ -141,7 +150,8 @@ function addLiveSteps(n: number, db: SQLiteDatabase) {
   if (!d || d.status !== 'ok' || n <= 0) return;
   const steps = d.steps + n;
   const energy = Math.max(d.energy, energyOf(steps, d.activeMinutes));
-  if (energy !== d.energy) setSetting(db, ENERGY_KEY, JSON.stringify({ day: d.day, value: energy })).catch(() => {});
+  // Saved every 5 points while walking (not on every step); a fresh read saves it exactly.
+  if (Math.floor(energy / 5) !== Math.floor(d.energy / 5)) setSetting(db, ENERGY_KEY, JSON.stringify({ day: d.day, value: energy })).catch(() => {});
   publish({ ...d, steps, energy });
 }
 
@@ -155,8 +165,14 @@ export function useStepsToday(): StepsToday | null {
       listeners.delete(setData);
     };
   }, []);
-  const load = useCallback(() => reload(db, true), [db]);
-  useEffect(load, [load, today]);
+  const load = useCallback(() => reload(db), [db]);
+  // A new day reloads (the first load comes from the screen coming into view).
+  const lastDay = useRef(today);
+  useEffect(() => {
+    if (lastDay.current === today) return;
+    lastDay.current = today;
+    load();
+  }, [load, today]);
   useEffect(() => {
     let last = AppState.currentState;
     const sub = AppState.addEventListener('change', (s) => {
@@ -174,14 +190,15 @@ export function useStepsToday(): StepsToday | null {
 const RECHECK_MS = 2_500;
 
 /**
- * Live cadence (steps per minute) while `on` (Home in view, app active, the
- * setting on). Steps arrive from the sensor every few seconds while you walk;
- * after the last one the cadence is checked a few more times until it reaches
- * 0, then nothing runs until the next step.
+ * Your live gait (0 still, 1 walk, 2 run) while `on` (Home in view, app active,
+ * the setting on), from the cadence over the last 10 s. Steps arrive from the
+ * sensor every few seconds while you walk; after the last one the cadence is
+ * checked a few more times until it reaches 0, then nothing runs until the
+ * next step. Only a change of gait re-renders.
  */
 export function useLiveSteps(on: boolean): number {
   const db = useSQLiteContext();
-  const [cadence, setCadence] = useState(0);
+  const [gait, setGait] = useState<Gait>('idle');
   const samples = useRef<StepSample[]>([]);
   useEffect(() => {
     if (!on) return;
@@ -193,7 +210,7 @@ export function useLiveSteps(on: boolean): number {
       const now = Date.now();
       samples.current = trimSamples(samples.current, now);
       const spm = cadenceOf(samples.current, now);
-      setCadence(spm);
+      setGait((g) => nextGait(g, spm));
       clearTimeout(timer);
       if (spm > 0) timer = setTimeout(measure, RECHECK_MS);
     };
@@ -206,8 +223,8 @@ export function useLiveSteps(on: boolean): number {
     return () => {
       stop();
       clearTimeout(timer);
-      setCadence(0); // the next watch starts from still
+      setGait('idle'); // the next watch starts from still
     };
   }, [on, db]);
-  return on ? cadence : 0;
+  return on ? gaitLevel(gait) : 0;
 }

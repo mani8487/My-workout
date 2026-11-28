@@ -3,11 +3,14 @@
  * there's water in him) and, with Milo Steps on, today's steps ("4,230", with
  * a badge once a milestone is reached). Tap one for its pop-up. They sit in
  * the room's coordinates, measured from the bottom of the room (the room is
- * laid out at the bottom of its space), side by side and centred above Milo.
+ * laid out at the bottom of its space). The water pill keeps its own spot,
+ * centred above Milo; the steps pill sits just to its left (centred there
+ * itself when there's no water yet) and glides when the water pill comes or goes.
  */
 import { SymbolView, type SFSymbol } from 'expo-symbols';
+import { useState } from 'react';
 import { useWindowDimensions, View } from 'react-native';
-import Animated, { FadeIn, FadeOut, useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut, LinearTransition, useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
 
 import { AppText } from '@/components/app-text';
 import { PressableScale } from '@/components/pressable-scale';
@@ -22,8 +25,8 @@ import { ROOM } from './room-parts';
 const litres = (ml: number) => (ml / 1000).toFixed(1).replace(/\.0$/, '');
 /** Centre of the readouts in room units: above Milo's ears. */
 const AT = { x: 180, y: 38 };
-/** Room for both pills side by side. */
-const BOX_W = 240;
+/** The water pill's box, centred on AT. */
+const BOX_W = 120;
 
 type Props = {
   water?: { ml: number; goal: number; onPress?: () => void };
@@ -35,10 +38,15 @@ type Props = {
   lift: number;
 };
 
-function Pill({ icon, tint, text, label, hint, badge, onPress }: { icon: SFSymbol; tint: string; text: string; label: string; hint: string; badge?: string; onPress?: () => void }) {
+type PillProps = { icon: SFSymbol; tint: string; text: string; label: string; hint: string; badge?: string; onPress?: () => void; onWidth: (w: number) => void };
+
+function Pill({ icon, tint, text, label, hint, badge, onPress, onWidth }: PillProps) {
   const { colors, isDark } = useTheme();
   return (
-    <Animated.View entering={FadeIn.duration(DURATION.transition.short)} exiting={FadeOut.duration(DURATION.micro.base)}>
+    <Animated.View
+      entering={FadeIn.duration(DURATION.transition.short)}
+      exiting={FadeOut.duration(DURATION.micro.base)}
+      onLayout={(e) => onWidth(e.nativeEvent.layout.width)}>
       <PressableScale
         onPress={onPress}
         disabled={!onPress}
@@ -79,20 +87,22 @@ function Pill({ icon, tint, text, label, hint, badge, onPress }: { icon: SFSymbo
 export function RoomReadouts({ water, steps, k, away, fade, lift }: Props) {
   const { width } = useWindowDimensions();
   const { colors } = useTheme();
+  const [waterW, setWaterW] = useState(0);
+  const [stepsW, setStepsW] = useState(0);
   const style = useAnimatedStyle(() => ({
     opacity: fade.get() * (1 - away.get()),
     transform: [{ translateY: -away.get() * lift * k }],
   }));
-  const left = (width - ROOM.w * k) / 2 + (AT.x - BOX_W / 2) * k;
+  const centre = (width - ROOM.w * k) / 2 + AT.x * k;
+  const stepsLeft = water ? centre - waterW / 2 - spacing.xs - stepsW : centre - stepsW / 2;
   return (
-    <Animated.View
-      pointerEvents="box-none"
-      style={[
-        { position: 'absolute', left, width: BOX_W * k, bottom: (ROOM.h - AT.y) * k - MIN_TAP / 2, flexDirection: 'row', justifyContent: 'center', gap: spacing.xs },
-        style,
-      ]}>
+    <Animated.View pointerEvents="box-none" style={[{ position: 'absolute', left: 0, right: 0, bottom: (ROOM.h - AT.y) * k - MIN_TAP / 2, height: MIN_TAP }, style]}>
       {steps && (
-        <Pill
+        <Animated.View
+          layout={LinearTransition.duration(DURATION.transition.short)}
+          // Shown once measured, so it never flashes in the wrong spot.
+          style={{ position: 'absolute', bottom: 0, left: stepsLeft, opacity: stepsW > 0 && (!water || waterW > 0) ? 1 : 0 }}>
+          <Pill
           icon="figure.walk"
           tint={colors.accent}
           text={fmtSteps(steps.count)}
@@ -100,17 +110,22 @@ export function RoomReadouts({ water, steps, k, away, fade, lift }: Props) {
           label={`Steps today: ${fmtSteps(steps.count)}${steps.badge ? `, ${badgeLabel(steps.badge)} badge` : ''}`}
           hint="Opens steps"
           onPress={steps.onPress}
-        />
+          onWidth={setStepsW}
+          />
+        </Animated.View>
       )}
       {water && (
-        <Pill
-          icon="drop.fill"
-          tint={MILO_ART.liquid}
-          text={`${litres(water.ml)} / ${litres(water.goal)} L`}
-          label={`Water: ${litres(water.ml)} of ${litres(water.goal)} litres`}
-          hint="Opens water"
-          onPress={water.onPress}
-        />
+        <View pointerEvents="box-none" style={{ position: 'absolute', bottom: 0, left: centre - (BOX_W / 2) * k, width: BOX_W * k, alignItems: 'center' }}>
+          <Pill
+            icon="drop.fill"
+            tint={MILO_ART.liquid}
+            text={`${litres(water.ml)} / ${litres(water.goal)} L`}
+            label={`Water: ${litres(water.ml)} of ${litres(water.goal)} litres`}
+            hint="Opens water"
+            onPress={water.onPress}
+            onWidth={setWaterW}
+          />
+        </View>
       )}
     </Animated.View>
   );

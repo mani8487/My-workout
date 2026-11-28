@@ -16,6 +16,7 @@ import {
   gaitLevel,
   gaitOf,
   milestonesCrossed,
+  nextGait,
   readSlices,
   readStepsSeen,
   recapLine,
@@ -44,6 +45,29 @@ describe('gaitOf (cadence classification)', () => {
   });
   it('levels for the renderer', () => {
     assert.deepEqual(['idle', 'walk', 'run'].map((g) => gaitLevel(g as 'idle')), [0, 1, 2]);
+  });
+});
+
+describe('nextGait (live, with hysteresis)', () => {
+  it('starts a gait at the usual thresholds', () => {
+    assert.equal(nextGait('idle', 19), 'idle');
+    assert.equal(nextGait('idle', 20), 'walk');
+    assert.equal(nextGait('idle', 140), 'run');
+    assert.equal(nextGait('walk', 134), 'walk');
+    assert.equal(nextGait('walk', 135), 'run');
+  });
+  it('keeps a gait until the cadence falls clearly below it', () => {
+    assert.equal(nextGait('run', 126), 'run');
+    assert.equal(nextGait('run', 124), 'walk');
+    assert.equal(nextGait('walk', 16), 'walk');
+    assert.equal(nextGait('walk', 14), 'idle');
+    assert.equal(nextGait('run', 0), 'idle');
+    assert.equal(nextGait('walk', Number.NaN), 'idle');
+  });
+  it('a brisk walk wobbling around 130 stays a trot', () => {
+    let g = nextGait('idle', 128);
+    for (const spm of [131, 127, 133, 129, 132]) g = nextGait(g, spm);
+    assert.equal(g, 'walk');
   });
 });
 

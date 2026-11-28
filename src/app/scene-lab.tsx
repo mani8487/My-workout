@@ -20,7 +20,7 @@ import { PressableScale } from '@/components/pressable-scale';
 import { LivingScene } from '@/components/scene/living-scene';
 import { MiloLine } from '@/components/scene/milo-line';
 import { type CameoKind } from '@/logic/cameo';
-import { badgeOf, energyOf, fmtSteps, gaitOf, milestonesCrossed, replayPlan, type ReplayPart } from '@/logic/milo-steps';
+import { badgeOf, energyOf, fmtSteps, gaitLevel, gaitOf, milestonesCrossed, replayPlan, type ReplayPart } from '@/logic/milo-steps';
 import { nextLine, type ShownLine } from '@/logic/milo-voice';
 import { minutesText, moodOf } from '@/logic/scene-state';
 import { ReducedMotionOverride, useReducedMotion } from '@/motion';
@@ -144,9 +144,9 @@ function LabBody({ dark, setDark, motion, setMotion }: { dark: boolean; setDark:
   const [stepsOn, setStepsOn] = useState(true);
   const [cadence, setCadence] = useState(0);
   const [fakeSteps, setFakeSteps] = useState(0);
-  const [stepsReplay, setStepsReplay] = useState<{ cue: number; plan: readonly ReplayPart[] }>({ cue: 0, plan: [] });
+  const [stepsReplay, setStepsReplay] = useState<readonly ReplayPart[]>([]);
   const [milestoneCue, setMilestoneCue] = useState(0);
-  const replaySlices = (slices: number[]) => setStepsReplay((r) => ({ cue: r.cue + 1, plan: replayPlan(slices) }));
+  const replaySlices = (slices: number[]) => setStepsReplay(replayPlan(slices));
   const addSteps = (n: number, slices: number[]) => {
     if (milestonesCrossed(fakeSteps, fakeSteps + n).length > 0) setMilestoneCue((c) => c + 1);
     setFakeSteps(fakeSteps + n);
@@ -213,11 +213,10 @@ function LabBody({ dark, setDark, motion, setMotion }: { dark: boolean; setDark:
               stepsOn
                 ? {
                     count: fakeSteps,
-                    cadence,
+                    gait: gaitLevel(gaitOf(cadence)),
                     energy: energyOf(fakeSteps, minutes),
                     badge: badgeOf(fakeSteps),
-                    replayCue: stepsReplay.cue,
-                    replay: stepsReplay.plan,
+                    replay: stepsReplay,
                     milestoneCue,
                   }
                 : undefined

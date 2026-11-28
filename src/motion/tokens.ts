@@ -137,14 +137,15 @@ export const WATER = {
  * Milo Steps (Home): Milo trots or runs on the spot while you walk or run.
  * Gaits blend over `blend`; the stride rate eases between trot and run with them.
  */
+const strideBlend = 400;
 export const STRIDE = {
   /** Idle ↔ trot ↔ run blends. */
-  blend: 400,
+  blend: strideBlend,
   /** Strides per second (one stride = both steps). */
   trotHz: 1.5,
   runHz: 2.4,
   /** After you stop: the blend back to still, plus a beat before he goes back to what he was doing. */
-  settle: 400 + micro.slow,
+  settle: strideBlend + micro.slow,
   /** A step milestone: one celebration jump and its landing. */
   milestone: CELEBRATE.land + transition.long,
   /** The replay starts a beat after the room has caught up. */

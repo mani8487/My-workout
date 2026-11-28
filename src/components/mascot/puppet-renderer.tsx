@@ -13,7 +13,7 @@
  * Loops stop while paused (screen hidden, app in background) and everything
  * is cancelled on unmount. With Reduce Motion on, every state is a still pose.
  */
-import { memo, useEffect, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef } from 'react';
 import { type ViewStyle } from 'react-native';
 import Animated, {
   cancelAnimation,
@@ -317,6 +317,8 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
   const move = useSharedValue(0);
   const phase = useSharedValue(0);
   const lively = useSharedValue(energy);
+  // Getting up from lying to stride: the stride waits this long, for the hop up to land.
+  const strideDelay = useRef(0);
 
   // Cancel every animation when Milo leaves the screen for good.
   const allRef = useRef([pose, headLift, headTurn, dip, lap, breath, breathDepth, sx, sy, jumpY, followY, tailSway, earL, earR, earTapL, earTapR, stageOpacity, eyes, paw, bowl, z1, z2, z3, zzOn, confetti, sparks, near, present, towelOn, move]);
@@ -425,12 +427,36 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
         fade(eyes, 1);
         break;
 
-      case 'striding':
+      case 'striding': {
         // Up and ready; the stride itself follows `gait` (below).
-        to(pose, 1, SPRING.gentle);
         to(headLift, 0);
-        fade(eyes, 0, micro.base);
+        if (R || pose.get() > 0.99) {
+          to(pose, 1, SPRING.gentle);
+          fade(eyes, 0, micro.base);
+          break;
+        }
+        // Lying down: a little hop up to sitting first, like the cameos (pose blend in the air,
+        // stretched on the way up, squashed as he lands); the stride starts as he lands.
+        const up = ARC.hop.rise + ARC.hop.fall;
+        strideDelay.current = up;
+        pose.set(withTiming(1, { duration: up, easing: EASE.inOut }));
+        eyes.set(withTiming(0, { duration: micro.base, easing: EASE.out }));
+        jumpY.set(
+          withSequence(
+            withTiming(-ARC.hop.height, { duration: ARC.hop.rise, easing: EASE.rise }),
+            withTiming(0, { duration: ARC.hop.fall, easing: EASE.fall }),
+          ),
+        );
+        const hopUp = (axis: 'x' | 'y') =>
+          withSequence(
+            withTiming(SHAPE.takeoff[axis], { duration: ARC.hop.rise, easing: EASE.rise }),
+            withTiming(SHAPE.land[axis], { duration: ARC.hop.fall, easing: EASE.fall }),
+            withSpring(1, SPRING.snappy),
+          );
+        sx.set(hopUp('x'));
+        sy.set(hopUp('y'));
         break;
+      }
 
       case 'waking': {
         if (R || pose.get() > 0.99) {
@@ -737,8 +763,9 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
 
   // ----- idle loops: stopped while paused or with Reduce Motion -----
   const celebrateCue = state === 'celebrating' ? cue : 0;
-  // Energy steps in quarters, so the idle loops restart at most a few times a day.
-  const energyBand = Math.round(energy * 4) / 4;
+  // Energy steps in quarters, so the idle loops restart at most a few times a day
+  // (never mid-celebration: a restart would start an extra jump).
+  const energyBand = state === 'celebrating' ? 0 : Math.round(energy * 4) / 4;
   useEffect(() => {
     const loops = [breath, z1, z2, z3, tailSway, earL, earR, lap];
     const blinking = state === 'sitting' || state === 'reacting' || state === 'striding';
@@ -870,13 +897,15 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
       stepping.setActive(false);
       return;
     }
-    move.set(withTiming(strideTo, { duration: STRIDE.blend, easing: EASE.inOut }));
+    const wait = strideDelay.current;
+    strideDelay.current = 0;
+    move.set(withDelay(wait, withTiming(strideTo, { duration: STRIDE.blend, easing: EASE.inOut })));
     if (strideTo > 0 && !paused) {
       stepping.setActive(true);
       return;
     }
-    // The stride eases out over the blend, then the clock stops.
-    const t = setTimeout(() => stepping.setActive(false), paused ? 0 : STRIDE.blend);
+    // The stride eases out over the blend (still in step), then the clock stops.
+    const t = setTimeout(() => stepping.setActive(false), STRIDE.blend);
     return () => clearTimeout(t);
     // stepping is stable for the renderer's life.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -948,12 +977,19 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
     l: earL.get() + earTapL.get() + lag() * FOLLOW.ear + wm.earL.get() + stride.get().earL,
     r: earR.get() + earTapR.get() - lag() * FOLLOW.ear + wm.earR.get() + stride.get().earR,
   }));
-  // The front paw's lift (share of the full 130 degrees): his own moves plus the stride.
-  const pawTurn = useDerivedValue(() => paw.get() + stride.get().paw);
+  // The front paw's lift (share of the full 130 degrees): his own moves plus the stride, which gives
+  // way as his own lift grows, so the two never add up past a full lift.
+  const pawTurn = useDerivedValue(() => {
+    const own = paw.get();
+    return own + stride.get().paw * (1 - Math.min(1, Math.max(0, own)));
+  });
   const place = useDerivedValue(() => ({ q: pose.get(), paw: pawTurn.get(), head: headPlace.get(), earL: earTurn.get().l, earR: earTurn.get().r }));
-  // Body and paw water only follow the pose and the paw (the head and ears don't move them).
-  const bodyPlace = useDerivedValue(() => ({ q: pose.get(), paw: pawTurn.get(), head: NO_HEAD, earL: 0, earR: 0 }));
+  // Body water only follows the pose (the head, ears and the stride's paw swing don't move it)...
+  const bodyPlace = useDerivedValue(() => ({ q: pose.get(), paw: paw.get(), head: NO_HEAD, earL: 0, earR: 0 }));
+  // ...and the paw's water follows the paw, stride included (so only the paw redraws as it swings).
+  const pawPlace = useDerivedValue(() => ({ q: pose.get(), paw: pawTurn.get(), head: NO_HEAD, earL: 0, earR: 0 }));
   const wet: WaterCtx | undefined = useWaterCtx(wm, place, bodyPlace, reducedMotion);
+  const pawWet = useMemo(() => (wet ? { ...wet, bodyPlace: pawPlace } : undefined), [wet, pawPlace]);
 
   const stageStyle = useAnimatedStyle(() => ({ opacity: stageOpacity.get() }));
   const rigStyle = useAnimatedStyle(() => ({
@@ -1048,7 +1084,7 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
         </Animated.View>
         <Layer name="body-lie" k={k} style={bodyLieStyle} water={wet} />
         <Layer name="body-sit" k={k} style={bodySitStyle} water={wet} />
-        <Layer name="front-paw" k={k} style={pawStyle} water={wet} />
+        <Layer name="front-paw" k={k} style={pawStyle} water={pawWet} />
         <Layer name="towel" k={k} style={towelStyle} />
         <Animated.View style={[stage, { transformOrigin: [NECK.x * k, NECK.y * k, 0] }, headStyle]}>
           <Layer name="ear-left" k={k} style={earLStyle} water={wet} />
