@@ -40,7 +40,7 @@ import { cameoFor, type CameoKind } from '@/logic/cameo';
 import { decodeShown, encodeShown, nextLine } from '@/logic/milo-voice';
 import { minutesText, moodOf, sceneTarget } from '@/logic/scene-state';
 import { useTodayKey } from '@/logic/use-today';
-import { TRIP, WATER } from '@/motion';
+import { TRIP, useReducedMotion, WATER } from '@/motion';
 import { waterPace } from '@/logic/hydration';
 import { mayNudge, readNudgeLog, WATER_NUDGE_KEY } from '@/logic/hydration-layers';
 import { countWorkoutsBetween, deleteQuickLog, getActiveMinutesBetween, getActivityTimesSince, getQuickLogsBetween, type QuickLog } from '@/db/quick-log';
@@ -310,10 +310,10 @@ export default function HomeScreen() {
   }, [db, fresh, focused, todayKey, target?.stage, target?.water]);
 
   // Behind on water: now and then (at most 3 a day, never in quiet hours) Milo glances at his bowl,
-  // a little while after Home appears, when he's up.
+  // a little while after Home appears, when he's sitting up (not with Reduce Motion: no reactions then).
   const [glanceCue, setGlanceCue] = useState(0);
-  const upright = target?.mood === 'sitting' || target?.mood === 'content';
-  const nudgeOn = focused && fresh && upright && !!water?.showOnMilo;
+  const reduced = useReducedMotion();
+  const nudgeOn = focused && fresh && target?.mood === 'sitting' && !reduced && !!water?.showOnMilo;
   useEffect(() => {
     if (!nudgeOn || !water) return;
     const { ml, goal } = water;

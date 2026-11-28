@@ -19,6 +19,7 @@ import Animated, {
   cancelAnimation,
   useAnimatedReaction,
   useAnimatedStyle,
+  useDerivedValue,
   useSharedValue,
   withDelay,
   withSequence,
@@ -34,7 +35,8 @@ import { scheduleOnRN } from 'react-native-worklets';
 import { AMBIENT, ARC, CAMEO, CELEBRATE, DURATION, EASE, LEAVE, SHAPE, SPRING, WAKE, breathe, cameoLength, floatLoop, loopWithGaps, pick } from '@/motion';
 
 import { GROUND_Y, LAYERS, LIE_POSE, NECK, STAGE, TAIL_BASE, type LayerName } from './layers';
-import { Tongue, useWaterMotion, WaterLayerArt, WaterSparkles, type WaterCtx } from './milo-water';
+import { PourStream, Tongue, useWaterCtx, useWaterMotion, WaterLayerArt, WaterSparkles, type WaterCtx } from './milo-water';
+import { headPlacement } from './water-geometry';
 import { MILO_FX } from './palette';
 import { PLACEHOLDER_ART } from './placeholder-art';
 import type { MiloRendererProps, MiloState } from './types';
@@ -274,8 +276,7 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
   const present = useSharedValue(1); // fades him in when he arrives from below the room
   const towelOn = useSharedValue(towel ? 1 : 0);
   // Water inside him (Home): its own values, added on top of his motion; all at rest when it's off.
-  const wm = useWaterMotion(water, state, reducedMotion, { breath, breathDepth, pose, headLift, paw });
-  const wet = wm.wet ? wm.ctx : undefined;
+  const wm = useWaterMotion(water, state, reducedMotion);
 
   // Cancel every animation when Milo leaves the screen for good.
   const allRef = useRef([pose, headLift, headTurn, dip, lap, breath, breathDepth, sx, sy, jumpY, followY, tailSway, earL, earR, earTapL, earTapR, stageOpacity, eyes, paw, bowl, z1, z2, z3, zzOn, confetti, sparks, near, present, towelOn]);
@@ -820,7 +821,6 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
   }, [tapSignal]);
 
   // ----- styles -----
-  const H = LIE_POSE.head;
   const T = LIE_POSE.tail;
   const amp = (q: number) => {
     'worklet';
@@ -830,6 +830,14 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
     'worklet';
     return jumpY.get() - followY.get(); // negative while rising, positive while falling
   };
+  // Where the head group and the ears are: shared by their styles and the water inside them.
+  const headPlace = useDerivedValue(() => headPlacement(pose.get(), headLift.get(), headTurn.get(), dip.get(), lap.get(), wm.lick.get(), wm.glance.get()));
+  const earTurn = useDerivedValue(() => ({
+    l: earL.get() + earTapL.get() + lag() * FOLLOW.ear + wm.earL.get(),
+    r: earR.get() + earTapR.get() - lag() * FOLLOW.ear + wm.earR.get(),
+  }));
+  const place = useDerivedValue(() => ({ q: pose.get(), paw: paw.get(), head: headPlace.get(), earL: earTurn.get().l, earR: earTurn.get().r }));
+  const wet: WaterCtx | undefined = useWaterCtx(wm, place, reducedMotion);
 
   const stageStyle = useAnimatedStyle(() => ({ opacity: stageOpacity.get() }));
   const rigStyle = useAnimatedStyle(() => ({
@@ -881,22 +889,17 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
 
   const headStyle = useAnimatedStyle(() => {
     const q = pose.get();
-    const lift = headLift.get();
-    const dx = H.dx * (1 - q) + headTurn.get() * 0.4;
+    const h = headPlace.get(); // lying, waking lift, tilt, drinking, and the water's lap and glance
     const dy =
-      (H.dy - lift * 12) * (1 - q) + // lying, or lifting the head while waking
-      dip.get() * 44 + lap.get() * 5 + // drinking
+      h.dy +
       (1 - sy.get()) * 100 * q - // ride the body's squash and stretch
-      breath.get() * 2.5 * breathDepth.get() * q +
-      wm.lick.get() * 4 + wm.glance.get() * 7; // water: the lap, and a glance down at the bowl
-    const rot = H.rotate * (1 - lift) * (1 - q) + headTurn.get() + wm.glance.get() * 5;
-    const scale = H.scale + (1 - H.scale) * q;
-    return { transform: [{ translateX: dx * k }, { translateY: dy * k }, { rotate: `${rot}deg` }, { scale }] };
+      breath.get() * 2.5 * breathDepth.get() * q;
+    return { transform: [{ translateX: h.dx * k }, { translateY: dy * k }, { rotate: `${h.rot}deg` }, { scale: h.scale }] };
   });
 
   // Ears fold outward while the body rises and swing back as it lands.
-  const earLStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${earL.get() + earTapL.get() + lag() * FOLLOW.ear + wm.earL.get()}deg` }] }));
-  const earRStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${earR.get() + earTapR.get() - lag() * FOLLOW.ear + wm.earR.get()}deg` }] }));
+  const earLStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${earTurn.get().l}deg` }] }));
+  const earRStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${earTurn.get().r}deg` }] }));
   // A happy blink after a drink closes the eyes on top of whatever they are doing.
   const eyesOpenStyle = useAnimatedStyle(() => ({ opacity: 1 - Math.max(eyes.get(), wm.happy.get()) }));
   const eyesClosedStyle = useAnimatedStyle(() => ({ opacity: Math.max(eyes.get(), wm.happy.get()) }));
@@ -936,11 +939,12 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
           <Layer name="ear-right" k={k} style={earRStyle} water={wet} />
           <Layer name="collar" k={k} />
           <Layer name="head" k={k} water={wet} />
-          {water && <Tongue lick={wm.lick} k={k} />}
+          {wet && <Tongue lick={wm.lick} k={k} />}
           <Layer name="eyes-open" k={k} style={eyesOpenStyle} />
           <Layer name="eyes-closed" k={k} style={eyesClosedStyle} />
         </Animated.View>
-        {water && <WaterSparkles t={wm.sparkle} k={k} />}
+        {wet && <WaterSparkles t={wm.sparkle} k={k} place={place} />}
+        {wet && !reducedMotion && <PourStream ctx={wet} k={k} />}
       </Animated.View>
 
       <Layer name="bowl" k={k} style={bowlStyle} />

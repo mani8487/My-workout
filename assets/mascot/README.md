@@ -73,7 +73,8 @@ like a glass. Nothing new needs drawing, but the art has to follow one rule:
   the lying ear tips. Between poses the line blends with the pose, so the
   level never jumps.
 - Water colour `#5CC8E0` at 47% with a lighter surface line `#DDF5FB`
-  (one colour for every drink).
+  (one colour for every drink). The level keeps counting to 120% of the goal,
+  but from 100% up Milo simply looks full.
 
 ## Palette (Mist & Mint)
 

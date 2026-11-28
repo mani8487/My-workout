@@ -1,6 +1,5 @@
 /**
- * Where the water inside Milo sits, as worklets (computed on the UI thread
- * every frame while it moves).
+ * Where the water inside Milo sits, as worklets (computed on the UI thread).
  *
  * The level is one line in stage coordinates (the 240 x 240 stage), rising
  * from the bottom of the current pose's silhouette (head + body + ears, not
@@ -10,9 +9,12 @@
  * own range; between them (waking) the line blends with the pose, so the
  * level never jumps.
  *
- * Mapping: body layers carry their water with them (it squashes and breathes
- * with the body). The head group's lying placement (and the lifted paw) is
- * undone, so at rest the water stays level in the world instead of tilting.
+ * Mapping: the body layers carry their water with them (it squashes and
+ * breathes with the body, so nothing is redrawn while he idles). The head
+ * group's placement (lying, a tilt, a lap, a glance down), each ear's turn and
+ * the lifted paw are undone, so the water stays level in the world instead of
+ * tilting with them. Shapes are only rebuilt when the level, the pose, one of
+ * those moves, or a slosh or pour changes.
  */
 import { LAYERS, LIE_POSE, NECK, type LayerName } from './layers';
 
@@ -23,12 +25,16 @@ export const FILL_RANGE = {
   /** The sleeping curl on the couch: the bottom of the curl to the lying ear tips (about y 79). */
   lie: { bottom: 168, top: 72 },
 } as const;
+/**
+ * The line rises a touch slower at first (level^1.12), so at half the goal it sits just below the
+ * chin instead of drawing a thin "bib" under the muzzle; 0 and 100% are unchanged.
+ */
+const LEVEL_CURVE = 1.12;
 
-/** Where the pour stream falls (stage x): into the top of his head, then out of sight behind the muzzle and chest. */
-const POUR_X = { lie: 73, sit: 120 } as const;
-const POUR_W = 4.5;
+/** Where the pour stream falls (stage x) and where his head starts (the stream is drawn above it, then fades inside). */
+const POUR = { lie: { x: 73, head: 102 }, sit: { x: 120, head: 44 }, top: 2, w: 4.5 } as const;
 
-/** The gentle resting wave, and the slosh after a drink (stage units). */
+/** The resting surface shape and the slosh after a drink (stage units). */
 const WAVE = { amp: 1.2, length: 64, sloshAmp: 3.6, sloshLength: 48, tilt: 3 } as const;
 
 /** Stage x range the surface is sampled over (wider than Milo), and how many points. */
@@ -37,16 +43,22 @@ const X1 = 252;
 const SAMPLES = 24;
 const DEEP = 420; // far below anything: the bottom of the water shape
 
+/** The head group's placement on the stage (as the renderer moves it), without the breathing bob and squash. */
+export type HeadPlace = { dx: number; dy: number; rot: number; scale: number };
+
+/** Everything the mapping needs about how Milo is posed right now. */
 export type WaterPose = {
   /** Pose blend, 0 lying ... 1 sitting. */
   q: number;
-  /** Head lift while waking (0..1). */
-  lift: number;
   /** Paw lift (0..1, the front paw turns up to -130 degrees). */
   paw: number;
+  head: HeadPlace;
+  /** Each ear's current turn, in degrees. */
+  earL: number;
+  earR: number;
 };
 
-/** How a layer's water is mapped: carried by the body, by the head group, or the turning paw. */
+/** How a layer's water is mapped: carried by the body, by the head group (and its ear), or the turning paw. */
 export type WaterFrame = 'body' | 'head' | 'paw';
 
 export const FRAME_OF: Partial<Record<LayerName, WaterFrame>> = {
@@ -60,31 +72,58 @@ export const FRAME_OF: Partial<Record<LayerName, WaterFrame>> = {
 
 const DEG = Math.PI / 180;
 
-/** The water line on the stage for a fill level (0..FILL_CAP) in the current pose. */
+/**
+ * The head group's placement: lying on the couch (blended by the pose), lifting while waking, a tilt,
+ * dipping to drink, a lap, a lick and a glance down. The renderer adds the body's squash and the
+ * breathing bob on top. Shared by the renderer and the water, so the two always agree.
+ */
+export function headPlacement(q: number, lift: number, turn: number, dip: number, lap: number, lick: number, glance: number): HeadPlace {
+  'worklet';
+  const H = LIE_POSE.head;
+  return {
+    dx: H.dx * (1 - q) + turn * 0.4,
+    dy:
+      (H.dy - lift * 12) * (1 - q) + // lying, or lifting the head while waking
+      dip * 44 + lap * 5 + // drinking
+      lick * 4 + glance * 7, // water: the lap and lick, a glance down at the bowl
+    rot: H.rotate * (1 - lift) * (1 - q) + turn + glance * 5,
+    scale: H.scale + (1 - H.scale) * q,
+  };
+}
+
+/** The water line on the stage for a fill level (0..FILL_CAP) in the current pose. Past 100% he stays full. */
 export function waterLine(level: number, q: number): number {
   'worklet';
-  const f = Math.min(1, Math.max(0, level));
+  const f = Math.pow(Math.min(1, Math.max(0, level)), LEVEL_CURVE);
   const lie = FILL_RANGE.lie.bottom - f * (FILL_RANGE.lie.bottom - FILL_RANGE.lie.top);
   const sit = FILL_RANGE.sit.bottom - f * (FILL_RANGE.sit.bottom - FILL_RANGE.sit.top);
   return lie + (sit - lie) * q;
 }
 
-/** Where the silhouette starts at the top in this pose (the pour stream starts above it). */
-function topOf(q: number): number {
+/** One slosh (0 → 1 through it): a quick swell, then it dies away while its waves slow. */
+function sloshAt(x: number, s: number): number {
   'worklet';
-  return FILL_RANGE.lie.top + (FILL_RANGE.sit.top - FILL_RANGE.lie.top) * q;
+  if (s <= 0 || s >= 1) return 0;
+  const env = Math.min(1, s / 0.1) * (1 - s) * (1 - s);
+  const wave = WAVE.sloshAmp * env * Math.sin((2 * Math.PI * x) / WAVE.sloshLength + 6 * Math.PI * s);
+  const rock = WAVE.tilt * env * Math.sin(5 * Math.PI * s) * ((x - 120) / 100);
+  return wave + rock;
 }
 
-/** Height of the surface at stage x: a slow wave that shifts with each breath, plus the decaying slosh. */
-export function surfaceAt(x: number, breath: number, slosh: number): number {
+/** Height of the surface at stage x: a gentle sine at rest, plus up to two sloshes (drinks close together). */
+export function surfaceAt(x: number, slosh1: number, slosh2: number): number {
   'worklet';
-  const rest = WAVE.amp * Math.sin((2 * Math.PI * x) / WAVE.length + Math.PI * breath);
-  if (slosh <= 0 || slosh >= 1) return rest;
-  // `slosh` runs 0 → 1 through one slosh: a quick swell, then it dies away while its waves slow.
-  const env = Math.min(1, slosh / 0.1) * (1 - slosh) * (1 - slosh);
-  const wave = WAVE.sloshAmp * env * Math.sin((2 * Math.PI * x) / WAVE.sloshLength + 6 * Math.PI * slosh);
-  const rock = WAVE.tilt * env * Math.sin(5 * Math.PI * slosh) * ((x - 120) / 100);
-  return rest + wave + rock;
+  return WAVE.amp * Math.sin((2 * Math.PI * x) / WAVE.length) + sloshAt(x, slosh1) + sloshAt(x, slosh2);
+}
+
+/** Undo a turn of `deg` degrees around (ox, oy). */
+function unturn(x: number, y: number, ox: number, oy: number, deg: number): [number, number] {
+  'worklet';
+  if (deg === 0) return [x, y];
+  const a = -deg * DEG;
+  const vx = x - ox;
+  const vy = y - oy;
+  return [ox + vx * Math.cos(a) - vy * Math.sin(a), oy + vx * Math.sin(a) + vy * Math.cos(a)];
 }
 
 /** Maps a stage point into a layer's own box (see the file comment). */
@@ -94,30 +133,25 @@ function toLocal(name: LayerName, frame: WaterFrame, p: WaterPose, x: number, y:
   let px = x;
   let py = y;
   if (frame === 'head') {
-    // Undo the head group's lying placement (same numbers as the renderer's head style, at rest).
-    const H = LIE_POSE.head;
-    const dx = H.dx * (1 - p.q);
-    const dy = (H.dy - p.lift * 12) * (1 - p.q);
-    const rot = -(H.rotate * (1 - p.lift) * (1 - p.q)) * DEG;
-    const s = H.scale + (1 - H.scale) * p.q;
-    const vx = x - NECK.x - dx;
-    const vy = y - NECK.y - dy;
-    px = NECK.x + (vx * Math.cos(rot) - vy * Math.sin(rot)) / s;
-    py = NECK.y + (vx * Math.sin(rot) + vy * Math.cos(rot)) / s;
-  } else if (frame === 'paw' && p.paw !== 0) {
+    // Undo the head group: translate, turn and scale around the neck.
+    const h = p.head;
+    const [ux, uy] = unturn(x - h.dx, y - h.dy, NECK.x, NECK.y, h.rot);
+    px = NECK.x + (ux - NECK.x) / h.scale;
+    py = NECK.y + (uy - NECK.y) / h.scale;
+    // Then the ear's own turn around its base.
+    const ear = name === 'ear-left' ? p.earL : name === 'ear-right' ? p.earR : 0;
+    if (ear !== 0) [px, py] = unturn(px, py, b.x + b.pivot.x, b.y + b.pivot.y, ear);
+  } else if (frame === 'paw') {
     // The paw turns around its shoulder; undo that turn so the water stays level in a raised paw.
-    const ox = b.x + b.pivot.x;
-    const oy = b.y + b.pivot.y;
-    const a = 130 * p.paw * DEG;
-    const vx = x - ox;
-    const vy = y - oy;
-    px = ox + vx * Math.cos(a) - vy * Math.sin(a);
-    py = oy + vx * Math.sin(a) + vy * Math.cos(a);
+    [px, py] = unturn(x, y, b.x + b.pivot.x, b.y + b.pivot.y, -130 * p.paw);
   }
   return [px - b.x, py - b.y];
 }
 
-const n1 = (v: number) => Math.round(v * 10) / 10;
+function n1(v: number): number {
+  'worklet';
+  return Math.round(v * 10) / 10;
+}
 
 /** A closed shape from stage points, mapped into the layer, as an SVG path. */
 function polygon(name: LayerName, frame: WaterFrame, p: WaterPose, pts: readonly (readonly [number, number])[]): string {
@@ -132,17 +166,6 @@ function polygon(name: LayerName, frame: WaterFrame, p: WaterPose, pts: readonly
 
 export const EMPTY_PATH = 'M0 0Z';
 
-/** The surface's top edge as smooth curves through the sampled points (mapped into the layer). */
-function surfacePoints(name: LayerName, frame: WaterFrame, p: WaterPose, line: number, breath: number, slosh: number): [number, number][] {
-  'worklet';
-  const out: [number, number][] = [];
-  for (let i = 0; i <= SAMPLES; i++) {
-    const x = X0 + ((X1 - X0) * i) / SAMPLES;
-    out.push(toLocal(name, frame, p, x, line + surfaceAt(x, breath, slosh)));
-  }
-  return out;
-}
-
 function smoothThrough(pts: [number, number][]): string {
   'worklet';
   let d = `M${n1(pts[0][0])} ${n1(pts[0][1])}`;
@@ -156,11 +179,23 @@ function smoothThrough(pts: [number, number][]): string {
 }
 
 /** The water body (fill) and its surface line, in the layer's own coordinates. */
-export function waterPaths(name: LayerName, frame: WaterFrame, p: WaterPose, level: number, breath: number, slosh: number): { body: string; surface: string } {
+export function waterPaths(name: LayerName, frame: WaterFrame, p: WaterPose, level: number, slosh1: number, slosh2: number): { body: string; surface: string } {
   'worklet';
   if (level <= 0.001) return { body: EMPTY_PATH, surface: EMPTY_PATH };
+  const b = LAYERS[name];
   const line = waterLine(level, p.q);
-  const top = surfacePoints(name, frame, p, line, breath, slosh);
+  const top: [number, number][] = [];
+  let above = true; // every surface point above the layer's box: it is simply full
+  let below = true; // ...or below it: dry
+  for (let i = 0; i <= SAMPLES; i++) {
+    const x = X0 + ((X1 - X0) * i) / SAMPLES;
+    const pt = toLocal(name, frame, p, x, line + surfaceAt(x, slosh1, slosh2));
+    if (pt[1] > -2) above = false;
+    if (pt[1] < b.h + 2) below = false;
+    top.push(pt);
+  }
+  if (below) return { body: EMPTY_PATH, surface: EMPTY_PATH };
+  if (above) return { body: `M-4 -4H${b.w + 4}V${b.h + 4}H-4Z`, surface: EMPTY_PATH };
   const surface = smoothThrough(top);
   const [rx, ry] = toLocal(name, frame, p, X1, line + DEEP);
   const [lx, ly] = toLocal(name, frame, p, X0, line + DEEP);
@@ -168,26 +203,34 @@ export function waterPaths(name: LayerName, frame: WaterFrame, p: WaterPose, lev
 }
 
 /**
- * The pour stream (0..1 through one pour): it falls from above Milo to the surface, then its
- * tail follows it in. Clipped by each layer's fur, so it only shows inside him.
+ * The pour (0..1 through one pour) as a segment on the stage: it falls from above Milo toward the
+ * surface, then its tail follows it in. Returns where it is: x, the top and bottom of the stream, and
+ * how far down his head starts (the stream shows above that, and only faintly inside him).
  */
+export function pourSegment(level: number, q: number, t: number): { x: number; tail: number; head: number; headTop: number; w: number } {
+  'worklet';
+  const x = POUR.lie.x + (POUR.sit.x - POUR.lie.x) * q;
+  const headTop = POUR.lie.head + (POUR.sit.head - POUR.lie.head) * q;
+  if (t <= 0 || t >= 1) return { x, tail: 0, head: 0, headTop, w: 0 };
+  const line = waterLine(level, q) + 2;
+  const fall = Math.min(1, t / 0.35);
+  const head = POUR.top + (line - POUR.top) * (1 - (1 - fall) * (1 - fall)); // speeds up as it falls
+  const tailT = Math.max(0, (t - 0.65) / 0.35);
+  const tail = POUR.top + (line - POUR.top) * tailT * tailT;
+  return { x, tail, head, headTop, w: POUR.w * (1 - 0.4 * tailT) };
+}
+
+/** The part of the pour inside a layer (clipped by its fur): faint, mostly behind the muzzle and chest. */
 export function pourPath(name: LayerName, frame: WaterFrame, p: WaterPose, level: number, t: number): string {
   'worklet';
-  if (t <= 0 || t >= 1) return EMPTY_PATH;
-  const line = waterLine(level, p.q) + 2;
-  const top = topOf(p.q) - 30;
-  const fall = Math.min(1, t / 0.35);
-  const head = top + (line - top) * (1 - (1 - fall) * (1 - fall)); // speeds up as it falls
-  const tailT = Math.max(0, (t - 0.65) / 0.35);
-  const tail = top + (line - top) * tailT * tailT;
-  if (head - tail < 1) return EMPTY_PATH;
-  const x = POUR_X.lie + (POUR_X.sit - POUR_X.lie) * p.q;
-  const w = POUR_W * (1 - 0.4 * tailT); // thins out as it ends
+  const s = pourSegment(level, p.q, t);
+  const top = Math.max(s.tail, s.headTop - 4);
+  if (s.w <= 0 || s.head - top < 1) return EMPTY_PATH;
   return polygon(name, frame, p, [
-    [x - w / 2, tail],
-    [x + w / 2, tail],
-    [x + w / 2, head],
-    [x - w / 2, head],
+    [s.x - s.w / 2, top],
+    [s.x + s.w / 2, top],
+    [s.x + s.w / 2, s.head],
+    [s.x - s.w / 2, s.head],
   ]);
 }
 

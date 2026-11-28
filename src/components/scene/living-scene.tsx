@@ -9,7 +9,7 @@
  * the room passes "awake", and lies back down if it goes the other way.
  * With Reduce Motion on, the room cross-fades between still states.
  */
-import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, useWindowDimensions, View } from 'react-native';
 import Animated, {
   cancelAnimation,
@@ -279,7 +279,8 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
   const [drinks, setDrinks] = useState({ ml: waterMl, drink: 0, goal: 0 });
   if (onScreen && drinks.ml !== waterMl) {
     const rose = pourOnRise && waterMl > drinks.ml;
-    const reached = rose && fillLevel(drinks.ml, waterGoalMl) < 1 && fillLevel(waterMl, waterGoalMl) >= 1;
+    // The goal moment belongs to the water on Milo: with it off, Milo does nothing new.
+    const reached = waterOnMilo && rose && fillLevel(drinks.ml, waterGoalMl) < 1 && fillLevel(waterMl, waterGoalMl) >= 1;
     setDrinks({ ml: waterMl, drink: drinks.drink + (rose ? 1 : 0), goal: drinks.goal + (reached ? 1 : 0) });
   }
   const [goalPaw, setGoalPaw] = useState(false);
@@ -297,9 +298,12 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
   }, [drinks.goal, reduced]);
   // Anything else that starts (a cameo, a trip, the Lab, leaving the screen) ends it.
   if (goalPaw && (playing !== null || travel !== 'none' || miloOverride || !onScreen)) setGoalPaw(false);
-  const water: MiloWater | undefined = waterOnMilo
-    ? { level: fillLevel(drinks.ml, waterGoalMl), from: start.water, drinkCue: drinks.drink, goalCue: drinks.goal, glanceCue }
-    : undefined;
+  const fillNow = fillLevel(drinks.ml, waterGoalMl);
+  // One stable object per change, so Milo's renderer only re-renders when something about the water changed.
+  const water = useMemo<MiloWater | undefined>(
+    () => (waterOnMilo ? { level: fillNow, from: start.water, drinkCue: drinks.drink, goalCue: drinks.goal, glanceCue } : undefined),
+    [waterOnMilo, fillNow, start.water, drinks.drink, drinks.goal, glanceCue],
+  );
 
   const onSettled = (s: MiloState) => {
     if (s === 'waking') setMilo(moodRef.current);
@@ -359,7 +363,7 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
       </View>
     </Animated.View>
     {water && drinks.ml > 0 && (
-      <WaterReadout ml={drinks.ml} goal={waterGoalMl} k={k} away={trip} fade={fade} lift={ROOM_LIFT} onPress={onWaterPress} />
+      <WaterReadout ml={drinks.ml} goal={waterGoalMl} k={k} away={trip} fade={fade} lift={ROOM_LIFT} onPress={travel === 'none' ? onWaterPress : undefined} />
     )}
     </>
   );

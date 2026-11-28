@@ -112,8 +112,8 @@ export const CELEBRATE = {
 export const WATER = {
   /** The stream falls from above him into the water (and its tail follows it in). */
   pour: 550,
-  /** The stream reaches the surface: the level starts rising and the surface starts to slosh. */
-  pourLand: micro.fast,
+  /** The stream reaches the surface (about 40% into the pour): the level starts rising and the surface starts to slosh. */
+  pourLand: 220,
   /** The slosh dies away over this long. */
   slosh: 1500,
   /** Bubbles drift up through the water. */

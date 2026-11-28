@@ -9,12 +9,12 @@
  * - Awake, Milo reacts in a staggered beat: ears perk as the water rises, a
  *   happy blink, a tail flick that lags behind, then a quick lap and lick with
  *   a small lift before it (anticipation) and a soft settle after.
- *   Asleep, only the water moves, and its surface rides his breathing.
+ *   Asleep, only the water moves (it breathes with him, inside his curl).
  * - At the goal a shimmer sweeps across him with two or three sparkles.
  * - Behind pace he may glance at his bowl (never sad; Home decides when).
  * With Reduce Motion the level changes at once and nothing else plays.
  */
-import { memo, useEffect, useId, useRef, useState } from 'react';
+import { memo, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { View, type ViewStyle } from 'react-native';
 import Animated, {
   cancelAnimation,
@@ -37,7 +37,7 @@ import { LAYERS, type LayerName } from './layers';
 import { LIQUID_OPACITY, MILO_ART } from './palette';
 import type { MiloState, MiloWater } from './types';
 import { WATER_ART, type FurShape } from './water-art';
-import { BUBBLES, bubbleAt, EMPTY_PATH, FRAME_OF, pourPath, shimmerPath, waterPaths, type WaterPose } from './water-geometry';
+import { BUBBLES, bubbleAt, EMPTY_PATH, FRAME_OF, pourPath, pourSegment, shimmerPath, waterPaths, type WaterPose } from './water-geometry';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 const AnimatedEllipse = Animated.createAnimatedComponent(Ellipse);
@@ -47,32 +47,30 @@ const fill: ViewStyle = { position: 'absolute', left: 0, top: 0 };
 /** States in which Milo is up and free to react to a drink (not asleep, not mid-move). */
 const REACTS: readonly MiloState[] = ['sitting', 'content', 'reacting'];
 
-/** Everything a water layer reads each frame. */
+/** Everything a water layer reads. `place` is how Milo is posed (from the renderer). */
 export type WaterCtx = {
   level: SharedValue<number>;
-  slosh: SharedValue<number>;
+  slosh1: SharedValue<number>;
+  slosh2: SharedValue<number>;
   pour: SharedValue<number>;
   bubbles: SharedValue<number>;
   shimmer: SharedValue<number>;
-  breath: SharedValue<number>;
-  breathDepth: SharedValue<number>;
-  pose: SharedValue<number>;
-  headLift: SharedValue<number>;
-  paw: SharedValue<number>;
+  place: SharedValue<WaterPose>;
   reduced: boolean;
 };
 
-type RigValues = Pick<WaterCtx, 'breath' | 'breathDepth' | 'pose' | 'headLift' | 'paw'>;
+const busy = (v: SharedValue<number>) => v.get() > 0 && v.get() < 1;
 
 /**
  * The water's shared values and its one-shots. `water` undefined = the feature is off: every value
  * stays at rest (0), so the renderer draws Milo exactly as before.
  */
-export function useWaterMotion(water: MiloWater | undefined, state: MiloState, reducedMotion: boolean, rig: RigValues) {
+export function useWaterMotion(water: MiloWater | undefined, state: MiloState, reducedMotion: boolean) {
   const target = water?.level ?? 0;
   const start = water?.from ?? target;
   const level = useSharedValue(start);
-  const slosh = useSharedValue(0);
+  const slosh1 = useSharedValue(0); // two sloshes, so a second drink close behind never cuts the first off
+  const slosh2 = useSharedValue(0);
   const pour = useSharedValue(0);
   const bubbles = useSharedValue(0);
   const shimmer = useSharedValue(0);
@@ -92,7 +90,7 @@ export function useWaterMotion(water: MiloWater | undefined, state: MiloState, r
   // With Reduce Motion an undo to empty is instant, so the plain layers come straight back.
   if (reducedMotion && target <= 0 && wet) setWet(false);
 
-  const all = useRef([level, slosh, pour, bubbles, shimmer, sparkle, happy, tailFlick, lick, earL, earR, glance, bowl]);
+  const all = useRef([level, slosh1, slosh2, pour, bubbles, shimmer, sparkle, happy, tailFlick, lick, earL, earR, glance, bowl]);
   useEffect(() => {
     const values = all.current;
     return () => values.forEach((v) => cancelAnimation(v));
@@ -146,12 +144,19 @@ export function useWaterMotion(water: MiloWater | undefined, state: MiloState, r
     if (!water || drinkCue === seenDrink.current) return;
     seenDrink.current = drinkCue;
     if (reducedMotion) return;
-    pour.set(0);
-    pour.set(withTiming(1, { duration: WATER.pour, easing: EASE.breathe }));
+    // A pour or bubbles already under way carry on (never cut off); a new slosh takes a free channel
+    // (with both busy, the older one, which has nearly died away, restarts).
+    if (!busy(pour)) {
+      pour.set(0);
+      pour.set(withTiming(1, { duration: WATER.pour, easing: EASE.breathe }));
+    }
+    const slosh = !busy(slosh1) ? slosh1 : !busy(slosh2) ? slosh2 : slosh1.get() > slosh2.get() ? slosh1 : slosh2;
     slosh.set(0);
     slosh.set(withDelay(WATER.pourLand, withTiming(1, { duration: WATER.slosh, easing: EASE.breathe })));
-    bubbles.set(0);
-    bubbles.set(withDelay(WATER.pourLand + micro.fast, withTiming(1, { duration: WATER.bubbles, easing: EASE.breathe })));
+    if (!busy(bubbles)) {
+      bubbles.set(0);
+      bubbles.set(withDelay(WATER.pourLand + micro.fast, withTiming(1, { duration: WATER.bubbles, easing: EASE.breathe })));
+    }
     if (!REACTS.includes(stateRef.current)) return; // asleep or busy: only the water moves
 
     // Ears perk outward as the water rises, the second a beat after the first, then settle.
@@ -199,8 +204,8 @@ export function useWaterMotion(water: MiloWater | undefined, state: MiloState, r
     if (!water || goalCue === seenGoal.current) return;
     seenGoal.current = goalCue;
     if (reducedMotion) return;
-    // After the level has risen to the top.
-    const after = WATER.pourLand + SPRING.gentle.duration;
+    // After the level has risen to the top (it rises more slowly while he sleeps).
+    const after = WATER.pourLand + transition.long;
     shimmer.set(0);
     shimmer.set(withDelay(after, withTiming(1, { duration: WATER.shimmer, easing: EASE.inOut })));
     sparkle.set(0);
@@ -214,7 +219,8 @@ export function useWaterMotion(water: MiloWater | undefined, state: MiloState, r
   useEffect(() => {
     if (!water || glanceCue === seenGlance.current) return;
     seenGlance.current = glanceCue;
-    if (reducedMotion || !REACTS.includes(stateRef.current)) return;
+    // Only while he's sitting up with open eyes, so the look reads as interest.
+    if (reducedMotion || stateRef.current !== 'sitting') return;
     // The bowl appears, he looks down at it with interest, looks back up, and it fades away.
     bowl.set(
       withSequence(
@@ -236,8 +242,16 @@ export function useWaterMotion(water: MiloWater | undefined, state: MiloState, r
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [glanceCue]);
 
-  const ctx: WaterCtx = { level, slosh, pour, bubbles, shimmer, reduced: reducedMotion, ...rig };
-  return { wet: !!water && wet, ctx, sparkle, happy, tailFlick, lick, earL, earR, glance, bowl };
+  return { wet: !!water && wet, level, slosh1, slosh2, pour, bubbles, shimmer, sparkle, happy, tailFlick, lick, earL, earR, glance, bowl };
+}
+
+/** What the water layers read, once there is water (undefined before: Milo draws his usual layers). */
+export function useWaterCtx(wm: ReturnType<typeof useWaterMotion>, place: SharedValue<WaterPose>, reduced: boolean): WaterCtx | undefined {
+  const { wet, level, slosh1, slosh2, pour, bubbles, shimmer } = wm;
+  return useMemo(
+    () => (wet ? { level, slosh1, slosh2, pour, bubbles, shimmer, place, reduced } : undefined),
+    [wet, level, slosh1, slosh2, pour, bubbles, shimmer, place, reduced],
+  );
 }
 
 // ---------- drawing ----------
@@ -256,8 +270,7 @@ function FurClip({ shape }: { shape: FurShape }) {
 function Bubble({ name, i, w }: { name: LayerName; i: number; w: WaterCtx }) {
   const frame = FRAME_OF[name] ?? 'body';
   const props = useAnimatedProps(() => {
-    const p: WaterPose = { q: w.pose.get(), lift: w.headLift.get(), paw: w.paw.get() };
-    const b = bubbleAt(name, frame, p, w.level.get(), i, w.bubbles.get());
+    const b = bubbleAt(name, frame, w.place.get(), w.level.get(), i, w.bubbles.get());
     return { cx: b.cx, cy: b.cy, rx: b.r, ry: b.r, opacity: b.opacity };
   });
   return <AnimatedEllipse animatedProps={props} fill={MILO_ART.liquidSurface} fillOpacity={0.55} stroke={MILO_ART.liquidSurface} strokeWidth={0.8} />;
@@ -268,20 +281,17 @@ function Liquid({ name, shape, main, k, w }: { name: LayerName; shape: FurShape;
   const b = LAYERS[name];
   const frame = FRAME_OF[name] ?? 'body';
   const clipId = `fur${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
-  const pose = () => {
-    'worklet';
-    return { q: w.pose.get(), lift: w.headLift.get(), paw: w.paw.get() };
-  };
+  // Rebuilt only when the level, the pose or one of his moves, or a slosh changes; never while he just breathes.
   // A body layer that is faded out (lying while he sits, or the other way round) skips the work.
   const paths = useDerivedValue(() => {
-    const q = w.pose.get();
-    if ((name === 'body-lie' && q > 0.999) || (name !== 'body-lie' && frame !== 'head' && q < 0.001)) return { body: EMPTY_PATH, surface: EMPTY_PATH };
-    return waterPaths(name, frame, pose(), w.level.get(), w.breath.get() * w.breathDepth.get(), w.slosh.get());
+    const p = w.place.get();
+    if ((name === 'body-lie' && p.q > 0.999) || (name !== 'body-lie' && frame !== 'head' && p.q < 0.001)) return { body: EMPTY_PATH, surface: EMPTY_PATH };
+    return waterPaths(name, frame, p, w.level.get(), w.slosh1.get(), w.slosh2.get());
   });
   const bodyProps = useAnimatedProps(() => ({ d: paths.get().body }));
   const surfaceProps = useAnimatedProps(() => ({ d: paths.get().surface }));
-  const pourProps = useAnimatedProps(() => ({ d: w.reduced ? EMPTY_PATH : pourPath(name, frame, pose(), w.level.get(), w.pour.get()) }));
-  const shimmerProps = useAnimatedProps(() => ({ d: w.reduced ? EMPTY_PATH : shimmerPath(name, frame, pose(), w.shimmer.get()) }));
+  const pourProps = useAnimatedProps(() => ({ d: w.reduced ? EMPTY_PATH : pourPath(name, frame, w.place.get(), w.level.get(), w.pour.get()) }));
+  const shimmerProps = useAnimatedProps(() => ({ d: w.reduced ? EMPTY_PATH : shimmerPath(name, frame, w.place.get(), w.shimmer.get()) }));
   const bubbly = main && !w.reduced && (name === 'body-sit' || name === 'body-lie');
   return (
     <Svg width={b.w * k} height={b.h * k} viewBox={`0 0 ${b.w} ${b.h}`} style={fill}>
@@ -292,7 +302,7 @@ function Liquid({ name, shape, main, k, w }: { name: LayerName; shape: FurShape;
       </Defs>
       <G clipPath={`url(#${clipId})`}>
         <AnimatedPath animatedProps={bodyProps} fill={MILO_ART.liquid} fillOpacity={LIQUID_OPACITY} />
-        <AnimatedPath animatedProps={pourProps} fill={MILO_ART.liquid} fillOpacity={0.6} />
+        <AnimatedPath animatedProps={pourProps} fill={MILO_ART.liquid} fillOpacity={0.3} />
         {bubbly && BUBBLES.map((_, i) => <Bubble key={i} name={name} i={i} w={w} />)}
         {main && <AnimatedPath animatedProps={shimmerProps} fill="#FFFFFF" fillOpacity={0.32} />}
         <AnimatedPath animatedProps={surfaceProps} fill="none" stroke={MILO_ART.liquidSurface} strokeWidth={1.6} strokeOpacity={0.95} />
@@ -360,11 +370,18 @@ const SPARKLES = [
 ] as const;
 const STAR = 'M12 0 C13 8 16 11 24 12 C16 13 13 16 12 24 C11 16 8 13 0 12 C8 11 11 8 12 0 Z';
 
-function Sparkle({ s, t, k }: { s: (typeof SPARKLES)[number]; t: SharedValue<number>; k: number }) {
+/** Lying, his head is lower and to the left: the sparkles move with it. */
+const SPARKLE_LIE = { dx: -42, dy: 52 };
+
+function Sparkle({ s, t, k, place }: { s: (typeof SPARKLES)[number]; t: SharedValue<number>; k: number; place: SharedValue<WaterPose> }) {
   const style = useAnimatedStyle(() => {
     const u = Math.max(0, 1 - Math.abs(t.get() - s.at) / 0.3); // each one swells and fades around its moment
     const e = u * u * (3 - 2 * u);
-    return { opacity: e, transform: [{ scale: 0.4 + 0.6 * e }, { rotate: `${t.get() * 40}deg` }] };
+    const lying = 1 - place.get().q;
+    return {
+      opacity: e,
+      transform: [{ translateX: SPARKLE_LIE.dx * lying * k }, { translateY: SPARKLE_LIE.dy * lying * k }, { scale: 0.4 + 0.6 * e }, { rotate: `${t.get() * 40}deg` }],
+    };
   });
   return (
     <Animated.View pointerEvents="none" style={[{ position: 'absolute', left: (s.x - s.size / 2) * k, top: (s.y - s.size / 2) * k, width: s.size * k, height: s.size * k }, style]}>
@@ -375,12 +392,50 @@ function Sparkle({ s, t, k }: { s: (typeof SPARKLES)[number]; t: SharedValue<num
   );
 }
 
-export function WaterSparkles({ t, k }: { t: SharedValue<number>; k: number }) {
+export function WaterSparkles({ t, k, place }: { t: SharedValue<number>; k: number; place: SharedValue<WaterPose> }) {
   return (
     <>
       {SPARKLES.map((s, i) => (
-        <Sparkle key={i} s={s} t={t} k={k} />
+        <Sparkle key={i} s={s} t={t} k={k} place={place} />
       ))}
     </>
+  );
+}
+
+/** Stage units: the stream's view spans the stage height; transforms show just the falling part. */
+const STREAM = { h: 240, w: 4.5 };
+
+/**
+ * The visible part of the pour: a thin stream falling from above onto the top of his head (inside him
+ * it carries on only faintly, behind his muzzle and chest). Moves with him (it lives in his rig).
+ */
+export function PourStream({ ctx, k }: { ctx: WaterCtx; k: number }) {
+  const style = useAnimatedStyle(() => {
+    const s = pourSegment(ctx.level.get(), ctx.place.get().q, ctx.pour.get());
+    const bottom = Math.min(s.head, s.headTop + 3);
+    const len = bottom - s.tail;
+    if (s.w <= 0 || len <= 0.5) return { opacity: 0, transform: [{ translateX: 0 }, { translateY: 0 }, { scaleX: 1 }, { scaleY: 0.001 }] };
+    return {
+      opacity: 0.8,
+      transform: [{ translateX: (s.x - 120) * k }, { translateY: s.tail * k }, { scaleX: s.w / STREAM.w }, { scaleY: len / STREAM.h }],
+    };
+  });
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        {
+          position: 'absolute',
+          left: (120 - STREAM.w / 2) * k,
+          top: 0,
+          width: STREAM.w * k,
+          height: STREAM.h * k,
+          borderRadius: (STREAM.w / 2) * k,
+          backgroundColor: MILO_ART.liquid,
+          transformOrigin: 'top',
+        },
+        style,
+      ]}
+    />
   );
 }
