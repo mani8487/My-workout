@@ -15,6 +15,10 @@
  * day card, "+ Log movement" beside a slim water chip, and the day's logs as pills. The room catches
  * up from what you last saw, buzzes lightly when a log lands, and resets at
  * midnight or when the app wakes on a new day.
+ *
+ * Milo Steps ("Milo moves with me", on by default): Milo trots or runs with you
+ * while Home is open, replays what you did since you last looked, celebrates
+ * step milestones, and shows today's steps above him. Off: Home is as before.
  */
 import { addDays, addWeeks, format, isSameDay } from 'date-fns';
 import * as Haptics from 'expo-haptics';
@@ -30,17 +34,30 @@ import { Button } from '@/components/button';
 import { LogLine } from '@/components/active-today';
 import { GlassTile } from '@/components/glass-tile';
 import { MistDayCard } from '@/components/mist-day-card';
-import { LivingScene } from '@/components/scene/living-scene';
+import { LivingScene, type SceneSteps } from '@/components/scene/living-scene';
 import { MiloLine } from '@/components/scene/milo-line';
 import { TopActions } from '@/components/top-actions';
 import { WaterChip } from '@/components/water-chip';
+import { useLiveSteps, useStepsToday } from '@/db/steps';
 import { useWaterToday } from '@/db/water';
 import { catchUpFrom, dayKeyOf, encodeLastSeen, LAST_SEEN_KEY, streakDays } from '@/logic/day';
 import { cameoFor, type CameoKind } from '@/logic/cameo';
 import { decodeShown, encodeShown, nextLine } from '@/logic/milo-voice';
 import { minutesText, moodOf, sceneTarget } from '@/logic/scene-state';
 import { useTodayKey } from '@/logic/use-today';
-import { TRIP, useReducedMotion, WATER } from '@/motion';
+import { TRIP, useMotionActive, useReducedMotion, WATER } from '@/motion';
+import {
+  REPLAY,
+  STEPS_SEEN_KEY,
+  badgeOf,
+  milestonesCrossed,
+  readStepsSeen,
+  replayLine,
+  replayPlan,
+  sliceIndex,
+  type ReplayPart,
+  type StepsSeen,
+} from '@/logic/milo-steps';
 import { waterPace } from '@/logic/hydration';
 import { mayNudge, readNudgeLog, WATER_NUDGE_KEY } from '@/logic/hydration-layers';
 import { countWorkoutsBetween, deleteQuickLog, getActiveMinutesBetween, getActivityTimesSince, getQuickLogsBetween, type QuickLog } from '@/db/quick-log';
@@ -107,6 +124,10 @@ export default function HomeScreen() {
   // the room holds its changes until it's on screen again (see LivingScene).
   const water = useWaterToday();
   const focused = useIsFocused();
+  // Milo Steps: today's steps (null until read, or for another day), and the live cadence while Home is in view.
+  const stepsToday = useStepsToday();
+  const steps = stepsToday?.status === 'ok' ? stepsToday : null;
+  const cadence = useLiveSteps(useMotionActive() && !!steps);
 
   // A new day (midnight, or the app waking on a new day): move "today" along with it.
   const prevToday = useRef(todayKey);
@@ -336,6 +357,65 @@ export default function HomeScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [db, nudgeOn, todayKey, water?.ml, water?.goal]);
 
+  // Milo Steps: after each fresh read (opening Home, coming back to the app), replay what you did since you
+  // last looked; on any rise, celebrate milestones crossed. What Home has shown is remembered (STEPS_SEEN_KEY).
+  const [stepsReplay, setStepsReplay] = useState<{ cue: number; plan: readonly ReplayPart[]; line: string | null }>({ cue: 0, plan: [], line: null });
+  const [milestoneCue, setMilestoneCue] = useState(0);
+  const seenSteps = useRef<StepsSeen | null | undefined>(undefined); // undefined: not read yet
+  const replayedFor = useRef(0);
+  useEffect(() => {
+    if (!focused || !steps) return;
+    let cancelled = false;
+    (async () => {
+      if (seenSteps.current === undefined) {
+        const saved = readStepsSeen(await getSetting(db, STEPS_SEEN_KEY), steps.day);
+        if (seenSteps.current === undefined) seenSteps.current = saved;
+      }
+      if (cancelled) return;
+      const seen = seenSteps.current?.day === steps.day ? seenSteps.current : null;
+      const before = seen?.steps ?? 0;
+      if (replayedFor.current !== steps.loadedAt) {
+        replayedFor.current = steps.loadedAt;
+        const dayStart = new Date();
+        dayStart.setHours(0, 0, 0, 0);
+        const since = steps.slices.slice(sliceIndex(seen?.at ?? dayStart.getTime(), dayStart.getTime()));
+        const plan = replayPlan(since);
+        if (steps.steps - before >= REPLAY.minSteps && plan.length > 0)
+          setStepsReplay((r) => ({ cue: r.cue + 1, plan, line: replayLine(steps.steps - before, since) }));
+      }
+      if (milestonesCrossed(before, steps.steps).length > 0) setMilestoneCue((c) => c + 1);
+      seenSteps.current = { day: steps.day, steps: steps.steps, at: Date.now() };
+      setSetting(db, STEPS_SEEN_KEY, JSON.stringify(seenSteps.current)).catch(() => {});
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Runs for each new count and each fresh read while Home is in view.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [db, focused, steps?.steps, steps?.loadedAt, steps?.day]);
+  // The replay's line shows for this visit only.
+  useFocusEffect(
+    useCallback(
+      () => () => {
+        setStepsReplay((r) => (r.line ? { ...r, line: null } : r));
+      },
+      [],
+    ),
+  );
+  const openSteps = useCallback(() => router.push('/steps'), []);
+  const sceneSteps: SceneSteps | undefined = steps
+    ? {
+        count: steps.steps,
+        cadence,
+        energy: steps.energy,
+        badge: badgeOf(steps.steps),
+        replayCue: stepsReplay.cue,
+        replay: stepsReplay.plan,
+        milestoneCue,
+        onPress: openSteps,
+      }
+    : undefined;
+
   const thisWeek = weekStartOf(new Date());
   const isCurrentWeek = isSameDay(weekStart, thisWeek);
 
@@ -563,11 +643,12 @@ export default function HomeScreen() {
               glanceCue={glanceCue}
               onGlanced={countGlance}
               onWaterPress={() => router.push('/water')}
+              steps={sceneSteps}
             />
           )}
         </View>
         {/* Milo's voice, then today's minutes and the day's activities as one light line. */}
-        <MiloLine text={data.voice} />
+        <MiloLine text={stepsReplay.line ?? data.voice} />
         <View style={{ marginTop: -spacing.md }}>
           <LogLine
             lead={selected.isToday ? minutesText(data.activeToday, data.goal) : null}

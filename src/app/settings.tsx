@@ -10,10 +10,12 @@ import { Page } from '@/components/page';
 import { PressableScale } from '@/components/pressable-scale';
 import { Segmented } from '@/components/segmented';
 import { getSetting, setSetting } from '@/db/settings';
+import { refreshSteps, useStepsToday } from '@/db/steps';
 import { refreshWater } from '@/db/water';
 import { ACTIVE_GOAL_KEY, DEFAULT_ACTIVE_GOAL_MIN } from '@/logic/activity';
 import { BODY_WEIGHT_KEY, HEIGHT_KEY } from '@/logic/hydration';
 import { MILO_WATER_KEY } from '@/logic/hydration-layers';
+import { MILO_MOVES_KEY } from '@/logic/milo-steps';
 import { useTheme, type ThemePreference } from '@/theme/theme-context';
 import { radius, spacing, typography } from '@/theme/typography';
 
@@ -25,12 +27,15 @@ export default function SettingsScreen() {
   const [weight, setWeight] = useState('');
   const [height, setHeight] = useState('');
   const [waterOnMilo, setWaterOnMilo] = useState(true);
+  const [miloMoves, setMiloMoves] = useState(true);
+  const steps = useStepsToday();
 
   useEffect(() => {
     getSetting(db, 'user_name').then((v) => setName(v ?? ''));
     getSetting(db, BODY_WEIGHT_KEY).then((v) => setWeight(v ?? ''));
     getSetting(db, HEIGHT_KEY).then((v) => setHeight(v ?? ''));
     getSetting(db, MILO_WATER_KEY).then((v) => setWaterOnMilo(v !== '0'));
+    getSetting(db, MILO_MOVES_KEY).then((v) => setMiloMoves(v !== '0'));
     getSetting(db, ACTIVE_GOAL_KEY).then((v) => setGoal(Number(v) > 0 ? Number(v) : DEFAULT_ACTIVE_GOAL_MIN));
   }, [db]);
 
@@ -164,6 +169,36 @@ export default function SettingsScreen() {
             accessibilityLabel="Show water on Milo"
           />
         </View>
+      </Card>
+
+      <Card>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+          <View style={{ flex: 1, gap: spacing.xs }}>
+            <AppText variant="label">Milo moves with me</AppText>
+            <AppText variant="small" muted>
+              On Home, Milo trots and runs along as you walk, catches up on your steps when you open the app, and shows today&apos;s steps above him.
+            </AppText>
+          </View>
+          <Switch
+            value={miloMoves}
+            onValueChange={(on) => {
+              setMiloMoves(on);
+              setSetting(db, MILO_MOVES_KEY, on ? null : '0').then(() => refreshSteps(db));
+            }}
+            trackColor={{ true: colors.accent }}
+            accessibilityLabel="Milo moves with me"
+          />
+        </View>
+        {miloMoves && steps?.status === 'denied' && (
+          <AppText variant="small" muted>
+            Milo can&apos;t see your steps yet. Allow Motion &amp; Fitness for this app in your iPhone&apos;s Settings.
+          </AppText>
+        )}
+        {miloMoves && steps?.status === 'unavailable' && (
+          <AppText variant="small" muted>
+            This phone can&apos;t count steps, so Milo stays on his couch.
+          </AppText>
+        )}
       </Card>
 
       <Card>

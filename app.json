@@ -37,7 +37,13 @@
         }
       ],
       "expo-sqlite",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-sensors",
+        {
+          "motionPermission": "Milo trots along with your steps. Your step count stays on this phone."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

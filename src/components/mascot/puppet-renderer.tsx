@@ -20,6 +20,7 @@ import Animated, {
   useAnimatedReaction,
   useAnimatedStyle,
   useDerivedValue,
+  useFrameCallback,
   useSharedValue,
   withDelay,
   withSequence,
@@ -32,7 +33,7 @@ import Animated, {
 import { SvgXml } from 'react-native-svg';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { AMBIENT, ARC, CAMEO, CELEBRATE, DURATION, EASE, LEAVE, SHAPE, SPRING, WAKE, breathe, cameoLength, floatLoop, loopWithGaps, pick } from '@/motion';
+import { AMBIENT, ARC, CAMEO, CELEBRATE, DURATION, EASE, LEAVE, SHAPE, SPRING, STRIDE, WAKE, breathe, cameoLength, floatLoop, loopWithGaps, pick, type Range } from '@/motion';
 
 import { GROUND_Y, LAYERS, LIE_POSE, NECK, STAGE, TAIL_BASE, type LayerName } from './layers';
 import { PourStream, Tongue, useWaterCtx, useWaterMotion, WaterLayerArt, WaterSparkles, type WaterCtx } from './milo-water';
@@ -62,6 +63,37 @@ const CAMEO_SHAPE = {
   earsBack: 12,
 } as const;
 
+/**
+ * Striding (Milo Steps): how far each part moves at a full trot and a full run.
+ * Bobs in stage units, squash as a share of his height, paw as a share of the full lift, degrees.
+ */
+const STRIDE_SHAPE = {
+  trotBob: 3,
+  runBob: 7,
+  trotSquash: 0.015,
+  runSquash: 0.04,
+  trotPaw: 0.22,
+  runPaw: 0.42,
+  trotSway: 2.5,
+  runSway: 1.5,
+  earBounce: 3,
+  earsBack: 12,
+  trotTail: 8,
+  runTail: 14,
+  /** The ears and tail trail the body by this much of a stride (radians). */
+  earLag: 0.9,
+  tailLag: 1.2,
+} as const;
+/** Standing still: every stride offset at rest. */
+const STILL = { y: 0, sx: 1, sy: 1, paw: 0, turn: 0, earL: 0, earR: 0, tail: 0 };
+
+/**
+ * Energy (Milo Steps, 0–1) makes idle moves livelier: shorter pauses between
+ * ear flicks and tail swishes, a bigger swish, more double blinks, a bigger stretch.
+ */
+const LIVELY = { earGap: 0.35, tailGap: 0.3, tailSize: 0.3, doubleBlink: 0.25, stretch: 0.5 } as const;
+const quicker = (r: Range, by: number): Range => ({ min: r.min * (1 - by), max: r.max * (1 - by) });
+
 /** Reduce Motion: states that look different swap behind a quick fade. */
 const LOOK: Record<MiloState, string> = {
   sleeping: 'lie',
@@ -78,6 +110,7 @@ const LOOK: Record<MiloState, string> = {
   'cameo-run': 'run',
   'cameo-squat': 'squat',
   drinking: 'drink',
+  striding: 'sit',
 };
 const NEVER = ReduceMotion.Never;
 
@@ -244,7 +277,7 @@ function Z({ progress, on, k, color }: { progress: SharedValue<number>; on: Shar
 
 // ---------- the renderer ----------
 
-export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, tapSignal, paused, reducedMotion, isDark, keepCouch = false, towel = false, water, onSettled }: MiloRendererProps) {
+export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, tapSignal, paused, reducedMotion, isDark, keepCouch = false, towel = false, water, gait = 0, energy = 0, onSettled }: MiloRendererProps) {
   const k = size / STAGE;
   const lying = state === 'sleeping' || state === 'stirring' || state === 'waking';
 
@@ -280,9 +313,13 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
   const towelOn = useSharedValue(towel ? 1 : 0);
   // Water inside him (Home): its own values, added on top of his motion; all at rest when it's off.
   const wm = useWaterMotion(water, state, reducedMotion);
+  // Milo Steps: the gait (0 still, 1 trot, 2 run, blended) and where he is in his stride (cycles).
+  const move = useSharedValue(0);
+  const phase = useSharedValue(0);
+  const lively = useSharedValue(energy);
 
   // Cancel every animation when Milo leaves the screen for good.
-  const allRef = useRef([pose, headLift, headTurn, dip, lap, breath, breathDepth, sx, sy, jumpY, followY, tailSway, earL, earR, earTapL, earTapR, stageOpacity, eyes, paw, bowl, z1, z2, z3, zzOn, confetti, sparks, near, present, towelOn]);
+  const allRef = useRef([pose, headLift, headTurn, dip, lap, breath, breathDepth, sx, sy, jumpY, followY, tailSway, earL, earR, earTapL, earTapR, stageOpacity, eyes, paw, bowl, z1, z2, z3, zzOn, confetti, sparks, near, present, towelOn, move]);
   const unmounted = useRef(false);
   useEffect(() => {
     unmounted.current = false;
@@ -386,6 +423,13 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
       case 'drinking':
         to(pose, 1, SPRING.gentle);
         fade(eyes, 1);
+        break;
+
+      case 'striding':
+        // Up and ready; the stride itself follows `gait` (below).
+        to(pose, 1, SPRING.gentle);
+        to(headLift, 0);
+        fade(eyes, 0, micro.base);
         break;
 
       case 'waking': {
@@ -597,12 +641,15 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
         if (state === 'cameo-stretch') {
           // A small dip (anticipation), reach up tall with eyes closed and the head tipped back, hold,
           // let go just past rest, and settle.
+          // With more energy (Milo Steps) he stretches a little further.
           const { reach, hold, release } = CAMEO.stretch;
+          const big = 1 + LIVELY.stretch * energy;
+          const tall = { x: 1 - (1 - CAMEO_SHAPE.stretch.x) * big, y: 1 + (CAMEO_SHAPE.stretch.y - 1) * big };
           paw.set(later(withSequence(t(-CAMEO_SHAPE.dip, w), t(1, reach), withDelay(hold, t(0, release)))));
-          sx.set(withSequence(...hopShape('x'), t(CAMEO_SHAPE.preStretch.x, w), t(CAMEO_SHAPE.stretch.x, reach), withDelay(hold, t(CAMEO_SHAPE.settle.x, release)), withSpring(1, SPRING.snappy)));
-          sy.set(withSequence(...hopShape('y'), t(CAMEO_SHAPE.preStretch.y, w), t(CAMEO_SHAPE.stretch.y, reach), withDelay(hold, withTiming(CAMEO_SHAPE.settle.y, { duration: release, easing: EASE.inOut }, done)), withSpring(1, SPRING.snappy)));
+          sx.set(withSequence(...hopShape('x'), t(CAMEO_SHAPE.preStretch.x, w), t(tall.x, reach), withDelay(hold, t(CAMEO_SHAPE.settle.x, release)), withSpring(1, SPRING.snappy)));
+          sy.set(withSequence(...hopShape('y'), t(CAMEO_SHAPE.preStretch.y, w), t(tall.y, reach), withDelay(hold, withTiming(CAMEO_SHAPE.settle.y, { duration: release, easing: EASE.inOut }, done)), withSpring(1, SPRING.snappy)));
           eyes.set(later(withSequence(withDelay(w, t(1, reach)), withDelay(hold, t(0, release)))));
-          headTurn.set(later(withSequence(withDelay(w, t(-CAMEO_SHAPE.tilt, reach)), withDelay(hold, t(0, release)))));
+          headTurn.set(later(withSequence(withDelay(w, t(-CAMEO_SHAPE.tilt * big, reach)), withDelay(hold, t(0, release)))));
           if (up) jumpY.set(withSequence(...hop));
         } else if (state === 'cameo-walk') {
           // Weight shifts side to side with every step (head sway); the paw steps on every other one,
@@ -690,9 +737,12 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
 
   // ----- idle loops: stopped while paused or with Reduce Motion -----
   const celebrateCue = state === 'celebrating' ? cue : 0;
+  // Energy steps in quarters, so the idle loops restart at most a few times a day.
+  const energyBand = Math.round(energy * 4) / 4;
   useEffect(() => {
     const loops = [breath, z1, z2, z3, tailSway, earL, earR, lap];
-    if (state === 'sitting' || state === 'reacting' || state === 'content') loops.push(eyes);
+    const blinking = state === 'sitting' || state === 'reacting' || state === 'striding';
+    if (blinking || state === 'content') loops.push(eyes);
     if (state === 'celebrating') loops.push(sx, sy, paw, eyes, confetti, jumpY);
     const stopAll = () => {
       loops.forEach((v) => cancelAnimation(v));
@@ -731,10 +781,10 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
     }
 
     const sway = lyingDown ? 5 : content ? 6 : 10;
-    const tailGap = lyingDown ? AMBIENT.tailGapSleeping : content ? AMBIENT.tailGapContent : AMBIENT.tailGapAwake;
+    const tailGap = quicker(lyingDown ? AMBIENT.tailGapSleeping : content ? AMBIENT.tailGapContent : AMBIENT.tailGapAwake, LIVELY.tailGap * energyBand);
     loopWithGaps(tailSway, 0, tailGap, () => {
       'worklet';
-      const a = sway * pick(AMBIENT.tailSize, Math.random());
+      const a = sway * pick(AMBIENT.tailSize, Math.random()) * (1 + LIVELY.tailSize * lively.get());
       return withSequence(
         withTiming(a, { duration: transition.base, easing: EASE.inOut }),
         withTiming(-a * 0.6, { duration: transition.base + micro.fast, easing: EASE.inOut }),
@@ -746,7 +796,7 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
       'worklet';
       return withSequence(withTiming(dir * (10 + Math.random() * 5), { duration: micro.fast, easing: EASE.out }), withSpring(0, SPRING.snappy));
     };
-    const earGap = state === 'stirring' ? AMBIENT.earGapStirring : AMBIENT.earGap;
+    const earGap = quicker(state === 'stirring' ? AMBIENT.earGapStirring : AMBIENT.earGap, LIVELY.earGap * energyBand);
     loopWithGaps(earL, 0, earGap, flick(-1));
     loopWithGaps(earR, 0, earGap, flick(1));
 
@@ -761,11 +811,12 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
       });
     }
 
-    if (state === 'sitting' || state === 'reacting') {
+    if (blinking) {
       loopWithGaps(eyes, 0, AMBIENT.blinkGap, () => {
         'worklet';
         const blink = () => withSequence(withTiming(1, { duration: micro.fast, easing: EASE.out }), withTiming(0, { duration: micro.fast, easing: EASE.out }));
-        return Math.random() < 0.2 ? withSequence(blink(), blink()) : blink(); // now and then, a double blink
+        // Now and then a double blink; more often with more energy (a happier blink).
+        return Math.random() < 0.2 + LIVELY.doubleBlink * lively.get() ? withSequence(blink(), blink()) : blink();
       });
     }
 
@@ -796,7 +847,40 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
     };
     // A cue replays one-shots; only the celebration loop needs restarting for it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, paused, reducedMotion, celebrateCue]);
+  }, [state, paused, reducedMotion, celebrateCue, energyBand]);
+
+  useEffect(() => {
+    lively.set(energy);
+  }, [energy, lively]);
+
+  // ----- striding (Milo Steps): the stride clock runs only while he's moving and on screen -----
+  const stepping = useFrameCallback((f) => {
+    'worklet';
+    const m = move.get();
+    const hz = STRIDE.trotHz + (STRIDE.runHz - STRIDE.trotHz) * Math.min(1, Math.max(0, m - 1));
+    // A dropped frame never jumps him ahead.
+    const dt = Math.min(f.timeSincePreviousFrame ?? 16, 50);
+    phase.set((phase.get() + (dt / 1000) * hz) % 1);
+  }, false);
+  const strideTo = state === 'striding' && !reducedMotion ? gait : 0;
+  useEffect(() => {
+    if (reducedMotion) {
+      // Still, behind the Reduce Motion fade.
+      move.set(withDelay(micro.fast, withTiming(0, { duration: 0, reduceMotion: NEVER }), NEVER));
+      stepping.setActive(false);
+      return;
+    }
+    move.set(withTiming(strideTo, { duration: STRIDE.blend, easing: EASE.inOut }));
+    if (strideTo > 0 && !paused) {
+      stepping.setActive(true);
+      return;
+    }
+    // The stride eases out over the blend, then the clock stops.
+    const t = setTimeout(() => stepping.setActive(false), paused ? 0 : STRIDE.blend);
+    return () => clearTimeout(t);
+    // stepping is stable for the renderer's life.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [strideTo, paused, reducedMotion, move]);
 
   // ----- the towel (after a workout today) fades on or off -----
   useEffect(() => {
@@ -833,33 +917,60 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
     'worklet';
     return jumpY.get() - followY.get(); // negative while rising, positive while falling
   };
+  // Striding: one stride clock drives the bob, squash, paw, head sway, ears and tail, blended by the gait.
+  // At rest it is STILL, so nothing about him changes.
+  const stride = useDerivedValue(() => {
+    const m = move.get();
+    const a = Math.min(1, Math.max(0, m)); // how much he's moving at all
+    if (a < 0.0005) return STILL;
+    const r = Math.min(1, Math.max(0, m - 1)); // how much of it is a run
+    const S = STRIDE_SHAPE;
+    const mix = (trot: number, run: number) => trot * (1 - r) + run * r;
+    const th = phase.get() * 2 * Math.PI;
+    // Off the ground twice a stride: a soft rise and fall at a trot, a springier bounce at a run.
+    const lift = ((1 - Math.cos(2 * th)) / 2) * (1 - r) + Math.abs(Math.sin(th)) * r;
+    const squash = a * mix(S.trotSquash, S.runSquash) * (lift * 2 - 1); // tall in the air, squashed on landing
+    const ear = a * Math.sin(2 * (th - S.earLag)) * S.earBounce * (1 + r) - a * r * S.earsBack;
+    return {
+      y: -a * lift * mix(S.trotBob, S.runBob),
+      sx: 1 - squash * 0.6,
+      sy: 1 + squash,
+      paw: a * (0.5 + 0.5 * Math.sin(th)) * mix(S.trotPaw, S.runPaw),
+      turn: a * Math.sin(th) * mix(S.trotSway, S.runSway),
+      earL: ear,
+      earR: -ear,
+      tail: a * Math.sin(th - S.tailLag) * mix(S.trotTail, S.runTail) * (1 + LIVELY.tailSize * lively.get()),
+    };
+  });
   // Where the head group and the ears are: shared by their styles and the water inside them.
-  const headPlace = useDerivedValue(() => headPlacement(pose.get(), headLift.get(), headTurn.get(), dip.get(), lap.get(), wm.lick.get(), wm.glance.get()));
+  const headPlace = useDerivedValue(() => headPlacement(pose.get(), headLift.get(), headTurn.get() + stride.get().turn, dip.get(), lap.get(), wm.lick.get(), wm.glance.get()));
   const earTurn = useDerivedValue(() => ({
-    l: earL.get() + earTapL.get() + lag() * FOLLOW.ear + wm.earL.get(),
-    r: earR.get() + earTapR.get() - lag() * FOLLOW.ear + wm.earR.get(),
+    l: earL.get() + earTapL.get() + lag() * FOLLOW.ear + wm.earL.get() + stride.get().earL,
+    r: earR.get() + earTapR.get() - lag() * FOLLOW.ear + wm.earR.get() + stride.get().earR,
   }));
-  const place = useDerivedValue(() => ({ q: pose.get(), paw: paw.get(), head: headPlace.get(), earL: earTurn.get().l, earR: earTurn.get().r }));
+  // The front paw's lift (share of the full 130 degrees): his own moves plus the stride.
+  const pawTurn = useDerivedValue(() => paw.get() + stride.get().paw);
+  const place = useDerivedValue(() => ({ q: pose.get(), paw: pawTurn.get(), head: headPlace.get(), earL: earTurn.get().l, earR: earTurn.get().r }));
   // Body and paw water only follow the pose and the paw (the head and ears don't move them).
-  const bodyPlace = useDerivedValue(() => ({ q: pose.get(), paw: paw.get(), head: NO_HEAD, earL: 0, earR: 0 }));
+  const bodyPlace = useDerivedValue(() => ({ q: pose.get(), paw: pawTurn.get(), head: NO_HEAD, earL: 0, earR: 0 }));
   const wet: WaterCtx | undefined = useWaterCtx(wm, place, bodyPlace, reducedMotion);
 
   const stageStyle = useAnimatedStyle(() => ({ opacity: stageOpacity.get() }));
   const rigStyle = useAnimatedStyle(() => ({
     opacity: present.get(),
-    transform: [{ translateY: jumpY.get() * k }, { scale: near.get() }],
+    transform: [{ translateY: (jumpY.get() + stride.get().y) * k }, { scale: near.get() }],
   }));
   // The towel sits on his shoulders, so it squashes, stretches and breathes with the body.
   const towelStyle = useAnimatedStyle(() => ({
     opacity: towelOn.get() * pose.get(),
-    transform: [{ scaleX: sx.get() }, { scaleY: sy.get() * (1 + breath.get() * amp(1)) * (1 - dip.get() * 0.08) }],
+    transform: [{ scaleX: sx.get() * stride.get().sx }, { scaleY: sy.get() * stride.get().sy * (1 + breath.get() * amp(1)) * (1 - dip.get() * 0.08) }],
   }));
   const couchStyle = useAnimatedStyle(() => ({ opacity: keepCouch ? 1 : 1 - pose.get() }));
   const bowlStyle = useAnimatedStyle(() => ({ opacity: Math.max(bowl.get(), wm.bowl.get()) }));
 
   const shadowStyle = useAnimatedStyle(() => {
     const q = pose.get();
-    const air = Math.min(1, Math.max(0, -jumpY.get() / 70)); // only while he's above the floor
+    const air = Math.min(1, Math.max(0, -(jumpY.get() + stride.get().y) / 70)); // only while he's above the floor
     return {
       opacity: (1 - air * 0.5) * present.get(),
       transform: [{ translateY: (1 - q) * 7 * k }, { scaleX: (1 - q * (100 / 220)) * (1 - air * 0.35) }],
@@ -872,24 +983,24 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
       transform: [
         { translateX: T.dx * (1 - q) * k },
         { translateY: T.dy * (1 - q) * k },
-        { rotate: `${T.rotate * (1 - q) + tailSway.get() - lag() * FOLLOW.tail + wm.tailFlick.get()}deg` },
+        { rotate: `${T.rotate * (1 - q) + tailSway.get() - lag() * FOLLOW.tail + wm.tailFlick.get() + stride.get().tail}deg` },
       ],
     };
   });
 
   const bodyLieStyle = useAnimatedStyle(() => ({
     opacity: 1 - pose.get(),
-    transform: [{ scaleX: sx.get() }, { scaleY: sy.get() * (1 + breath.get() * amp(0)) }],
+    transform: [{ scaleX: sx.get() * stride.get().sx }, { scaleY: sy.get() * stride.get().sy * (1 + breath.get() * amp(0)) }],
   }));
 
   const bodySitStyle = useAnimatedStyle(() => ({
     opacity: pose.get(),
-    transform: [{ scaleX: sx.get() }, { scaleY: sy.get() * (1 + breath.get() * amp(1)) * (1 - dip.get() * 0.08) }],
+    transform: [{ scaleX: sx.get() * stride.get().sx }, { scaleY: sy.get() * stride.get().sy * (1 + breath.get() * amp(1)) * (1 - dip.get() * 0.08) }],
   }));
 
   const pawStyle = useAnimatedStyle(() => ({
     opacity: pose.get(),
-    transform: [{ rotate: `${-130 * paw.get()}deg` }],
+    transform: [{ rotate: `${-130 * pawTurn.get()}deg` }],
   }));
 
   const headStyle = useAnimatedStyle(() => {
@@ -897,7 +1008,7 @@ export const PuppetRenderer = memo(function PuppetRenderer({ state, size, cue, t
     const h = headPlace.get(); // lying, waking lift, tilt, drinking, and the water's lap and glance
     const dy =
       h.dy +
-      (1 - sy.get()) * 100 * q - // ride the body's squash and stretch
+      (1 - sy.get() * stride.get().sy) * 100 * q - // ride the body's squash and stretch
       breath.get() * 2.5 * breathDepth.get() * q;
     return { transform: [{ translateX: h.dx * k }, { translateY: dy * k }, { rotate: `${h.rot}deg` }, { scale: h.scale }] };
   });

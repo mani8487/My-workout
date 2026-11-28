@@ -34,6 +34,7 @@ const DESCRIPTION: Record<MiloState, string> = {
   'cameo-walk': 'Milo the cat walks on the spot',
   'cameo-run': 'Milo the cat runs on the spot',
   'cameo-squat': 'Milo the cat does squats',
+  striding: 'Milo the cat trots along with you',
 };
 
 type Props = {
@@ -50,10 +51,13 @@ type Props = {
   towel?: boolean;
   /** Water inside him (Home). Leave out for the usual Milo. */
   water?: MiloWater;
+  /** Milo Steps: the gait while striding (0 still, 1 trot, 2 run) and his energy (0–1). */
+  gait?: number;
+  energy?: number;
   style?: StyleProp<ViewStyle>;
 };
 
-export function Milo({ state, size = 160, cue = 0, onSettled, onPress, keepCouch = false, towel = false, water, style }: Props) {
+export function Milo({ state, size = 160, cue = 0, onSettled, onPress, keepCouch = false, towel = false, water, gait, energy, style }: Props) {
   const reducedMotion = useReducedMotion();
   const { isDark } = useTheme();
   const onScreen = useMotionActive();
@@ -88,6 +92,8 @@ export function Milo({ state, size = 160, cue = 0, onSettled, onPress, keepCouch
         keepCouch={keepCouch}
         towel={towel}
         water={water}
+        gait={gait}
+        energy={energy}
         onSettled={handleSettled}
       />
     </Pressable>

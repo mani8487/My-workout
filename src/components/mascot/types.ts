@@ -23,7 +23,8 @@ export type MiloState =
   | 'cameo-stretch' // reaches up and stretches, eyes closed
   | 'cameo-walk' // a few easy steps on the spot
   | 'cameo-run' // quick strides, ears back
-  | 'cameo-squat'; // three slow squats
+  | 'cameo-squat' // three slow squats
+  | 'striding'; // trots or runs on the spot with you (Milo Steps): set the gait with `gait`
 
 /** Water on Milo (Home): the fill inside him and the moments around it. Leave it out and he is drawn as always. */
 export type MiloWater = {
@@ -59,6 +60,10 @@ export type MiloRendererProps = {
   towel?: boolean;
   /** Water inside him (Home, when "Show water on Milo" is on). */
   water?: MiloWater;
+  /** While striding: 0 still, 1 trot, 2 run (in between blends). Ignored in other states. */
+  gait?: number;
+  /** Milo Steps energy, 0–1: livelier idle moves (ears, tail, blinks, stretch). Leave out for his usual self. */
+  energy?: number;
   /** Called when a one-shot state (waking, reacting) has finished. */
   onSettled: (state: MiloState) => void;
 };

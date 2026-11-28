@@ -3,6 +3,8 @@
  * More → Scene Lab. Drives the Living Home room with sliders (active minutes,
  * goal, water, time of day), forces Mist light or dark and Reduce Motion on or
  * off for everything on this screen, and plays each Milo state on demand.
+ * Milo Steps can be checked without walking: a fake cadence, fake steps
+ * (with their replay and milestones) and the setting shown or hidden.
  *
  * Kept in release builds on purpose: it is used through published updates.
  */
@@ -18,6 +20,7 @@ import { PressableScale } from '@/components/pressable-scale';
 import { LivingScene } from '@/components/scene/living-scene';
 import { MiloLine } from '@/components/scene/milo-line';
 import { type CameoKind } from '@/logic/cameo';
+import { badgeOf, energyOf, fmtSteps, gaitOf, milestonesCrossed, replayPlan, type ReplayPart } from '@/logic/milo-steps';
 import { nextLine, type ShownLine } from '@/logic/milo-voice';
 import { minutesText, moodOf } from '@/logic/scene-state';
 import { ReducedMotionOverride, useReducedMotion } from '@/motion';
@@ -40,6 +43,16 @@ const STATES: { state: MiloState | null; label: string }[] = [
 const FILLS = [0, 0.25, 0.5, 0.75, 1, 1.2];
 const GOALS = [0, 30, 60];
 const WATER_GOAL = 2000;
+/** Fake cadences (steps a minute) for the gait chips. */
+const CADENCES = [
+  { spm: 0, label: 'Idle' },
+  { spm: 100, label: 'Walk' },
+  { spm: 160, label: 'Run' },
+];
+/** "+1,000 steps": an easy walk, as three 5-minute slices. */
+const FAKE_WALK = [350, 350, 300];
+/** "Replay walk + run": a walk, then a run. */
+const FAKE_MIX = [500, 500, 500, 800, 800];
 const EMPTY_ROOM = { stage: 0, water: 0 };
 
 type Motion = 'system' | 'on' | 'off';
@@ -127,6 +140,18 @@ function LabBody({ dark, setDark, motion, setMotion }: { dark: boolean; setDark:
   const [towel, setTowel] = useState(false);
   const [cameo, setCameo] = useState<{ cue: number; kinds: CameoKind[] }>({ cue: 0, kinds: [] });
   const play = (...kinds: CameoKind[]) => setCameo((c) => ({ cue: c.cue + 1, kinds }));
+  // Milo Steps, faked: a cadence, a step count (with its replay and milestones), the setting.
+  const [stepsOn, setStepsOn] = useState(true);
+  const [cadence, setCadence] = useState(0);
+  const [fakeSteps, setFakeSteps] = useState(0);
+  const [stepsReplay, setStepsReplay] = useState<{ cue: number; plan: readonly ReplayPart[] }>({ cue: 0, plan: [] });
+  const [milestoneCue, setMilestoneCue] = useState(0);
+  const replaySlices = (slices: number[]) => setStepsReplay((r) => ({ cue: r.cue + 1, plan: replayPlan(slices) }));
+  const addSteps = (n: number, slices: number[]) => {
+    if (milestonesCrossed(fakeSteps, fakeSteps + n).length > 0) setMilestoneCue((c) => c + 1);
+    setFakeSteps(fakeSteps + n);
+    replaySlices(slices);
+  };
 
   // Milo's voice: the same picker Home uses. A new line whenever the situation changes or on "New line".
   const [yesterday, setYesterday] = useState(false);
@@ -184,6 +209,19 @@ function LabBody({ dark, setDark, motion, setMotion }: { dark: boolean; setDark:
             waterOnMilo={waterOnMilo}
             glanceCue={glanceCue}
             pourOnRise={pour}
+            steps={
+              stepsOn
+                ? {
+                    count: fakeSteps,
+                    cadence,
+                    energy: energyOf(fakeSteps, minutes),
+                    badge: badgeOf(fakeSteps),
+                    replayCue: stepsReplay.cue,
+                    replay: stepsReplay.plan,
+                    milestoneCue,
+                  }
+                : undefined
+            }
           />
         </View>
         <View style={{ alignItems: 'center', gap: 2 }}>
@@ -226,6 +264,23 @@ function LabBody({ dark, setDark, motion, setMotion }: { dark: boolean; setDark:
           />
           <Chip label="Glance at bowl" on={false} hint="The behind-pace reminder. Milo must be sitting on Auto (10 or more active minutes), not in a picked state" onPress={() => setGlanceCue((c) => c + 1)} />
           <Chip label={waterOnMilo ? 'Shown' : 'Hidden'} on={waterOnMilo} hint="The Show water on Milo setting" onPress={() => setWaterOnMilo((v) => !v)} />
+        </Row>
+        <LabSlider
+          label={`Fake cadence: ${Math.round(cadence)} steps a minute (${gaitOf(cadence) === 'idle' ? 'still' : gaitOf(cadence) === 'walk' ? 'trot' : 'run'})`}
+          value={cadence}
+          min={0}
+          max={180}
+          step={5}
+          onChange={setCadence}
+        />
+        <Row title={`Milo Steps (Milo must be on Auto) · ${fmtSteps(fakeSteps)} steps · energy ${energyOf(fakeSteps, minutes)}`}>
+          {CADENCES.map((c) => (
+            <Chip key={c.label} label={c.label} on={cadence === c.spm} onPress={() => setCadence(c.spm)} />
+          ))}
+          <Chip label="+1,000 steps" on={false} hint="Adds an easy walk: Milo replays it as a trot, and celebrates at 5k, 8k and 10k" onPress={() => addSteps(1000, FAKE_WALK)} />
+          <Chip label="Replay walk + run" on={false} hint="The catch-up replay for a walk, then a run" onPress={() => replaySlices(FAKE_MIX)} />
+          <Chip label="Reset steps" on={false} onPress={() => setFakeSteps(0)} />
+          <Chip label={stepsOn ? 'Shown' : 'Hidden'} on={stepsOn} hint="The Milo moves with me setting" onPress={() => setStepsOn((v) => !v)} />
         </Row>
         <LabSlider label={`Time of day: ${clock(hour)}`} value={hour} min={0} max={23.5} step={0.5} onChange={setHour} />
 

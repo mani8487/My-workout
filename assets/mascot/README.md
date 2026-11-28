@@ -76,6 +76,25 @@ like a glass. Nothing new needs drawing, but the art has to follow one rule:
   (one colour for every drink). The level keeps counting to 120% of the goal,
   but from 100% up Milo simply looks full.
 
+## Milo Steps: trotting and running (Home)
+
+When you walk or run with Home open (or when the app replays your day), Milo
+trots or runs on the spot. **No new art layers**: the stride is made from the
+existing pieces, so his look never changes.
+
+- Body (`body-sit`): bobs (3 units at a trot, 7 at a run) and squashes a little
+  on each landing, stretching in the air.
+- Front paw: swings forward on every stride (up to about 30° trotting, 55° running).
+- Head group: a small side-to-side sway; it rides the body's squash.
+- Ears: bounce a beat behind the body; swept back while running.
+- Tail: swings a beat behind; bouncier with more energy.
+
+Gaits blend over 400 ms (still, trot, run), and he goes back to his usual pose
+when you stop. The water inside him follows the same positions, so it stays
+level and never jumps. Energy (0–100, from steps and active minutes) only
+changes how lively his idle moves are: quicker ear flicks, bigger tail swishes,
+happier blinks and a bigger stretch. Never his shape or colours.
+
 ## Palette (Mist & Mint)
 
 | Use | Colour |

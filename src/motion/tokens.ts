@@ -133,6 +133,24 @@ export const WATER = {
   glanceAfter: 4000,
 } as const;
 
+/**
+ * Milo Steps (Home): Milo trots or runs on the spot while you walk or run.
+ * Gaits blend over `blend`; the stride rate eases between trot and run with them.
+ */
+export const STRIDE = {
+  /** Idle ↔ trot ↔ run blends. */
+  blend: 400,
+  /** Strides per second (one stride = both steps). */
+  trotHz: 1.5,
+  runHz: 2.4,
+  /** After you stop: the blend back to still, plus a beat before he goes back to what he was doing. */
+  settle: 400 + micro.slow,
+  /** A step milestone: one celebration jump and its landing. */
+  milestone: CELEBRATE.land + transition.long,
+  /** The replay starts a beat after the room has caught up. */
+  replayAfter: transition.long + micro.slow,
+} as const;
+
 /** A random range in ms. Ambient motion picks a new value every cycle. */
 export type Range = { readonly min: number; readonly max: number };
 

@@ -8,6 +8,10 @@
  * screen last time today) to now. Milo wakes with his full waking move when
  * the room passes "awake", and lies back down if it goes the other way.
  * With Reduce Motion on, the room cross-fades between still states.
+ *
+ * Milo Steps (`steps`): Milo trots or runs on the spot while you walk or run,
+ * replays what you did since you last looked, and celebrates step milestones.
+ * Steps never change the room itself.
  */
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, useWindowDimensions, View } from 'react-native';
@@ -24,15 +28,16 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { Milo, type MiloState, type MiloWater } from '@/components/mascot';
-import { CAMEO, DURATION, EASE, SPRING, TRIP, WATER, useMotionActive, useReducedMotion } from '@/motion';
+import { CAMEO, DURATION, EASE, SPRING, STRIDE, TRIP, WATER, useMotionActive, useReducedMotion } from '@/motion';
 import { enqueueCameos, type CameoKind } from '@/logic/cameo';
 import { fillLevel } from '@/logic/hydration-layers';
+import { gaitLevel, gaitOf, type ReplayPart } from '@/logic/milo-steps';
 import { daylight, describeScene, dimness, moodOfStage, sceneTarget, warmth, type Mood } from '@/logic/scene-state';
 import { useTheme } from '@/theme/theme-context';
 
 import { roomPalette } from './palette';
 import { Curtains, Dust, Floor, Lamp, Plant, Rays, ROOM, RoomWindow, Sill, Veil } from './room-parts';
-import { WaterReadout } from './water-readout';
+import { RoomReadouts } from './room-readouts';
 
 /** Share of the screen height the room may use. */
 const MAX_HEIGHT_SHARE = 0.34;
@@ -49,6 +54,25 @@ const CAMEO_WORDS: Record<CameoKind, string> = {
   walk: 'Milo walks on the spot',
   run: 'Milo does a little run',
   squat: 'Milo does a few squats',
+};
+
+/** Milo Steps, as the room needs it. Leave it out (the setting is off) and nothing about the room changes. */
+export type SceneSteps = {
+  /** Today's steps (the readout). */
+  count: number;
+  /** Live steps per minute (0 when you're still). */
+  cadence: number;
+  /** 0–100: livelier idle moves. */
+  energy: number;
+  /** The highest milestone reached today (the readout's badge). */
+  badge: number | null;
+  /** Bump to play a replay of `replay` (what you did since you last looked). */
+  replayCue: number;
+  replay: readonly ReplayPart[];
+  /** Bump when a step milestone is crossed: a short celebration. */
+  milestoneCue: number;
+  /** Tapping the readout (opens the steps sheet). */
+  onPress?: () => void;
 };
 
 const lyingDown = (s: MiloState) => s === 'sleeping' || s === 'stirring';
@@ -94,9 +118,11 @@ type Props = {
   onWaterPress?: () => void;
   /** Scene Lab: false while setting the level by hand, so a change is not played as a drink. */
   pourOnRise?: boolean;
+  /** Milo Steps ("Milo moves with me"): leave out when it's off. */
+  steps?: SceneSteps;
 };
 
-export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinutes, waterMl, waterGoalMl, hour, maxHeight, from, miloOverride, miloCue = 0, departCue = 0, onDeparted, onAbandoned, arriveCue = 0, towel = false, cameoCue = 0, cameoKinds = NO_CAMEOS, waterOnMilo = false, glanceCue = 0, onGlanced, onWaterPress, pourOnRise = true }: Props) {
+export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinutes, waterMl, waterGoalMl, hour, maxHeight, from, miloOverride, miloCue = 0, departCue = 0, onDeparted, onAbandoned, arriveCue = 0, towel = false, cameoCue = 0, cameoKinds = NO_CAMEOS, waterOnMilo = false, glanceCue = 0, onGlanced, onWaterPress, pourOnRise = true, steps }: Props) {
   const { width, height } = useWindowDimensions();
   const { isDark } = useTheme();
   const palette = roomPalette(isDark);
@@ -316,6 +342,56 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
     [waterOnMilo, fillNow, start.water, drinks.drink, drinks.goal, glance.shown],
   );
 
+  // ----- Milo Steps: replay, live gait, milestones -----
+  // The replay: trot, then run, matching the day, then settle. Tap Milo to skip it.
+  type Replay = { parts: readonly ReplayPart[]; at: number }; // at: the part playing (-1: waiting to start)
+  const [replay, setReplay] = useState<Replay | null>(null);
+  const [replaySeen, setReplaySeen] = useState(steps?.replayCue ?? 0);
+  const strideFree = free && !reduced;
+  // Anything else that starts (a cameo, a trip, the Lab, leaving the screen, Reduce Motion) ends it;
+  // while he's still waking up it just waits.
+  const replayBlocked = !onScreen || travel !== 'none' || !!miloOverride || playing !== null || reduced;
+  if (steps && replaySeen !== steps.replayCue) {
+    setReplaySeen(steps.replayCue);
+    if (!replayBlocked && steps.replay.length > 0) setReplay({ parts: steps.replay, at: -1 });
+  }
+  if (replay && replayBlocked) setReplay(null);
+  useEffect(() => {
+    if (!replay || !strideFree) return;
+    const wait = replay.at < 0 ? STRIDE.replayAfter : replay.parts[replay.at].ms;
+    const t = setTimeout(() => setReplay((r) => (r && r.at + 1 < r.parts.length ? { ...r, at: r.at + 1 } : null)), wait);
+    return () => clearTimeout(t);
+  }, [replay, strideFree]);
+  const replayGait = replay && replay.at >= 0 ? gaitLevel(replay.parts[replay.at].gait) : 0;
+  // The gait he's asked for: the replay's, or yours right now.
+  const gaitAsked = !steps || !strideFree ? 0 : replay ? replayGait : gaitLevel(gaitOf(steps.cadence));
+  // He keeps striding a beat after you stop, while the stride eases out, then goes back to what he was doing.
+  const [striding, setStriding] = useState(false);
+  if (gaitAsked > 0 && !striding) setStriding(true);
+  useEffect(() => {
+    if (!striding || gaitAsked > 0) return;
+    const t = setTimeout(() => setStriding(false), STRIDE.settle);
+    return () => clearTimeout(t);
+  }, [striding, gaitAsked]);
+  // A milestone: one short celebration jump, once he's free and not moving (it waits for the replay).
+  const [milestoneSeen, setMilestoneSeen] = useState(steps?.milestoneCue ?? 0);
+  const [cheerAsked, setCheerAsked] = useState(false);
+  const [cheer, setCheer] = useState(false);
+  if (steps && milestoneSeen !== steps.milestoneCue) {
+    setMilestoneSeen(steps.milestoneCue);
+    if (!reduced) setCheerAsked(true);
+  }
+  if (cheerAsked && strideFree && !replay && !striding && !goalPaw) {
+    setCheerAsked(false);
+    setCheer(true);
+  }
+  if (cheer && !strideFree) setCheer(false);
+  useEffect(() => {
+    if (!cheer) return;
+    const t = setTimeout(() => setCheer(false), STRIDE.milestone);
+    return () => clearTimeout(t);
+  }, [cheer]);
+
   const onSettled = (s: MiloState) => {
     if (s === 'waking') setMilo(moodRef.current);
     if (s === 'arriving') setTravel('none');
@@ -329,7 +405,9 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
   }));
   const stageW = ROOM.w * k;
   const stageStyle = { position: 'absolute' as const, left: (width - stageW) / 2, top: 0, width: stageW, height: ROOM.h * k };
-  const shown: MiloState = miloOverride ?? (travel !== 'none' ? travel : playing ? `cameo-${playing}` : goalPaw ? 'reacting' : milo);
+  const shown: MiloState =
+    miloOverride ??
+    (travel !== 'none' ? travel : playing ? `cameo-${playing}` : cheer ? 'celebrating' : goalPaw ? 'reacting' : striding ? 'striding' : milo);
 
   return (
     <>
@@ -356,11 +434,13 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
           state={shown}
           cue={miloCue}
           onSettled={onSettled}
-          // Tapping Milo mid-cameo stops it (and the ones waiting); he goes back to what he was doing.
-          onPress={playing ? stopCameos : undefined}
+          // Tapping Milo mid-cameo stops it (and the ones waiting), or skips the replay; he goes back to what he was doing.
+          onPress={playing ? stopCameos : replay ? () => setReplay(null) : undefined}
           keepCouch
           towel={towel}
           water={water}
+          gait={steps && shown === 'striding' ? gaitAsked : undefined}
+          energy={steps ? steps.energy / 100 : undefined}
           size={MILO.size * k}
           style={{ position: 'absolute', left: (MILO.centerX - MILO.size / 2) * k, top: (ROOM.floorY - MILO.groundInStage) * k }}
         />
@@ -372,8 +452,15 @@ export const LivingScene = memo(function LivingScene({ activeMinutes, goalMinute
         <Dust k={k} live={live} reduced={reduced} stage={stage} palette={palette} />
       </View>
     </Animated.View>
-    {water && drinks.ml > 0 && (
-      <WaterReadout ml={drinks.ml} goal={waterGoalMl} k={k} away={trip} fade={fade} lift={ROOM_LIFT} onPress={travel === 'none' ? onWaterPress : undefined} />
+    {((water && drinks.ml > 0) || (steps && steps.count > 0)) && (
+      <RoomReadouts
+        water={water && drinks.ml > 0 ? { ml: drinks.ml, goal: waterGoalMl, onPress: travel === 'none' ? onWaterPress : undefined } : undefined}
+        steps={steps && steps.count > 0 ? { count: steps.count, badge: steps.badge, onPress: travel === 'none' ? steps.onPress : undefined } : undefined}
+        k={k}
+        away={trip}
+        fade={fade}
+        lift={ROOM_LIFT}
+      />
     )}
     </>
   );
